@@ -1777,6 +1777,7 @@ class NumericIdMapper(object):
         index = object,
         _index_min = cython.ulonglong,
         _index_max = cython.ulonglong,
+        dtypemax = cython.ulonglong,
     )
 
     @property
@@ -1807,6 +1808,12 @@ class NumericIdMapper(object):
             self._index_max = self.index[-1,0]
         else:
             self._index_min = self._index_max = 0
+
+        dtype = self.dtype
+        try:
+            self.dtypemax = ~dtype(0)
+        except:
+            self.dtypemax = ~0
 
     def __getitem__(self, key):
         rv = self.get(key)
@@ -1953,18 +1960,17 @@ class NumericIdMapper(object):
         stride0 = cython.size_t, stride1 = cython.size_t, blen = cython.size_t, pbkey = 'const char *',
         indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
     def get(self, key, default = None):
-        if not isinstance(key, basestring):
+        if not isinstance(key, (int, long)):
             return default
-        bkey = self._encode(key)
-        hkey = self._xxh(bkey).intdigest()
+        if key < 0 or key > self.dtypemax:
+            return default
+        hkey = key
         startpos = self._search_hkey(hkey)
         nitems = self.index_elements
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
             if cython.compiled:
-                pbkey = bkey
-                blen = len(bkey)
                 #lint:disable
                 buf = self._likebuf
                 PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
@@ -2048,7 +2054,6 @@ class NumericIdMapper(object):
             for k,i in islice(initializer, 1000):
                 # Add the index item
                 n += 1
-                klen = len(k)
                 part.append((k,i))
             if part:
                 parts.append(array(part, dtype))
@@ -2108,7 +2113,7 @@ def safe_utf8(x):
 
 @cython.cclass
 class StringIdMapper(object):
-    encode = safe_utf8
+    encode = staticmethod(safe_utf8)
     dtype = npuint64
     xxh = xxhash.xxh64
 
