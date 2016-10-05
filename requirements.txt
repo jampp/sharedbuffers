@@ -1,4 +1,4 @@
 lz4
 xxhash
 numpy
-
+Cython>=0.22
