@@ -18,7 +18,7 @@ Supported primivite types:
     * tuple / list
 
 Primitive types are cloned into their actual builtin objects when accessed. Although fast, it does imply that contianers
-lists will take up a lot of process-local memory when accessed. Support for collection proxies that take the place of
+will take up a lot of process-local memory when accessed. Support for collection proxies that take the place of
 builtin containers is planned for a future release.
 
 Objects can be registered with schema serializers and thus composite types can be mapped as well. For this to function
@@ -120,9 +120,9 @@ put the whole collection in memory at once), and then mapped from the resulting 
         arr = StructIdMapping.build({1:SomeStruct(), 3:SomeStruct()}.iteritems(), destfile=destfile)
         print arr[3]
 
-When using nested heirarchies, it's possible to unify references to the same object by specifying an idmap dict.
+When using nested hierarchies, it's possible to unify references to the same object by specifying an idmap dict.
 However, since the idmap will map objects by their `id()`, objects must be kept alive by holding references to
-them while they're still referenced in the idmap, so its usage is nontrivial. An example technique:
+them while they're still referenced in the idmap, so its usage is non-trivial. An example technique:
 
 .. code:: python
 
