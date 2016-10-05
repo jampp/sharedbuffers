@@ -41,6 +41,8 @@ VERSION = "0.1"
 import os.path
 with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as readme_file:
     readme = readme_file.read()
+with open(os.path.join(os.path.dirname(__file__), 'requirements.txt')) as requirements_file:
+    requirements = list(filter(bool, [ r.strip() for r in requirements_file ]))
 
 extra = {}
 
@@ -62,6 +64,8 @@ setup(
   description = "Shared-memory buffers",
   author = "Jampp",
   author_email = "klauss@jampp.com",
+  maintainer = "Claudio Freire",
+  maintainer_email = "klauss@jampp.com",
   url = "https://bitbucket.org/jampp/sharedbuffers/",
   #license = "?",
   long_description = readme,
@@ -70,9 +74,25 @@ setup(
   
   tests_require = 'nose',
   test_suite = 'tests',
+  license = 'BSD 3-Clause',
 
   cmdclass = cmd_class,
-  
+
+  requires = requirements,
+
+  classifiers=[
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+  ],
+
+  data_files = [
+      ("", ["LICENSE"])
+  ],
+
   zip_safe = False,
   **extra
 )
