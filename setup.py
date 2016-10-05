@@ -1,0 +1,79 @@
+# -*- coding: utf-8 -*-
+import sys
+
+try:
+    from setuptools import setup, Extension
+except ImportError:
+    from distutils.core import setup, Extension  # lint:ok
+
+try:
+    from Cython.Build import cythonize
+except ImportError:
+    cythonize = None
+
+cmd_class = {}
+
+try:
+    import setuptools.command.test
+    class test_with_path(setuptools.command.test.test):
+        def run(self, *p, **kw):
+            setuptools.command.test.test.run(self, *p, **kw)
+    cmd_class['test'] = test_with_path
+except ImportError:
+    test_with_path = None
+
+if '--xml' in sys.argv:
+    import unittest.runner
+    import xmlrunner
+    class XMLTestRunner(xmlrunner.XMLTestRunner):
+        def __init__(self, *p, **kw):
+            kw.setdefault('output', 'test-reports')
+            xmlrunner.XMLTestRunner.__init__(self, *p, **kw)
+    unittest.runner.TextTestRunner = xmlrunner.XMLTestRunner
+    del sys.argv[sys.argv.index('--xml')]
+
+if '--no-cython' in sys.argv:
+    cythonize = None
+    del sys.argv[sys.argv.index('--no-cython')]
+
+VERSION = "0.1"
+
+import os.path
+with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as readme_file:
+    readme = readme_file.read()
+
+extra = {}
+
+packages = [
+      "sharedbuffers",
+]
+
+if cythonize is not None:
+    include_dirs = os.environ.get('CYTHON_INCLUDE_DIRS','.').split(':')
+    extension_modules = [
+        Extension('sharedbuffers.mapped_struct', ['sharedbuffers/mapped_struct.py'],
+            depends = ['sharedbuffers/mapped_struct.pxd']),
+    ]
+    extra['ext_modules'] = ext_modules = cythonize(extension_modules, include_path = include_dirs)
+
+setup(
+  name = "sharedbuffers",
+  version = VERSION,
+  description = "Shared-memory buffers",
+  author = "Jampp",
+  author_email = "klauss@jampp.com",
+  url = "https://bitbucket.org/jampp/sharedbuffers/",
+  #license = "?",
+  long_description = readme,
+  packages = packages,
+  package_dir = {'sharedbuffers':'sharedbuffers'},
+  
+  tests_require = 'nose',
+  test_suite = 'tests',
+
+  cmdclass = cmd_class,
+  
+  zip_safe = False,
+  **extra
+)
+
