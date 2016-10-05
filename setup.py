@@ -66,7 +66,7 @@ setup(
   author_email = "klauss@jampp.com",
   maintainer = "Claudio Freire",
   maintainer_email = "klauss@jampp.com",
-  url = "https://bitbucket.org/jampp/sharedbuffers/",
+  url = "https://github.com/jampp/sharedbuffers/",
   #license = "?",
   long_description = readme,
   packages = packages,
