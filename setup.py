@@ -61,7 +61,7 @@ if cythonize is not None:
 setup(
   name = "sharedbuffers",
   version = VERSION,
-  description = "Shared-memory buffers",
+  description = "Shared-memory structured buffers",
   author = "Jampp",
   author_email = "klauss@jampp.com",
   maintainer = "Claudio Freire",
