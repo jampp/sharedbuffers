@@ -8,8 +8,8 @@ All notable changes to this project will be documented here.
 0.1.1 - Unreleased
 ==================
 
-Changed
--------
+Bugfixes
+--------
 
 - Fix requirements to include chorde_
 
