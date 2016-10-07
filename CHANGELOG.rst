@@ -7,7 +7,7 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
-0.1.1 - Unreleased
+0.2.0 - Unreleased
 ==================
 
 Bugfixes
@@ -24,7 +24,7 @@ Added
 0.1.0
 =====
 
-*Note*: this release has dependency issues, use 0.1.1_ instead
+*Note*: this release has dependency issues, use 0.2.0_ instead
 
 Added
 -----
