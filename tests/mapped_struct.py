@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 import unittest
 import itertools
+import operator
 import tempfile
 import os
 
@@ -369,6 +370,13 @@ class MappedMappingTest(unittest.TestCase):
         self.assertEqual(reference.t, proxy.t)
         self.assertEqual(reference.l, proxy.l)
 
+    def checkStructEquals(self, reference, proxy):
+        return (
+            (reference.fset == proxy.fset)
+            and (reference.t == proxy.t)
+            and (reference.l == proxy.l)
+        )
+
     def assertMappingOk(self, mapping, test_values = None):
         if test_values is None:
             test_values = self.test_values
@@ -404,7 +412,7 @@ class MappedMappingTest(unittest.TestCase):
         self.MappedMappingClass.build({})
 
     def testBuildFromTuples(self):
-        self.MappedMappingClass.build(self.test_values.iteritems())
+        self.MappedMappingClass.build(self.test_values)
 
     def testFileMapping(self):
         with tempfile.NamedTemporaryFile() as destfile:
@@ -431,8 +439,66 @@ class MappedMappingTest(unittest.TestCase):
             mapped = self.MappedMappingClass.map_file(destfile)
             self.assertMappingOk(mapped, test_values = {})
 
+class MappedMultiMappingTest(MappedMappingTest):
+    # Reuse test values from MappedArrayTest to simplify test code
+    TEST_VALUES = MappedMappingTest.TEST_VALUES * 2
+    TEST_KEYS = MappedMappingTest.TEST_KEYS * 2
+    IdMapperClass = mapped_struct.NumericIdMultiMapper
+
+    def setUp(self):
+        self.schema = mapped_struct.Schema.from_typed_slots(self.Struct)
+        class MappedArrayClass(mapped_struct.MappedArrayProxyBase):
+            schema = self.schema
+        class MappedMappingClass(mapped_struct.MappedMultiMappingProxyBase):
+            ValueArray = MappedArrayClass
+            IdMapper = self.IdMapperClass
+        self.MappedMappingClass = MappedMappingClass
+        self.test_values = [
+            (k, self.Struct(**kw))
+            for k,kw in zip(self.TEST_KEYS, self.TEST_VALUES)
+        ]
+
+    def assertMultivalueContains(self, reference, vals, k):
+        for val in vals:
+            if self.checkStructEquals(reference, val):
+                break
+        else:
+            self.fail("Cannot find struct in multimap for key %r: expected %r in %r",
+                k,
+                dict(fset=reference.fset, t=reference.t, l=reference.l),
+                [ dict(fset=v.fset, t=v.t, l=v.l) for v in vals ] )
+
+    def assertMappingOk(self, mapping, test_values = None):
+        if test_values is None:
+            test_values = self.test_values
+
+        # test basic attributes
+        self.assertEqual(len(test_values), len(mapping))
+
+        # test key iteration and enumeration
+        test_keys = map(operator.itemgetter(0), test_values)
+        self.assertEqual(set(test_keys), set(mapping.keys()))
+        self.assertEqual(set(test_keys), set(mapping.iterkeys()))
+
+        # test lookup
+        for k,reference in test_values:
+            self.assertMultivalueContains(reference, mapping[k], k)
+        for k,reference in test_values:
+            self.assertMultivalueContains(reference, mapping[k], k)
+
+        # test item iteration and enumeration
+        for k,proxy in mapping.iteritems():
+            reference = [ val for rk,val in self.test_values if rk == k ]
+            self.assertMultivalueContains(proxy, reference, k)
+        for k,proxy in mapping.items():
+            reference = [ val for rk,val in self.test_values if rk == k ]
+            self.assertMultivalueContains(proxy, reference, k)
+
 class MappedMappingInt32Test(MappedMappingTest):
     IdMapperClass = mapped_struct.NumericId32Mapper
+
+class MappedMultiMappingInt32Test(MappedMultiMappingTest):
+    IdMapperClass = mapped_struct.NumericId32MultiMapper
 
 class MappedStringMappingTest(MappedMappingTest):
     IdMapperClass = mapped_struct.StringIdMapper
@@ -443,12 +509,20 @@ class MappedStringMappingTest(MappedMappingTest):
         'l' : [[1],[2,3],(3,4)],
     }]
 
+class MappedStringMultiMappingTest(MappedMultiMappingTest):
+    IdMapperClass = mapped_struct.StringIdMultiMapper
+    TEST_KEYS = MappedStringMappingTest.TEST_KEYS * 2
+    TEST_VALUES = MappedStringMappingTest.TEST_VALUES * 2
+
 class MappedStringMappingRepeatedValuesTest(MappedStringMappingTest):
     TEST_KEYS = MappedStringMappingTest.TEST_KEYS + map('X2_'.__add__, MappedStringMappingTest.TEST_KEYS)
     TEST_VALUES = MappedStringMappingTest.TEST_VALUES * 2
 
 class MappedString32MappingTest(MappedStringMappingTest):
     IdMapperClass = mapped_struct.StringId32Mapper
+
+class MappedString32MultiMappingTest(MappedStringMultiMappingTest):
+    IdMapperClass = mapped_struct.StringId32MultiMapper
 
 class MappedStringMappingUnicodeTest(MappedStringMappingTest):
     TEST_KEYS = [ "%s€ ···YEAH···" % (k,) for k in MappedStringMappingTest.TEST_KEYS ]

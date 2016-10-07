@@ -14,6 +14,7 @@ Bugfixes
 --------
 
 - Fix requirements to include chorde_
+- Add multimaps
 
 0.1.0
 =====

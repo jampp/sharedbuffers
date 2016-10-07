@@ -148,3 +148,7 @@ The above code syncs the lifetime of objects and their idmap entries to avoid ma
 isn't maintained (objects referenced in the idmap are alive and holding a unique `id()` value), the result will be
 silent corruption of the resulting mapping due to object identity mixups.
 
+There are variants of the mapping proxy classes and their associated id mapper classes that implement multi-maps.
+That is, mappings that, when fed with multiple values for a key, will return a list of values for that key rather
+than a single key. Their in-memory representation is identical, but their querying API returns all matching values
+rather than the first one, so multi-maps and simple mappings are binary compatible.
