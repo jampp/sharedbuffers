@@ -10,7 +10,7 @@ All notable changes to this project will be documented here.
 Changed
 -------
 
-- Fix requirements to include chorde
+- Fix requirements to include chorde_
 
 0.1.0
 =====
@@ -21,4 +21,6 @@ Added
 -----
 
 - Initial release
+
+.. _chorde: https://bitbucket.org/claudiofreire/chorde
 
