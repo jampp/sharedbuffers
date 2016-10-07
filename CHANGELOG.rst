@@ -14,7 +14,12 @@ Bugfixes
 --------
 
 - Fix requirements to include chorde_
-- Add multimaps
+
+Added
+-----
+
+- Add multimaps, binary compatible with simple mappings, 
+  but return all matching values for a key rather than a single one
 
 0.1.0
 =====
