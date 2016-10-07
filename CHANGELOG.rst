@@ -15,10 +15,10 @@ Changed
 0.1.0
 =====
 
+*Note*: this release has dependency issues, use 0.1.1_ instead
+
 Added
 -----
-
-*Note*: this release has dependency issues, use 0.1.1_ instead
 
 - Initial release
 
