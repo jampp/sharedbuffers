@@ -36,7 +36,7 @@ if '--no-cython' in sys.argv:
     cythonize = None
     del sys.argv[sys.argv.index('--no-cython')]
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 import re
 import os.path

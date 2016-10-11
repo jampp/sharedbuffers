@@ -7,6 +7,11 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.2.1 - Unreleased
+==================
+
+Next maintainance version
+
 0.2.0 - 2016-10-11
 ==================
 
