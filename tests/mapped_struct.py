@@ -524,6 +524,48 @@ class MappedString32MappingTest(MappedStringMappingTest):
 class MappedString32MultiMappingTest(MappedStringMultiMappingTest):
     IdMapperClass = mapped_struct.StringId32MultiMapper
 
+class MappedApproxStringMultiMappingTest(MappedStringMultiMappingTest):
+    IdMapperClass = mapped_struct.ApproxStringIdMultiMapper
+
+    def testBuildWithDedup(self):
+        mapped = self.MappedMappingClass.build(self.test_values, idmap = {}, id_mapper_kwargs = dict(
+                discard_duplicates = True
+            ))
+        self.assertMappingOk(mapped)
+
+    def testBuildWithKeyDedup(self):
+        mapped = self.MappedMappingClass.build(self.test_values, idmap = {}, id_mapper_kwargs = dict(
+                discard_duplicate_keys = True
+            ))
+        # Assert works because values of duplicate keys are similar, if they weren't, the test needs to be adapted
+        self.assertMappingOk(mapped)
+
+    def assertMappingOk(self, mapping, test_values = None):
+        if test_values is None:
+            test_values = self.test_values
+
+        # test basic attributes
+        self.assertEqual(len(test_values), len(mapping))
+
+        # test lookup
+        for k,reference in test_values:
+            self.assertMultivalueContains(reference, mapping[k], k)
+        for k,reference in test_values:
+            self.assertMultivalueContains(reference, mapping[k], k)
+
+        # test item iteration and enumeration
+        xxh = mapping.id_mapper.xxh
+        encode = mapping.id_mapper.encode
+        for k,proxy in mapping.iteritems():
+            reference = [ val for rk,val in self.test_values if xxh(encode(rk)).intdigest() == k ]
+            self.assertMultivalueContains(proxy, reference, k)
+        for k,proxy in mapping.items():
+            reference = [ val for rk,val in self.test_values if xxh(encode(rk)).intdigest() == k ]
+            self.assertMultivalueContains(proxy, reference, k)
+
+class MappedApproxString32MultiMappingTest(MappedApproxStringMultiMappingTest):
+    IdMapperClass = mapped_struct.ApproxStringId32MultiMapper
+
 class MappedStringMappingUnicodeTest(MappedStringMappingTest):
     TEST_KEYS = [ "%s€ ···YEAH···" % (k,) for k in MappedStringMappingTest.TEST_KEYS ]
 

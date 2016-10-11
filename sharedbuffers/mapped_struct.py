@@ -2020,8 +2020,10 @@ class NumericIdMapper(object):
 
     @classmethod
     @cython.locals(
-        basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong)
-    def build(cls, initializer, destfile = None, tempdir = None):
+        basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong,
+        discard_duplicates = cython.bint, discard_duplicate_keys = cython.bint)
+    def build(cls, initializer, destfile = None, tempdir = None, 
+            discard_duplicates = False, discard_duplicate_keys = False):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
 
@@ -2043,6 +2045,7 @@ class NumericIdMapper(object):
         parts = []
         islice = itertools.islice
         array = numpy.array
+        unique = numpy.unique
         curpos = basepos + cls._Header.size
         bytes_pack_into = mapped_bytes.pack_into
         valbuf = bytearray(65536)
@@ -2056,15 +2059,32 @@ class NumericIdMapper(object):
                 n += 1
                 part.append((k,i))
             if part:
-                parts.append(array(part, dtype))
+                apart = array(part, dtype)
+                if discard_duplicate_keys:
+                    apart = apart[unique(apart[:,0], return_index=True)[1]]
+                elif discard_duplicates:
+                    apart = apart[unique(apart.view(numpy.dtype([
+                            ('key', dtype),
+                            ('value', dtype),
+                        ])), return_index=True)[1]]
+                parts.append(apart)
             else:
                 break
         if parts:
-            index = numpy.concatenate(numpy.array(parts))
+            index = numpy.concatenate(array(parts))
+            if discard_duplicate_keys:
+                index = index[unique(index[:,0], return_index=True)[1]]
+            elif discard_duplicates:
+                index = index[unique(index.view(numpy.dtype([
+                        ('key', dtype),
+                        ('value', dtype),
+                    ])), return_index=True)[1]]
+            else:
+                shuffle = numpy.argsort(index[:,0])
+                index = index[shuffle]
+                del shuffle
         else:
             index = numpy.empty(shape=(0,2), dtype=dtype)
-        shuffle = numpy.argsort(index[:,0])
-        index = index[shuffle]
         del parts, part
 
         indexpos = curpos
@@ -2715,6 +2735,40 @@ class StringId32MultiMapper(StringIdMultiMapper):
     dtype = npuint32
     xxh = xxhash.xxh32
 
+@cython.cclass
+class ApproxStringIdMultiMapper(NumericIdMultiMapper):
+    encode = staticmethod(safe_utf8)
+    xxh = xxhash.xxh64
+
+    cython.declare(
+        _encode = object,
+        _xxh = object,
+    )
+
+    def __init__(self, buf, offset = 0):
+        # Accelerate class attributes
+        self._encode = self.encode
+        self._xxh = self.xxh
+        NumericIdMultiMapper.__init__(self, buf, offset)
+
+    @cython.ccall
+    def get(self, key, default = None):
+        return super(ApproxStringIdMultiMapper, self).get(self._xxh(self._encode(key)).intdigest(), default)
+
+    @classmethod
+    def build(cls, initializer, *p, **kw):
+        xxh = cls.xxh
+        encode = cls.encode
+        def wrapped_initializer():
+            for key, value in initializer:
+                yield xxh(encode(key)).intdigest(), value
+        return super(ApproxStringIdMultiMapper, cls).build(wrapped_initializer(), *p, **kw)
+
+@cython.cclass
+class ApproxStringId32MultiMapper(ApproxStringIdMultiMapper):
+    xxh = xxhash.xxh32
+    dtype = npuint32
+
 @cython.locals(i = int)
 def _iter_values_dump_keys(items, keys_file, value_cache_size = 1024):
     if isinstance(items, dict):
@@ -2794,7 +2848,9 @@ class MappedMappingProxyBase(object):
         return len(self.value_array)
 
     @classmethod
-    def build(cls, initializer, destfile = None, tempdir = None, idmap = None):
+    def build(cls, initializer, destfile = None, tempdir = None, idmap = None,
+            value_array_kwargs = {},
+            id_mapper_kwargs = {}):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
 
@@ -2807,11 +2863,11 @@ class MappedMappingProxyBase(object):
 
                 value_array = cls.ValueArray.build(
                     _iter_values_dump_keys(initializer, keys_file), values_file,
-                    tempdir = tempdir, idmap = idmap)
+                    tempdir = tempdir, idmap = idmap, **value_array_kwargs)
 
                 id_mapper = cls.IdMapper.build(
                     _iter_key_dump(keys_file), destfile, 
-                    tempdir = tempdir)
+                    tempdir = tempdir, **id_mapper_kwargs)
 
             # pad to multiple of 32 for better cache alignment
             pos = destfile.tell()

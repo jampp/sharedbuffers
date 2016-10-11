@@ -152,3 +152,7 @@ There are variants of the mapping proxy classes and their associated id mapper c
 That is, mappings that, when fed with multiple values for a key, will return a list of values for that key rather
 than a single key. Their in-memory representation is identical, but their querying API returns all matching values
 rather than the first one, so multi-maps and simple mappings are binary compatible.
+
+Multi-maps with string keys can also be approximate, meaning the original keys will be discarded and the mapping will
+only work with hashes, making the map much faster and more compact, at the expense of some inaccuracy where the
+returned values could have extra values corresponding to other keys whose hash collide with the one being requested.
