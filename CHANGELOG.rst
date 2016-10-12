@@ -10,7 +10,10 @@ The format is largely inspired by keepachangelog_.
 0.2.1 - Unreleased
 ==================
 
-Next maintainance version
+Bugfixes
+--------
+
+- Make requirements install requirements
 
 0.2.0 - 2016-10-11
 ==================

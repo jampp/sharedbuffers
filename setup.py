@@ -38,13 +38,11 @@ if '--no-cython' in sys.argv:
 
 VERSION = "0.2.1"
 
-import re
 import os.path
-requires_re = re.compile(r'^([^<>=]*)((?:[<>=]{1,}[0-9.]*){1,})$')
 with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as readme_file:
     readme = readme_file.read()
 with open(os.path.join(os.path.dirname(__file__), 'requirements.txt')) as requirements_file:
-    requirements = list(filter(bool, [ requires_re.sub(r'\1 (\2)', r.strip()) for r in requirements_file ]))
+    requirements = list(filter(bool, [ r.strip() for r in requirements_file ]))
 
 extra = {}
 
@@ -80,7 +78,7 @@ setup(
 
   cmdclass = cmd_class,
 
-  requires = requirements,
+  install_requires = requirements,
 
   classifiers=[
     "Development Status :: 4 - Beta",
