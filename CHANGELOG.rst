@@ -14,6 +14,8 @@ Bugfixes
 --------
 
 - Make requirements install requirements
+- Add __version__
+- Fix pure-python compatibility
 
 0.2.0 - 2016-10-11
 ==================
