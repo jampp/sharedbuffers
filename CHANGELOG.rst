@@ -16,6 +16,7 @@ Bugfixes
 - Make requirements install requirements
 - Add __version__
 - Fix pure-python compatibility
+- Implement more of the mapping interface on id mappers
 
 0.2.0 - 2016-10-11
 ==================

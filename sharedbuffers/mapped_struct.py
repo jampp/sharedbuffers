@@ -1822,6 +1822,9 @@ class NumericIdMapper(object):
         else:
             return rv
 
+    def __len__(self):
+        return self.index_elements
+
     def __contains__(self, key):
         return self.get(key) is not None
 
@@ -2183,6 +2186,9 @@ class StringIdMapper(object):
             raise KeyError(key)
         else:
             return rv
+
+    def __len__(self):
+        return self.index_elements
 
     def __contains__(self, key):
         return self.get(key) is not None
