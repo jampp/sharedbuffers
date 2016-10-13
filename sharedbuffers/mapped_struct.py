@@ -23,7 +23,7 @@ npuint32 = cython.declare(object, numpy.uint32)
 
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
-    buffer = cython.declare(object)  # lint:ok
+    buffer = cython.declare(object, buffer)  # lint:ok
     from types import BufferType as buffer
 
 class ubyte(int):
@@ -1495,7 +1495,7 @@ class Schema(object):
 
 
 class mapped_object_with_schema(object):
-    schema = cython.declare(Schema)
+    schema = cython.declare(Schema, None)
     
     def __init__(self, schema):
         self.schema = schema
