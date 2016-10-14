@@ -463,10 +463,10 @@ class MappedMultiMappingTest(MappedMappingTest):
             if self.checkStructEquals(reference, val):
                 break
         else:
-            self.fail("Cannot find struct in multimap for key %r: expected %r in %r",
+            self.fail("Cannot find struct in multimap for key %r: expected %r in %r" % (
                 k,
                 dict(fset=reference.fset, t=reference.t, l=reference.l),
-                [ dict(fset=v.fset, t=v.t, l=v.l) for v in vals ] )
+                [ dict(fset=v.fset, t=v.t, l=v.l) for v in vals ]) )
 
     def assertMappingOk(self, mapping, test_values = None):
         if test_values is None:
@@ -482,9 +482,15 @@ class MappedMultiMappingTest(MappedMappingTest):
 
         # test lookup
         for k,reference in test_values:
+            self.assertIn(k, mapping)
             self.assertMultivalueContains(reference, mapping[k], k)
+            self.assertMultivalueContains(reference, mapping.get(k), k)
+            self.assertMultivalueContains(reference, list(mapping.get_iter(k)), k)
         for k,reference in test_values:
+            self.assertIn(k, mapping)
             self.assertMultivalueContains(reference, mapping[k], k)
+            self.assertMultivalueContains(reference, mapping.get(k), k)
+            self.assertMultivalueContains(reference, list(mapping.get_iter(k)), k)
 
         # test item iteration and enumeration
         for k,proxy in mapping.iteritems():
@@ -549,9 +555,15 @@ class MappedApproxStringMultiMappingTest(MappedStringMultiMappingTest):
 
         # test lookup
         for k,reference in test_values:
+            self.assertIn(k, mapping)
             self.assertMultivalueContains(reference, mapping[k], k)
+            self.assertMultivalueContains(reference, mapping.get(k), k)
+            self.assertMultivalueContains(reference, list(mapping.get_iter(k)), k)
         for k,reference in test_values:
+            self.assertIn(k, mapping)
             self.assertMultivalueContains(reference, mapping[k], k)
+            self.assertMultivalueContains(reference, mapping.get(k), k)
+            self.assertMultivalueContains(reference, list(mapping.get_iter(k)), k)
 
         # test item iteration and enumeration
         xxh = mapping.id_mapper.xxh

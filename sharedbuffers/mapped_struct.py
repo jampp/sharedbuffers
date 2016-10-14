@@ -1784,6 +1784,18 @@ class NumericIdMapper(object):
     def buf(self):
         return self._buf
 
+    @property
+    def fileobj(self):
+        return self._file
+
+    @property
+    def fileno(self):
+        return self._file.fileno()
+
+    @property
+    def name(self):
+        return self._file.name
+
     def __init__(self, buf, offset = 0):
         # Accelerate class attributes
         self._dtype = self.dtype
@@ -2158,6 +2170,18 @@ class StringIdMapper(object):
     @property
     def buf(self):
         return self._buf
+
+    @property
+    def fileobj(self):
+        return self._file
+
+    @property
+    def fileno(self):
+        return self._file.fileno()
+
+    @property
+    def name(self):
+        return self._file.name
 
     def __init__(self, buf, offset = 0):
         # Accelerate class attributes
@@ -2572,8 +2596,8 @@ class StringId32Mapper(StringIdMapper):
 class NumericIdMultiMapper(NumericIdMapper):
     @cython.ccall
     @cython.locals(
-        hkey = cython.ulonglong, startpos = int, nitems = int, bkey = bytes,
-        stride0 = cython.size_t, stride1 = cython.size_t, blen = cython.size_t, pbkey = 'const char *',
+        hkey = cython.ulonglong, startpos = int, nitems = int,
+        stride0 = cython.size_t, stride1 = cython.size_t,
         indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
     def get(self, key, default = None):
         if not isinstance(key, (int, long)):
@@ -2643,6 +2667,133 @@ class NumericIdMultiMapper(NumericIdMapper):
                 if rv:
                     return rv
         return default
+
+    @cython.locals(
+        hkey = cython.ulonglong, startpos = int, nitems = int,
+        stride0 = cython.size_t,
+        indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
+    def __contains__(self, key):
+        if not isinstance(key, (int, long)):
+            return False
+        if key < 0 or key > self.dtypemax:
+            return False
+        hkey = key
+        startpos = self._search_hkey(hkey)
+        nitems = self.index_elements
+        if 0 <= startpos < nitems:
+            buf = self._buf
+            dtype = self._dtype
+            if cython.compiled:
+                #lint:disable
+                buf = self._likebuf
+                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+                try:
+                    if dtype is npuint64:
+                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                        try:
+                            if ( indexbuf.strides == cython.NULL 
+                                    or indexbuf.ndim < 2
+                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
+                                raise ValueError("Invalid buffer state")
+                            stride0 = indexbuf.strides[0]
+                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                            if pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
+                                return True
+                        finally:
+                            PyBuffer_Release(cython.address(indexbuf))
+                    elif dtype is npuint32:
+                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                        try:
+                            if ( indexbuf.strides == cython.NULL 
+                                    or indexbuf.ndim < 2
+                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
+                                raise ValueError("Invalid buffer state")
+                            stride0 = indexbuf.strides[0]
+                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                            if pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
+                                return True
+                        finally:
+                            PyBuffer_Release(cython.address(indexbuf))
+                    else:
+                        index = self.index
+                        if startpos < nitems and index[startpos,0] == hkey:
+                            return True
+                finally:
+                    PyBuffer_Release(cython.address(pybuf))
+                #lint:enable
+            else:
+                index = self.index
+                if startpos < nitems and index[startpos,0] == hkey:
+                    return True
+        return False
+
+    @cython.locals(
+        hkey = cython.ulonglong, startpos = int, nitems = int,
+        stride0 = cython.size_t, stride1 = cython.size_t,
+        indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
+    def get_iter(self, key):
+        if not isinstance(key, (int, long)):
+            return
+        if key < 0 or key > self.dtypemax:
+            return
+        hkey = key
+        startpos = self._search_hkey(hkey)
+        nitems = self.index_elements
+        if 0 <= startpos < nitems:
+            buf = self._buf
+            dtype = self._dtype
+            if cython.compiled:
+                #lint:disable
+                buf = self._likebuf
+                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+                try:
+                    if dtype is npuint64:
+                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                        try:
+                            if ( indexbuf.strides == cython.NULL 
+                                    or indexbuf.ndim < 2
+                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
+                                raise ValueError("Invalid buffer state")
+                            stride0 = indexbuf.strides[0]
+                            stride1 = indexbuf.strides[1]
+                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                            while pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
+                                yield cython.cast(cython.p_ulonglong, pindex + stride1)[0]
+                                pindex += stride0
+                        finally:
+                            PyBuffer_Release(cython.address(indexbuf))
+                    elif dtype is npuint32:
+                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                        try:
+                            if ( indexbuf.strides == cython.NULL 
+                                    or indexbuf.ndim < 2
+                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
+                                raise ValueError("Invalid buffer state")
+                            stride0 = indexbuf.strides[0]
+                            stride1 = indexbuf.strides[1]
+                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                            while pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
+                                yield cython.cast(cython.p_uint, pindex + stride1)[0]
+                                pindex += stride0
+                        finally:
+                            PyBuffer_Release(cython.address(indexbuf))
+                    else:
+                        index = self.index
+                        while startpos < nitems and index[startpos,0] == hkey:
+                            yield index[startpos,1]
+                            startpos += 1
+                finally:
+                    PyBuffer_Release(cython.address(pybuf))
+                #lint:enable
+            else:
+                index = self.index
+                while startpos < nitems and index[startpos,0] == hkey:
+                    yield index[startpos,1]
+                    startpos += 1
 
 class NumericId32MultiMapper(NumericIdMultiMapper):
     dtype = npuint32
@@ -2737,6 +2888,167 @@ class StringIdMultiMapper(StringIdMapper):
                     return rv
         return default
 
+    @cython.locals(
+        hkey = cython.ulonglong, startpos = int, nitems = int, bkey = bytes,
+        stride0 = cython.size_t, stride1 = cython.size_t, blen = cython.size_t, pbkey = 'const char *',
+        indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
+    def get_iter(self, key, default = None):
+        if not isinstance(key, basestring):
+            return
+        bkey = self._encode(key)
+        hkey = self._xxh(bkey).intdigest()
+        startpos = self._search_hkey(hkey)
+        nitems = self.index_elements
+        if 0 <= startpos < nitems:
+            buf = self._buf
+            dtype = self._dtype
+            if cython.compiled:
+                pbkey = bkey
+                blen = len(bkey)
+                #lint:disable
+                buf = self._likebuf
+                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+                try:
+                    if dtype is npuint64:
+                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                        try:
+                            if ( indexbuf.strides == cython.NULL 
+                                    or indexbuf.ndim < 2
+                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
+                                raise ValueError("Invalid buffer state")
+                            stride0 = indexbuf.strides[0]
+                            stride1 = indexbuf.strides[1]
+                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                            while pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
+                                if _compare_bytes_from_cbuffer(pbkey, blen,
+                                        cython.cast(cython.p_char, pybuf.buf),
+                                        cython.cast(cython.p_ulonglong, pindex + stride1)[0],
+                                        pybuf.len):
+                                    yield cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
+                                pindex += stride0
+                        finally:
+                            PyBuffer_Release(cython.address(indexbuf))
+                    elif dtype is npuint32:
+                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                        try:
+                            if ( indexbuf.strides == cython.NULL 
+                                    or indexbuf.ndim < 2
+                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
+                                raise ValueError("Invalid buffer state")
+                            stride0 = indexbuf.strides[0]
+                            stride1 = indexbuf.strides[1]
+                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                            while pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
+                                if _compare_bytes_from_cbuffer(pbkey, blen,
+                                        cython.cast(cython.p_char, pybuf.buf),
+                                        cython.cast(cython.p_uint, pindex + stride1)[0],
+                                        pybuf.len):
+                                    yield cython.cast(cython.p_uint, pindex + 2*stride1)[0]
+                                pindex += stride0
+                        finally:
+                            PyBuffer_Release(cython.address(indexbuf))
+                    else:
+                        index = self.index
+                        while startpos < nitems and index[startpos,0] == hkey:
+                            if _compare_bytes_from_cbuffer(pbkey, blen,
+                                    cython.cast(cython.p_char, pybuf.buf),
+                                    self.index[startpos,1],
+                                    pybuf.len) == bkey:
+                                yield index[startpos,2]
+                            startpos += 1
+                finally:
+                    PyBuffer_Release(cython.address(pybuf))
+                #lint:enable
+            else:
+                index = self.index
+                while startpos < nitems and index[startpos,0] == hkey:
+                    if _unpack_bytes_from_pybuffer(buf, index[startpos,1], None) == bkey:
+                        yield index[startpos,2]
+                    startpos += 1
+
+    @cython.locals(
+        hkey = cython.ulonglong, startpos = int, nitems = int, bkey = bytes,
+        stride0 = cython.size_t, stride1 = cython.size_t, blen = cython.size_t, pbkey = 'const char *',
+        indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
+    def __contains__(self, key):
+        if not isinstance(key, basestring):
+            return False
+        bkey = self._encode(key)
+        hkey = self._xxh(bkey).intdigest()
+        startpos = self._search_hkey(hkey)
+        nitems = self.index_elements
+        if 0 <= startpos < nitems:
+            buf = self._buf
+            dtype = self._dtype
+            if cython.compiled:
+                pbkey = bkey
+                blen = len(bkey)
+                #lint:disable
+                buf = self._likebuf
+                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+                try:
+                    if dtype is npuint64:
+                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                        try:
+                            if ( indexbuf.strides == cython.NULL 
+                                    or indexbuf.ndim < 2
+                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
+                                raise ValueError("Invalid buffer state")
+                            stride0 = indexbuf.strides[0]
+                            stride1 = indexbuf.strides[1]
+                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                            while pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
+                                if _compare_bytes_from_cbuffer(pbkey, blen,
+                                        cython.cast(cython.p_char, pybuf.buf),
+                                        cython.cast(cython.p_ulonglong, pindex + stride1)[0],
+                                        pybuf.len):
+                                    return True
+                                pindex += stride0
+                        finally:
+                            PyBuffer_Release(cython.address(indexbuf))
+                    elif dtype is npuint32:
+                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                        try:
+                            if ( indexbuf.strides == cython.NULL 
+                                    or indexbuf.ndim < 2
+                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
+                                raise ValueError("Invalid buffer state")
+                            stride0 = indexbuf.strides[0]
+                            stride1 = indexbuf.strides[1]
+                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                            while pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
+                                if _compare_bytes_from_cbuffer(pbkey, blen,
+                                        cython.cast(cython.p_char, pybuf.buf),
+                                        cython.cast(cython.p_uint, pindex + stride1)[0],
+                                        pybuf.len):
+                                    return True
+                                pindex += stride0
+                        finally:
+                            PyBuffer_Release(cython.address(indexbuf))
+                    else:
+                        index = self.index
+                        while startpos < nitems and index[startpos,0] == hkey:
+                            if _compare_bytes_from_cbuffer(pbkey, blen,
+                                    cython.cast(cython.p_char, pybuf.buf),
+                                    self.index[startpos,1],
+                                    pybuf.len) == bkey:
+                                return True
+                            startpos += 1
+                finally:
+                    PyBuffer_Release(cython.address(pybuf))
+                #lint:enable
+            else:
+                index = self.index
+                while startpos < nitems and index[startpos,0] == hkey:
+                    if _unpack_bytes_from_pybuffer(buf, index[startpos,1], None) == bkey:
+                        return True
+                    startpos += 1
+        return False
+
 class StringId32MultiMapper(StringIdMultiMapper):
     dtype = npuint32
     xxh = xxhash.xxh32
@@ -2759,7 +3071,22 @@ class ApproxStringIdMultiMapper(NumericIdMultiMapper):
 
     @cython.ccall
     def get(self, key, default = None):
-        return super(ApproxStringIdMultiMapper, self).get(self._xxh(self._encode(key)).intdigest(), default)
+        if isinstance(key, (int, long)):
+            return super(ApproxStringIdMultiMapper, self).get(key, default)
+        else:
+            return super(ApproxStringIdMultiMapper, self).get(self._xxh(self._encode(key)).intdigest(), default)
+
+    def __contains__(self, key):
+        if isinstance(key, (int, long)):
+            return super(ApproxStringIdMultiMapper, self).__contains__(key)
+        else:
+            return super(ApproxStringIdMultiMapper, self).__contains__(self._xxh(self._encode(key)).intdigest())
+
+    def get_iter(self, key):
+        if isinstance(key, (int, long)):
+            return super(ApproxStringIdMultiMapper, self).get_iter(key)
+        else:
+            return super(ApproxStringIdMultiMapper, self).get_iter(self._xxh(self._encode(key)).intdigest())
 
     @classmethod
     def build(cls, initializer, *p, **kw):
@@ -2927,3 +3254,7 @@ class MappedMultiMappingProxyBase(MappedMappingProxyBase):
             return default
         else:
             return [ self.value_array[ix] for ix in ixs ]
+
+    def get_iter(self, key):
+        for ix in self.id_mapper.get_iter(key):
+            yield self.value_array[ix]

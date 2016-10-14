@@ -17,6 +17,7 @@ Bugfixes
 - Add __version__
 - Fix pure-python compatibility
 - Implement more of the mapping interface on id mappers
+- Add get_iter and __contains__ on multimappers that avoids materializing big sequences
 
 0.2.0 - 2016-10-11
 ==================
