@@ -6,6 +6,8 @@ import itertools
 import operator
 import tempfile
 import os
+import numpy
+import random
 
 from sharedbuffers import mapped_struct
 
@@ -591,3 +593,25 @@ class MappedStringMappingBigTest(MappedStringMappingTest):
 class MappedString32MappingBigTest(MappedString32MappingTest):
     TEST_KEYS = [ "%d%s" % (i,k) for k in MappedStringMappingTest.TEST_KEYS for i in xrange(64) ]
     TEST_VALUES = [ v for v in MappedStringMappingTest.TEST_VALUES for i in xrange(64) ]
+
+class BsearchTest(unittest.TestCase):
+    SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64 ]
+
+    for dtype in SUPPORTED_DTYPES:
+        def testBsearch(self, dtype=dtype):
+            testarray = range(100)
+            random.shuffle(testarray)
+            a = numpy.array(testarray[:50], dtype)
+            b = numpy.array(testarray[50:], dtype)
+            a = numpy.sort(a)
+            for x in a:
+                ix = mapped_struct.bsearch(a, x)
+                self.assertLess(ix, len(a))
+                self.assertEqual(a[ix], x)
+            for x in b:
+                ix = mapped_struct.bsearch(a, x)
+                self.assertTrue(ix >= len(a) or a[ix] != x)
+        testBsearch.__name__ += dtype.__name__.title()
+        locals()[testBsearch.__name__] = testBsearch
+        del testBsearch
+        del dtype

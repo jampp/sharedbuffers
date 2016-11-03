@@ -7,8 +7,15 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
-0.2.1 - Unreleased
+0.3.0 - Unreleased
 ==================
+
+Added
+-----
+
+- Exported hinted_bsearch and bsearch functions (present when cythonized) that implement
+  both hinted and regular binary search on numpy arrays. Unlike numpy's bsearch, they don't
+  release the GIL, so they're faster for single lookups than numpy's counterparts
 
 0.2.1 - 2016-10-18
 ==================
