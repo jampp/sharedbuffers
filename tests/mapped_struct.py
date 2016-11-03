@@ -608,9 +608,11 @@ class BsearchTest(unittest.TestCase):
                 ix = mapped_struct.bsearch(a, x)
                 self.assertLess(ix, len(a))
                 self.assertEqual(a[ix], x)
+                self.assertTrue(mapped_struct.sorted_contains(a, x))
             for x in b:
                 ix = mapped_struct.bsearch(a, x)
                 self.assertTrue(ix >= len(a) or a[ix] != x)
+                self.assertTrue(not mapped_struct.sorted_contains(a, x))
         testBsearch.__name__ += dtype.__name__.title()
         locals()[testBsearch.__name__] = testBsearch
         del testBsearch

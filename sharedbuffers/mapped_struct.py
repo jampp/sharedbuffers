@@ -1880,6 +1880,7 @@ if cython.compiled:
     @cython.locals(
         lo = cython.size_t, hi = cython.size_t, hint = cython.size_t, stride0 = cython.size_t,
         indexbuf = 'Py_buffer', pindex = cython.p_char)
+    @cython.returns(cython.size_t)
     def hinted_bsearch(a, hkey, hint):
         hi = len(a)
         lo = 0
@@ -1917,10 +1918,30 @@ if cython.compiled:
 
     @cython.ccall
     @cython.locals(lo = cython.size_t, hi = cython.size_t)
+    @cython.returns(cython.size_t)
     def bsearch(a, hkey):
         hi = len(a)
         lo = 0
         return hinted_bsearch(a, hkey, (lo+hi)//2)
+
+    @cython.ccall
+    @cython.locals(lo = cython.size_t, hi = cython.size_t, ix = cython.size_t)
+    @cython.returns(cython.bint)
+    def hinted_sorted_contains(a, hkey, hint):
+        hi = len(a)
+        ix = hinted_bsearch(a, hkey, hint)
+        if ix >= hi:
+            return False
+        else:
+            return a[ix] == hkey
+
+    @cython.ccall
+    @cython.locals(lo = cython.size_t, hi = cython.size_t)
+    @cython.returns(cython.bint)
+    def sorted_contains(a, hkey):
+        hi = len(a)
+        lo = 0
+        return hinted_sorted_contains(a, hkey, (lo+hi)//2)
 
 @cython.cclass
 class NumericIdMapper(object):

@@ -16,6 +16,8 @@ Added
 - Exported hinted_bsearch and bsearch functions (present when cythonized) that implement
   both hinted and regular binary search on numpy arrays. Unlike numpy's bsearch, they don't
   release the GIL, so they're faster for single lookups than numpy's counterparts
+- Added sorted_contains and hinted_sorted_contains as useful helpers to use sorted numpy
+  arrays as compact number sets
 
 0.2.1 - 2016-10-18
 ==================
