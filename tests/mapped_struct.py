@@ -602,10 +602,10 @@ class BsearchTest(unittest.TestCase):
 
     for dtype in SUPPORTED_DTYPES:
         def testBsearch(self, dtype=dtype):
-            testarray = range(100)
+            testarray = range(1,101)
             random.shuffle(testarray)
             a = numpy.array(testarray[:50], dtype)
-            b = numpy.array(testarray[50:], dtype)
+            b = numpy.array([0] + testarray[50:] + range(101,103), dtype)
             a = numpy.sort(a)
             for x in a:
                 ix = mapped_struct.bsearch(a, x)
@@ -615,7 +615,7 @@ class BsearchTest(unittest.TestCase):
             for x in b:
                 ix = mapped_struct.bsearch(a, x)
                 self.assertTrue(ix >= len(a) or a[ix] != x)
-                self.assertTrue(not mapped_struct.sorted_contains(a, x))
+                self.assertFalse(mapped_struct.sorted_contains(a, x))
         testBsearch.__name__ += dtype.__name__.title()
         locals()[testBsearch.__name__] = testBsearch
         del testBsearch
