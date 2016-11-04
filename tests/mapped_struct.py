@@ -595,7 +595,8 @@ class MappedString32MappingBigTest(MappedString32MappingTest):
     TEST_VALUES = [ v for v in MappedStringMappingTest.TEST_VALUES for i in xrange(64) ]
 
 class BsearchTest(unittest.TestCase):
-    SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64 ]
+    SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, 
+        numpy.double, numpy.single, numpy.float64, numpy.float32 ]
 
     for dtype in SUPPORTED_DTYPES:
         def testBsearch(self, dtype=dtype):
