@@ -607,6 +607,9 @@ class BsearchTest(unittest.TestCase):
             a = numpy.array(testarray[:50], dtype)
             b = numpy.array([0] + testarray[50:] + range(101,103), dtype)
             a = numpy.sort(a)
+            self.assertEqual(mapped_struct.bsearch(a, 0), 0)
+            self.assertEqual(mapped_struct.bsearch(a, 101), len(a))
+            self.assertEqual(mapped_struct.bsearch(a, 102), len(a))
             for x in a:
                 ix = mapped_struct.bsearch(a, x)
                 self.assertLess(ix, len(a))
