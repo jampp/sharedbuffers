@@ -598,6 +598,8 @@ class BsearchTest(unittest.TestCase):
     SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, 
         numpy.double, numpy.single, numpy.float64, numpy.float32 ]
 
+    UNSUPPORTED_DTYPES = [ numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
+
     for dtype in SUPPORTED_DTYPES:
         def testBsearch(self, dtype=dtype):
             testarray = range(100)
@@ -617,4 +619,14 @@ class BsearchTest(unittest.TestCase):
         testBsearch.__name__ += dtype.__name__.title()
         locals()[testBsearch.__name__] = testBsearch
         del testBsearch
+        del dtype
+
+    for dtype in UNSUPPORTED_DTYPES:
+        def testBsearchUnsupported(self, dtype=dtype):
+            a = numpy.arange(50, dtype=dtype)
+            for x in a:
+                self.assertRaises(NotImplementedError, mapped_struct.bsearch, a, x)
+        testBsearchUnsupported.__name__ += dtype.__name__.title()
+        locals()[testBsearchUnsupported.__name__] = testBsearchUnsupported
+        del testBsearchUnsupported
         del dtype
