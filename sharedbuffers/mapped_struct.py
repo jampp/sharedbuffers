@@ -2005,7 +2005,9 @@ if cython.compiled:
     def hinted_bsearch(a, hkey, hint):
         hi = len(a)
         lo = 0
-        if hkey < a[0]:
+        if hi <= lo:
+            return lo
+        elif hkey < a[0]:
             return lo
         elif hkey > a[hi-1]:
             return hi

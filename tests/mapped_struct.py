@@ -641,3 +641,9 @@ class BsearchTest(unittest.TestCase):
         self.assertEqual(5, mapped_struct.bsearch(a, 4))
         self.assertEqual(8, mapped_struct.bsearch(a, 6))
 
+    def testBsearchEmpty(self):
+        a = numpy.array([], dtype=numpy.uint32)
+        self.assertEqual(0, mapped_struct.bsearch(a, 1))
+        self.assertEqual(0, mapped_struct.bsearch(a, 2))
+        self.assertEqual(0, mapped_struct.bsearch(a, 4))
+        self.assertEqual(0, mapped_struct.bsearch(a, 6))
