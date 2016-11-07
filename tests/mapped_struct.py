@@ -633,3 +633,11 @@ class BsearchTest(unittest.TestCase):
         locals()[testBsearchUnsupported.__name__] = testBsearchUnsupported
         del testBsearchUnsupported
         del dtype
+
+    def testBsearchDuplicates(self):
+        a = numpy.array([1,1,2,2,3,4,4,5,6,6])
+        self.assertEqual(0, mapped_struct.bsearch(a, 1))
+        self.assertEqual(2, mapped_struct.bsearch(a, 2))
+        self.assertEqual(5, mapped_struct.bsearch(a, 4))
+        self.assertEqual(8, mapped_struct.bsearch(a, 6))
+
