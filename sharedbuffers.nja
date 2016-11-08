@@ -22,7 +22,8 @@
     ".json", 
     ".js", 
     ".ini", 
-    ".rst"
+    ".rst", 
+    ".pxd"
   ], 
   "project-type": "", 
   "postExecScript": "", 

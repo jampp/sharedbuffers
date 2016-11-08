@@ -6,6 +6,8 @@ import itertools
 import operator
 import tempfile
 import os
+import numpy
+import random
 
 from sharedbuffers import mapped_struct
 
@@ -591,3 +593,57 @@ class MappedStringMappingBigTest(MappedStringMappingTest):
 class MappedString32MappingBigTest(MappedString32MappingTest):
     TEST_KEYS = [ "%d%s" % (i,k) for k in MappedStringMappingTest.TEST_KEYS for i in xrange(64) ]
     TEST_VALUES = [ v for v in MappedStringMappingTest.TEST_VALUES for i in xrange(64) ]
+
+class BsearchTest(unittest.TestCase):
+    SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, 
+        numpy.double, numpy.single, numpy.float64, numpy.float32 ]
+
+    UNSUPPORTED_DTYPES = [ numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
+
+    for dtype in SUPPORTED_DTYPES:
+        def testBsearch(self, dtype=dtype):
+            testarray = range(1,101)
+            random.shuffle(testarray)
+            a = numpy.array(testarray[:50], dtype)
+            b = numpy.array([0] + testarray[50:] + range(101,103), dtype)
+            a = numpy.sort(a)
+            self.assertEqual(mapped_struct.bsearch(a, 0), 0)
+            self.assertEqual(mapped_struct.bsearch(a, 101), len(a))
+            self.assertEqual(mapped_struct.bsearch(a, 102), len(a))
+            for x in a:
+                ix = mapped_struct.bsearch(a, x)
+                self.assertLess(ix, len(a))
+                self.assertEqual(a[ix], x)
+                self.assertTrue(mapped_struct.sorted_contains(a, x))
+            for x in b:
+                ix = mapped_struct.bsearch(a, x)
+                self.assertTrue(ix >= len(a) or a[ix] != x)
+                self.assertFalse(mapped_struct.sorted_contains(a, x))
+        testBsearch.__name__ += dtype.__name__.title()
+        locals()[testBsearch.__name__] = testBsearch
+        del testBsearch
+        del dtype
+
+    for dtype in UNSUPPORTED_DTYPES:
+        def testBsearchUnsupported(self, dtype=dtype):
+            a = numpy.arange(50, dtype=dtype)
+            for x in a:
+                self.assertRaises(NotImplementedError, mapped_struct.bsearch, a, x)
+        testBsearchUnsupported.__name__ += dtype.__name__.title()
+        locals()[testBsearchUnsupported.__name__] = testBsearchUnsupported
+        del testBsearchUnsupported
+        del dtype
+
+    def testBsearchDuplicates(self):
+        a = numpy.array([1,1,2,2,3,4,4,5,6,6])
+        self.assertEqual(0, mapped_struct.bsearch(a, 1))
+        self.assertEqual(2, mapped_struct.bsearch(a, 2))
+        self.assertEqual(5, mapped_struct.bsearch(a, 4))
+        self.assertEqual(8, mapped_struct.bsearch(a, 6))
+
+    def testBsearchEmpty(self):
+        a = numpy.array([], dtype=numpy.uint32)
+        self.assertEqual(0, mapped_struct.bsearch(a, 1))
+        self.assertEqual(0, mapped_struct.bsearch(a, 2))
+        self.assertEqual(0, mapped_struct.bsearch(a, 4))
+        self.assertEqual(0, mapped_struct.bsearch(a, 6))

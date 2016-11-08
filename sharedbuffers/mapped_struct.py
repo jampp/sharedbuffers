@@ -19,7 +19,11 @@ from chorde.clients.inproc import Cache
 import cython
 
 npuint64 = cython.declare(object, numpy.uint64)
+npint64 = cython.declare(object, numpy.int64)
 npuint32 = cython.declare(object, numpy.uint32)
+npint32 = cython.declare(object, numpy.int32)
+npfloat64 = cython.declare(object, numpy.float64)
+npfloat32 = cython.declare(object, numpy.float32)
 
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
@@ -1708,6 +1712,65 @@ if cython.compiled:
 
     @cython.cfunc
     @cython.locals(
+        hkey = cython.longlong,
+        mkey = cython.longlong,
+        lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
+        mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
+        pindex = cython.p_char, skip = cython.size_t)
+    @cython.returns(cython.size_t)
+    def _c_search_hkey_i64(hkey, pindex, stride0, length, hint):
+        hi = length
+        lo = 0
+        if lo < hi:
+            # First iteration a quick guess assuming uniform distribution of keys
+            mid = min(hint, hi-1)
+            mkey = cython.cast(cython.p_longlong, pindex + stride0 * mid)[0]
+            if mkey < hkey:
+                # Got a lo guess, now skip-search forward for a hi
+                lo = mid = mid+1
+                skip = 32
+                while skip > 0 and mid + skip < hi:
+                    if cython.cast(cython.p_longlong, pindex + stride0 * (mid+skip))[0] < hkey:
+                        lo = mid+1
+                        mid += skip
+                        skip *= 2
+                    else:
+                        hi = mid + skip
+                        break
+            elif mkey > hkey:
+                # Got a hi guess, now skip-search backwards for a lo
+                hi = mid
+                skip = 32
+                while skip > 0 and mid > lo + skip:
+                    if cython.cast(cython.p_longlong, pindex + stride0 * (mid-skip))[0] > hkey:
+                        hi = mid
+                        mid -= skip
+                        skip *= 2
+                    else:
+                        lo = mid - skip
+                        break
+            else:
+                # hit, but must find the first
+                # good idea to go sequential because we assume collisions are unlikely
+                while mid > lo and cython.cast(cython.p_longlong, pindex + stride0 * (mid-1))[0] == hkey:
+                    mid -= 1
+                return mid
+        # Final stretch: search the remaining range with a regular binary search
+        while lo < hi:
+            mid = (lo+hi)//2
+            mkey = cython.cast(cython.p_longlong, pindex + stride0 * mid)[0]
+            if mkey < hkey:
+                lo = mid+1
+            elif mkey > hkey:
+                hi = mid
+            else:
+                while mid > lo and cython.cast(cython.p_longlong, pindex + stride0 * (mid-1))[0] == hkey:
+                    mid -= 1
+                return mid
+        return lo
+
+    @cython.cfunc
+    @cython.locals(
         hkey = cython.ulonglong,
         mkey = cython.ulonglong, uikey = cython.uint, uimkey = cython.uint,
         lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
@@ -1759,6 +1822,255 @@ if cython.compiled:
                     mid -= 1
                 return mid
         return lo
+
+    @cython.cfunc
+    @cython.locals(
+        hkey = cython.longlong,
+        mkey = cython.longlong, ikey = cython.int, imkey = cython.int,
+        lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
+        mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
+        pindex = cython.p_char, skip = cython.size_t)
+    @cython.returns(cython.size_t)
+    def _c_search_hkey_i32(hkey, pindex, stride0, length, hint):
+        hi = length
+        lo = 0
+        ikey = hkey
+        if lo < hi:
+            mid = min(hint, hi-1)
+            imkey = cython.cast(cython.p_int, pindex + stride0 * mid)[0]
+            if imkey < ikey:
+                lo = mid = mid+1
+                skip = 32
+                while skip > 0 and mid + skip < hi:
+                    if cython.cast(cython.p_int, pindex + stride0 * (mid+skip))[0] < ikey:
+                        lo = mid+1
+                        mid += skip
+                        skip *= 2
+                    else:
+                        hi = mid + skip
+                        break
+            elif imkey > ikey:
+                hi = mid
+                skip = 32
+                while skip > 0 and mid > lo + skip:
+                    if cython.cast(cython.p_int, pindex + stride0 * (mid-skip))[0] > ikey:
+                        hi = mid
+                        mid -= skip
+                        skip *= 2
+                    else:
+                        lo = mid - skip
+                        break
+            else:
+                while mid > lo and cython.cast(cython.p_int, pindex + stride0 * (mid-1))[0] == ikey:
+                    mid -= 1
+                return mid
+        while lo < hi:
+            mid = (lo+hi)//2
+            imkey = cython.cast(cython.p_int, pindex + stride0 * mid)[0]
+            if imkey < ikey:
+                lo = mid+1
+            elif imkey > ikey:
+                hi = mid
+            else:
+                while mid > lo and cython.cast(cython.p_int, pindex + stride0 * (mid-1))[0] == ikey:
+                    mid -= 1
+                return mid
+        return lo
+
+    @cython.cfunc
+    @cython.locals(
+        hkey = cython.double,
+        mkey = cython.double,
+        lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
+        mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
+        pindex = cython.p_char, skip = cython.size_t)
+    @cython.returns(cython.size_t)
+    def _c_search_hkey_f64(hkey, pindex, stride0, length, hint):
+        hi = length
+        lo = 0
+        if lo < hi:
+            # First iteration a quick guess assuming uniform distribution of keys
+            mid = min(hint, hi-1)
+            mkey = cython.cast(cython.p_double, pindex + stride0 * mid)[0]
+            if mkey < hkey:
+                # Got a lo guess, now skip-search forward for a hi
+                lo = mid = mid+1
+                skip = 32
+                while skip > 0 and mid + skip < hi:
+                    if cython.cast(cython.p_double, pindex + stride0 * (mid+skip))[0] < hkey:
+                        lo = mid+1
+                        mid += skip
+                        skip *= 2
+                    else:
+                        hi = mid + skip
+                        break
+            elif mkey > hkey:
+                # Got a hi guess, now skip-search backwards for a lo
+                hi = mid
+                skip = 32
+                while skip > 0 and mid > lo + skip:
+                    if cython.cast(cython.p_double, pindex + stride0 * (mid-skip))[0] > hkey:
+                        hi = mid
+                        mid -= skip
+                        skip *= 2
+                    else:
+                        lo = mid - skip
+                        break
+            else:
+                # hit, but must find the first
+                # good idea to go sequential because we assume collisions are unlikely
+                while mid > lo and cython.cast(cython.p_double, pindex + stride0 * (mid-1))[0] == hkey:
+                    mid -= 1
+                return mid
+        # Final stretch: search the remaining range with a regular binary search
+        while lo < hi:
+            mid = (lo+hi)//2
+            mkey = cython.cast(cython.p_double, pindex + stride0 * mid)[0]
+            if mkey < hkey:
+                lo = mid+1
+            elif mkey > hkey:
+                hi = mid
+            else:
+                while mid > lo and cython.cast(cython.p_double, pindex + stride0 * (mid-1))[0] == hkey:
+                    mid -= 1
+                return mid
+        return lo
+
+    @cython.cfunc
+    @cython.locals(
+        hkey = cython.float,
+        mkey = cython.float,
+        lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
+        mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
+        pindex = cython.p_char, skip = cython.size_t)
+    @cython.returns(cython.size_t)
+    def _c_search_hkey_f32(hkey, pindex, stride0, length, hint):
+        hi = length
+        lo = 0
+        if lo < hi:
+            # First iteration a quick guess assuming uniform distribution of keys
+            mid = min(hint, hi-1)
+            mkey = cython.cast(cython.p_float, pindex + stride0 * mid)[0]
+            if mkey < hkey:
+                # Got a lo guess, now skip-search forward for a hi
+                lo = mid = mid+1
+                skip = 32
+                while skip > 0 and mid + skip < hi:
+                    if cython.cast(cython.p_float, pindex + stride0 * (mid+skip))[0] < hkey:
+                        lo = mid+1
+                        mid += skip
+                        skip *= 2
+                    else:
+                        hi = mid + skip
+                        break
+            elif mkey > hkey:
+                # Got a hi guess, now skip-search backwards for a lo
+                hi = mid
+                skip = 32
+                while skip > 0 and mid > lo + skip:
+                    if cython.cast(cython.p_float, pindex + stride0 * (mid-skip))[0] > hkey:
+                        hi = mid
+                        mid -= skip
+                        skip *= 2
+                    else:
+                        lo = mid - skip
+                        break
+            else:
+                # hit, but must find the first
+                # good idea to go sequential because we assume collisions are unlikely
+                while mid > lo and cython.cast(cython.p_float, pindex + stride0 * (mid-1))[0] == hkey:
+                    mid -= 1
+                return mid
+        # Final stretch: search the remaining range with a regular binary search
+        while lo < hi:
+            mid = (lo+hi)//2
+            mkey = cython.cast(cython.p_float, pindex + stride0 * mid)[0]
+            if mkey < hkey:
+                lo = mid+1
+            elif mkey > hkey:
+                hi = mid
+            else:
+                while mid > lo and cython.cast(cython.p_float, pindex + stride0 * (mid-1))[0] == hkey:
+                    mid -= 1
+                return mid
+        return lo
+
+if cython.compiled:
+    # Commented cython directives in pxd
+    #@cython.ccall
+    @cython.locals(
+        lo = cython.size_t, hi = cython.size_t, hint = cython.size_t, stride0 = cython.size_t,
+        indexbuf = 'Py_buffer', pindex = cython.p_char)
+    #@cython.returns(cython.size_t)
+    def hinted_bsearch(a, hkey, hint):
+        hi = len(a)
+        lo = 0
+        if hi <= lo:
+            return lo
+        elif hkey < a[0]:
+            return lo
+        elif hkey > a[hi-1]:
+            return hi
+
+        #lint:disable
+        PyObject_GetBuffer(a, cython.address(indexbuf), PyBUF_STRIDED_RO)
+        try:
+            if ( indexbuf.strides == cython.NULL
+                    or indexbuf.len < hi * indexbuf.strides[0] ):
+                raise ValueError("Invalid buffer state")
+            pindex = cython.cast(cython.p_char, indexbuf.buf)
+            stride0 = indexbuf.strides[0]
+            #lint:enable
+            dtype = a.dtype.type
+            if dtype is npuint64:
+                # TO-DO: better hints?
+                return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint)
+            elif dtype is npuint32:
+                # TO-DO: better hints?
+                return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint)
+            elif dtype is npint64:
+                # TO-DO: better hints?
+                return _c_search_hkey_i64(hkey, pindex, stride0, hi, hint)
+            elif dtype is npint32:
+                # TO-DO: better hints?
+                return _c_search_hkey_i32(hkey, pindex, stride0, hi, hint)
+            elif dtype is npfloat64:
+                # TO-DO: better hints?
+                return _c_search_hkey_f64(hkey, pindex, stride0, hi, hint)
+            elif dtype is npfloat32:
+                # TO-DO: better hints?
+                return _c_search_hkey_f32(hkey, pindex, stride0, hi, hint)
+            else:
+                raise NotImplementedError("Unsupported array type %s expected" % (dtype,))
+        finally:
+            PyBuffer_Release(cython.address(indexbuf)) #lint:ok
+
+    #@cython.ccall
+    @cython.locals(lo = cython.size_t, hi = cython.size_t)
+    #@cython.returns(cython.size_t)
+    def bsearch(a, hkey):
+        hi = len(a)
+        lo = 0
+        return hinted_bsearch(a, hkey, (lo+hi)//2)
+
+    #@cython.ccall
+    @cython.locals(lo = cython.size_t, hi = cython.size_t, ix = cython.size_t, hint = cython.size_t)
+    #@cython.returns(cython.bint)
+    def hinted_sorted_contains(a, hkey, hint):
+        hi = len(a)
+        ix = hinted_bsearch(a, hkey, hint)
+        if ix >= hi:
+            return False
+        else:
+            return a[ix] == hkey
+
+    #@cython.ccall
+    @cython.locals(lo = cython.size_t, hi = cython.size_t)
+    #@cython.returns(cython.bint)
+    def sorted_contains(a, hkey):
+        hi = len(a)
+        lo = 0
+        return hinted_sorted_contains(a, hkey, (lo+hi)//2)
 
 @cython.cclass
 class NumericIdMapper(object):
