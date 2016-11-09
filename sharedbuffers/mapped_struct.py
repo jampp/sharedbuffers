@@ -2041,7 +2041,7 @@ if cython.compiled:
                 # TO-DO: better hints?
                 return _c_search_hkey_f32(hkey, pindex, stride0, hi, hint)
             else:
-                raise NotImplementedError("Unsupported array type %s expected" % (dtype,))
+                raise NotImplementedError("Unsupported array type %s" % (chr(dtype),))
         finally:
             PyBuffer_Release(cython.address(indexbuf)) #lint:ok
 
