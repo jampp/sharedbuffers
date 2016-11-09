@@ -2022,13 +2022,13 @@ if cython.compiled:
             stride0 = indexbuf.strides[0]
             #lint:enable
             dtype = cython.cast('char*', a.dtype.char)[0]
-            if dtype == 'L':
+            if dtype == 'L' or dtype == 'Q':
                 # TO-DO: better hints?
                 return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint)
             elif dtype == 'I':
                 # TO-DO: better hints?
                 return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint)
-            elif dtype == 'l':
+            elif dtype == 'l' or dtype == 'q':
                 # TO-DO: better hints?
                 return _c_search_hkey_i64(hkey, pindex, stride0, hi, hint)
             elif dtype == 'i':
