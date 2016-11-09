@@ -7,6 +7,15 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.3.1 - 2016-11-09
+==================
+
+Bugfixes
+--------
+
+- Fix binary search functions to properly test the given array's dtype to avoid
+  spurious NotImplementedError s
+
 0.3.0 - 2016-11-08
 ==================
 

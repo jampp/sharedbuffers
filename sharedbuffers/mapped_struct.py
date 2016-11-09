@@ -2021,23 +2021,23 @@ if cython.compiled:
             pindex = cython.cast(cython.p_char, indexbuf.buf)
             stride0 = indexbuf.strides[0]
             #lint:enable
-            dtype = a.dtype.type
-            if dtype is npuint64:
+            dtype = cython.cast('char*', a.dtype.char)[0]
+            if dtype == 'L':
                 # TO-DO: better hints?
                 return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint)
-            elif dtype is npuint32:
+            elif dtype == 'I':
                 # TO-DO: better hints?
                 return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint)
-            elif dtype is npint64:
+            elif dtype == 'l':
                 # TO-DO: better hints?
                 return _c_search_hkey_i64(hkey, pindex, stride0, hi, hint)
-            elif dtype is npint32:
+            elif dtype == 'i':
                 # TO-DO: better hints?
                 return _c_search_hkey_i32(hkey, pindex, stride0, hi, hint)
-            elif dtype is npfloat64:
+            elif dtype == 'd':
                 # TO-DO: better hints?
                 return _c_search_hkey_f64(hkey, pindex, stride0, hi, hint)
-            elif dtype is npfloat32:
+            elif dtype == 'f':
                 # TO-DO: better hints?
                 return _c_search_hkey_f32(hkey, pindex, stride0, hi, hint)
             else:
