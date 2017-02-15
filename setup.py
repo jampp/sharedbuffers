@@ -3,10 +3,10 @@ import sys
 import os.path
 import pkg_resources
 
-try:
-    from setuptools import setup, Extension
-except ImportError:
-    from distutils.core import setup, Extension  # lint:ok
+# Earlier versions have an issue with Cython.Build and Extension subclassing
+pkg_resources.require("setuptools>=20")
+
+from setuptools import setup, Extension
 
 no_setup_requires_arguments = set([
     '-h', '--help',
