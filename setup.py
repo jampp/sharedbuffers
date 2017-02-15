@@ -74,6 +74,11 @@ setup_requires = ['Cython>=0.22']
 
 if '--no-cython' in sys.argv:
     del sys.argv[sys.argv.index('--no-cython')]
+
+    # As hilarious as it sounds, when built with --no-cython, we DO
+    # need cython at runtime (to provide cython's shadow module), so
+    # remove it from setup_requires to keep it in install_requires
+    setup_requires = []
 elif cythonize is None:
     from distutils.command.build import build
     class MissingCython(build):
