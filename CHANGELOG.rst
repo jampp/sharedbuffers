@@ -7,6 +7,14 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.3.2 - 2017-04-07
+==================
+
+Bugfixes
+--------
+
+- Fix unpacking of frozensets with big (beyond 32-bit) offsets
+
 0.3.1 - 2016-11-09
 ==================
 
