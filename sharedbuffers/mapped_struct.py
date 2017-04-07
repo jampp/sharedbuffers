@@ -102,7 +102,9 @@ class mapped_frozenset(frozenset):
             return tup.pack_into(tup, buf, offs, idmap, implicit_offs)
 
     @classmethod
-    @cython.locals(i=int, j=int, offs=int, pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar)
+    @cython.locals(
+        i=cython.longlong, j=cython.longlong, offs=cython.longlong,
+        pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar)
     def unpack_from(cls, buf, offs, idmap = None):
         if cython.compiled:
             buf = _likebuffer(buf)
