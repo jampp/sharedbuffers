@@ -103,7 +103,7 @@ class mapped_frozenset(frozenset):
 
     @classmethod
     @cython.locals(
-        i=cython.longlong, j=cython.longlong, offs=cython.longlong,
+        i=int, j=int, offs=cython.longlong,
         pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar)
     def unpack_from(cls, buf, offs, idmap = None):
         if cython.compiled:
