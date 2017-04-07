@@ -647,3 +647,12 @@ class BsearchTest(unittest.TestCase):
         self.assertEqual(0, mapped_struct.bsearch(a, 2))
         self.assertEqual(0, mapped_struct.bsearch(a, 4))
         self.assertEqual(0, mapped_struct.bsearch(a, 6))
+
+class FrozensetPackingTest(unittest.TestCase):
+    def testUnpackOffBounds(self):
+        b = buffer("")
+        self.assertRaises(IndexError, mapped_struct.mapped_frozenset.unpack_from, b, 5)
+
+    def testUnpackBeyondEnd(self):
+        b = buffer("m")
+        self.assertRaises(IndexError, mapped_struct.mapped_frozenset.unpack_from, b, 0)

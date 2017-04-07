@@ -110,11 +110,16 @@ class mapped_frozenset(frozenset):
             buf = _likebuffer(buf)
             PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
             pbuf = cython.cast(cython.p_uchar, pybuf.buf)  # lint:ok
+            if offs >= pybuf.len:
+                PyBuffer_Release(cython.address(pybuf))  # lint
+                raise IndexError("Offset out of range")
         else:
             pbuf = buf
         try:
             if pbuf[offs] == 'm':
                 # inline bitmap
+                if cython.compiled and offs+7 >= pybuf.len:
+                    raise IndexError("Object spans beyond buffer end")
                 rv = []
                 for i in xrange(7):
                     b = pbuf[offs+1+i]
