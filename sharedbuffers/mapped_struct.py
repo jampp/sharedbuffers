@@ -1202,9 +1202,9 @@ class Schema(object):
         none_bitmap = 0
         for i,slot in enumerate(self.slot_keys):
             if hasattr(obj, slot):
-                has_bitmap |= 1 << i
+                has_bitmap |= cython.cast(cython.ulonglong, 1) << i
                 if getattr(obj, slot, 0) is None:
-                    none_bitmap |= 1 << i
+                    none_bitmap |= cython.cast(cython.ulonglong, 1) << i
         present_bitmap = has_bitmap & ~none_bitmap
         return has_bitmap, none_bitmap, present_bitmap
 
