@@ -1086,6 +1086,7 @@ class Schema(object):
     cython.declare(
         slot_types = dict,
         pack_buffer_size = int,
+        max_pack_buffer_size = int,
         alignment = int,
         slot_count = int,
         slot_keys = tuple,
@@ -1109,13 +1110,18 @@ class Schema(object):
     def Proxy(self):
         return functools.partial(self._Proxy, "\x00" * self.bitmap_size, 0, 0, None)
     
-    def __init__(self, slot_types, alignment = 8, pack_buffer_size = 65536, packer_cache = None, unpacker_cache = None):
+    def __init__(self, slot_types, alignment = 8, pack_buffer_size = 65536, packer_cache = None, unpacker_cache = None,
+            max_pack_buffer_size = None):
         if packer_cache is None:
             packer_cache = Cache(256)
         if unpacker_cache is None:
             unpacker_cache = Cache(256)
         self.slot_types = self._map_types(slot_types)
         self.pack_buffer_size = pack_buffer_size
+        if max_pack_buffer_size is not None:
+            self.max_pack_buffer_size = max_pack_buffer_size
+        else:
+            self.max_pack_buffer_size = max(128<<20, max(pack_buffer_size, min(pack_buffer_size * 2, 0x7FFFFFFF)))
         self.alignment = alignment
         self.packer_cache = packer_cache
         self.unpacker_cache = unpacker_cache
@@ -1320,6 +1326,8 @@ class Schema(object):
             except (struct.error, IndexError):
                 # Buffer overflow, retry with a bigger buffer
                 # Idmap is probably corrupted beyond hope though :(
+                if len(self._pack_buffer) >= self.max_pack_buffer_size:
+                    raise
                 self._pack_buffer.extend(self._pack_buffer)
                 if idmap is not None:
                     idmap.clear()
