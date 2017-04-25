@@ -14,6 +14,7 @@ Bugfixes
 --------
 
 - Limit pack buffer expansion to avoid memory exhaustion on recurring errors
+- Fix bitmap generation for objects with more than 30 attributes
 
 0.3.2 - 2017-04-07
 ==================
