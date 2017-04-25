@@ -36,7 +36,7 @@ if '--no-cython' in sys.argv:
     cythonize = None
     del sys.argv[sys.argv.index('--no-cython')]
 
-VERSION = "0.3.2"
+VERSION = "0.3.3"
 
 import os.path
 version_path = os.path.join(os.path.dirname(__file__), 'sharedbuffers', '_version.py')
