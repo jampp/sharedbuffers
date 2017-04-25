@@ -7,6 +7,15 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.3.3 - 2017-04-25
+==================
+
+Bugfixes
+--------
+
+- Limit pack buffer expansion to avoid memory exhaustion on recurring errors
+- Fix bitmap generation for objects with more than 30 attributes
+
 0.3.2 - 2017-04-07
 ==================
 
