@@ -22,6 +22,56 @@ class SimpleStruct(object):
         for k,v in kw.iteritems():
             setattr(self, k, v)
 
+def _make_nattrs(n):
+    return dict(
+        ('a%d' % i, int)
+        for i in xrange(n)
+    )
+
+class Attr7Struct(object):
+    __slot_types__ = _make_nattrs(7)
+    __slots__ = __slot_types__.keys()
+
+    def __init__(self):
+        for k in self.__slot_types__:
+            setattr(self, k, 0)
+
+class Attr8Struct(Attr7Struct):
+    __slot_types__ = _make_nattrs(8)
+    __slots__ = __slot_types__.keys()
+
+class Attr9Struct(Attr7Struct):
+    __slot_types__ = _make_nattrs(9)
+    __slots__ = __slot_types__.keys()
+
+class Attr15Struct(Attr7Struct):
+    __slot_types__ = _make_nattrs(15)
+    __slots__ = __slot_types__.keys()
+
+class Attr16Struct(Attr7Struct):
+    __slot_types__ = _make_nattrs(16)
+    __slots__ = __slot_types__.keys()
+
+class Attr17Struct(Attr7Struct):
+    __slot_types__ = _make_nattrs(17)
+    __slots__ = __slot_types__.keys()
+
+class Attr31Struct(Attr7Struct):
+    __slot_types__ = _make_nattrs(31)
+    __slots__ = __slot_types__.keys()
+
+class Attr32Struct(Attr7Struct):
+    __slot_types__ = _make_nattrs(32)
+    __slots__ = __slot_types__.keys()
+
+class Attr33Struct(Attr7Struct):
+    __slot_types__ = _make_nattrs(33)
+    __slots__ = __slot_types__.keys()
+
+class Attr63Struct(Attr7Struct):
+    __slot_types__ = _make_nattrs(63)
+    __slots__ = __slot_types__.keys()
+
 class SizedNumericStruct(object):
     __slot_types__ = {
         'a' : mapped_struct.int32,
@@ -67,6 +117,35 @@ class ObjectStruct(object):
     def __init__(self, **kw):
         for k,v in kw.iteritems():
             setattr(self, k, v)
+
+class AttributeBitmapTest(unittest.TestCase):
+    def _testStruct(self, Struct):
+        schema = mapped_struct.Schema.from_typed_slots(Struct)
+        x = Struct()
+        dx = schema.unpack(schema.pack(x))
+        for k in Struct.__slots__:
+            self.assertEquals(getattr(dx, k, None), getattr(x, k, None))
+
+    def testAttr7(self):
+        self._testStruct(Attr7Struct)
+    def testAttr8(self):
+        self._testStruct(Attr8Struct)
+    def testAttr9(self):
+        self._testStruct(Attr9Struct)
+    def testAttr15(self):
+        self._testStruct(Attr15Struct)
+    def testAttr16(self):
+        self._testStruct(Attr16Struct)
+    def testAttr17(self):
+        self._testStruct(Attr17Struct)
+    def testAttr31(self):
+        self._testStruct(Attr31Struct)
+    def testAttr32(self):
+        self._testStruct(Attr32Struct)
+    def testAttr33(self):
+        self._testStruct(Attr33Struct)
+    def testAttr63(self):
+        self._testStruct(Attr63Struct)
 
 class BasePackingTestMixin(object):
     Struct = None
@@ -647,3 +726,12 @@ class BsearchTest(unittest.TestCase):
         self.assertEqual(0, mapped_struct.bsearch(a, 2))
         self.assertEqual(0, mapped_struct.bsearch(a, 4))
         self.assertEqual(0, mapped_struct.bsearch(a, 6))
+
+class FrozensetPackingTest(unittest.TestCase):
+    def testUnpackOffBounds(self):
+        b = buffer("")
+        self.assertRaises(IndexError, mapped_struct.mapped_frozenset.unpack_from, b, 5)
+
+    def testUnpackBeyondEnd(self):
+        b = buffer("m")
+        self.assertRaises(IndexError, mapped_struct.mapped_frozenset.unpack_from, b, 0)

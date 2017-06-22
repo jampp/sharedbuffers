@@ -102,17 +102,24 @@ class mapped_frozenset(frozenset):
             return tup.pack_into(tup, buf, offs, idmap, implicit_offs)
 
     @classmethod
-    @cython.locals(i=int, j=int, offs=int, pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar)
+    @cython.locals(
+        i=int, j=int, offs=cython.longlong,
+        pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar)
     def unpack_from(cls, buf, offs, idmap = None):
         if cython.compiled:
             buf = _likebuffer(buf)
             PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
             pbuf = cython.cast(cython.p_uchar, pybuf.buf)  # lint:ok
+            if offs >= pybuf.len:
+                PyBuffer_Release(cython.address(pybuf))  # lint
+                raise IndexError("Offset out of range")
         else:
             pbuf = buf
         try:
             if pbuf[offs] == 'm':
                 # inline bitmap
+                if cython.compiled and offs+7 >= pybuf.len:
+                    raise IndexError("Object spans beyond buffer end")
                 rv = []
                 for i in xrange(7):
                     b = pbuf[offs+1+i]
@@ -1079,6 +1086,7 @@ class Schema(object):
     cython.declare(
         slot_types = dict,
         pack_buffer_size = int,
+        max_pack_buffer_size = int,
         alignment = int,
         slot_count = int,
         slot_keys = tuple,
@@ -1102,13 +1110,18 @@ class Schema(object):
     def Proxy(self):
         return functools.partial(self._Proxy, "\x00" * self.bitmap_size, 0, 0, None)
     
-    def __init__(self, slot_types, alignment = 8, pack_buffer_size = 65536, packer_cache = None, unpacker_cache = None):
+    def __init__(self, slot_types, alignment = 8, pack_buffer_size = 65536, packer_cache = None, unpacker_cache = None,
+            max_pack_buffer_size = None):
         if packer_cache is None:
             packer_cache = Cache(256)
         if unpacker_cache is None:
             unpacker_cache = Cache(256)
         self.slot_types = self._map_types(slot_types)
         self.pack_buffer_size = pack_buffer_size
+        if max_pack_buffer_size is not None:
+            self.max_pack_buffer_size = max_pack_buffer_size
+        else:
+            self.max_pack_buffer_size = max(128<<20, max(pack_buffer_size, min(pack_buffer_size * 2, 0x7FFFFFFF)))
         self.alignment = alignment
         self.packer_cache = packer_cache
         self.unpacker_cache = unpacker_cache
@@ -1189,9 +1202,9 @@ class Schema(object):
         none_bitmap = 0
         for i,slot in enumerate(self.slot_keys):
             if hasattr(obj, slot):
-                has_bitmap |= 1 << i
+                has_bitmap |= cython.cast(cython.ulonglong, 1) << i
                 if getattr(obj, slot, 0) is None:
-                    none_bitmap |= 1 << i
+                    none_bitmap |= cython.cast(cython.ulonglong, 1) << i
         present_bitmap = has_bitmap & ~none_bitmap
         return has_bitmap, none_bitmap, present_bitmap
 
@@ -1313,6 +1326,8 @@ class Schema(object):
             except (struct.error, IndexError):
                 # Buffer overflow, retry with a bigger buffer
                 # Idmap is probably corrupted beyond hope though :(
+                if len(self._pack_buffer) >= self.max_pack_buffer_size:
+                    raise
                 self._pack_buffer.extend(self._pack_buffer)
                 if idmap is not None:
                     idmap.clear()
