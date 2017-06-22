@@ -7,6 +7,25 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.4.0 - Unreleased
+==================
+
+Bugfixes
+--------
+
+- Ensure deterministic attribute ordering when using dict slot_types
+
+Added
+-----
+
+- Schema objects are now picklable, and pickled schemas preserve attribute
+  ordering, so they can be used to safely unpack objects packed by external
+  code
+- MappedArrayProxyBase now embeds the schema used during build, so they can
+  be safely mapped from other interpreters and versions of the code, as long
+  as client code still understands the foreign schemas. That is, as long as
+  schemas are source-code compatible
+
 0.3.3 - 2017-04-25
 ==================
 

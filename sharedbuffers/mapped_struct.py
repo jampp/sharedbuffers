@@ -1112,20 +1112,43 @@ class Schema(object):
     
     def __init__(self, slot_types, alignment = 8, pack_buffer_size = 65536, packer_cache = None, unpacker_cache = None,
             max_pack_buffer_size = None):
-        if packer_cache is None:
-            packer_cache = Cache(256)
-        if unpacker_cache is None:
-            unpacker_cache = Cache(256)
-        self.slot_types = self._map_types(slot_types)
-        self.pack_buffer_size = pack_buffer_size
-        if max_pack_buffer_size is not None:
-            self.max_pack_buffer_size = max_pack_buffer_size
-        else:
-            self.max_pack_buffer_size = max(128<<20, max(pack_buffer_size, min(pack_buffer_size * 2, 0x7FFFFFFF)))
-        self.alignment = alignment
-        self.packer_cache = packer_cache
-        self.unpacker_cache = unpacker_cache
-        self.init()
+        self.init(
+            self._map_types(slot_types),
+            packer_cache = packer_cache, unpacker_cache = unpacker_cache, alignment = alignment,
+            pack_buffer_size = pack_buffer_size)
+
+    def __reduce__(self):
+        return (type(self), (self.slot_types,), self.__getstate__())
+
+    def __getstate__(self):
+        return dict(
+            slot_types = self.slot_types,
+            slot_keys = self.slot_keys,
+            alignment = self.alignment,
+        )
+
+    def __setstate__(self, state):
+        # These are a safety hazard (they could cause OOM if corrupted), so ignore them if present
+        # Not needed for unpacking anyway
+        state.pop('pack_buffer_size', None)
+        state.pop('max_pack_buffer_size', None)
+
+        self.init(**state)
+
+    @cython.locals(other_schema = 'Schema')
+    def compatible(self, other):
+        if not isinstance(other, Schema):
+            return False
+
+        other_schema = other
+        if self.slot_keys != other_schema.slot_keys or self.alignment != other_schema.alignment:
+            return False
+
+        for k in self.slot_keys:
+            if self.slot_types[k] is not other_schema.slot_types[k]:
+                return False
+
+        return True
 
     @staticmethod
     def _map_types(slot_types):
@@ -1144,15 +1167,37 @@ class Schema(object):
         self.pack_buffer_size = newsize
         self._pack_buffer = bytearray(self.pack_buffer_size)
 
-    def init(self):
+    @cython.locals(slot_types = dict, slot_keys = tuple)
+    def init(self, slot_types = None, slot_keys = None, alignment = 8, pack_buffer_size = 65536,
+            max_pack_buffer_size = None, packer_cache = None, unpacker_cache = None):
         # Freeze slot order, sort by descending size to optimize alignment
-        self.slot_keys = tuple(
-            sorted(
-                self.slot_types.keys(),
-                key = lambda k, sget = self.slot_types.get, fget = FIXED_TYPES.get : 
-                    -struct.Struct(fget(sget(k), 'q')).size
+        if slot_types is None:
+            slot_types = self.slot_types
+        if slot_keys is None:
+            slot_keys = tuple(
+                sorted(
+                    slot_types.keys(),
+                    key = lambda k, sget = slot_types.get, fget = FIXED_TYPES.get : 
+                        (-struct.Struct(fget(sget(k), 'q')).size, k)
+                )
             )
-        )
+
+        self.alignment = alignment
+        self.pack_buffer_size = pack_buffer_size
+
+        if packer_cache is None:
+            packer_cache = Cache(256)
+        if unpacker_cache is None:
+            unpacker_cache = Cache(256)
+        if max_pack_buffer_size is not None:
+            self.max_pack_buffer_size = max_pack_buffer_size
+        else:
+            self.max_pack_buffer_size = max(128<<20, max(pack_buffer_size, min(pack_buffer_size * 2, 0x7FFFFFFF)))
+
+        self.packer_cache = packer_cache
+        self.unpacker_cache = unpacker_cache
+        self.slot_types = slot_types
+        self.slot_keys = slot_keys
         self.slot_count = len(self.slot_keys)
         self._pack_buffer = bytearray(self.pack_buffer_size)
         
@@ -1505,14 +1550,6 @@ class Schema(object):
     def unpack(self, buf, idmap = None, factory_class_new = None, proxy_into = None):
         return self.unpack_from(buffer(buf), 0, idmap, factory_class_new, proxy_into)
 
-    def __getstate__(self):
-        return (self.slot_types, self.alignment, self.pack_buffer_size)
-
-    def __setstate__(self, state):
-        self.slot_types, self.alignment, self.pack_buffer_size = state
-        self.init()
-
-
 class mapped_object_with_schema(object):
     schema = cython.declare(Schema, None)
     
@@ -1526,11 +1563,15 @@ class mapped_object_with_schema(object):
         return self.schema.unpack_from(buf, offs, idmap)
 
 class MappedArrayProxyBase(object):
-    # Must subclass to select a schema and proxy class
+    _CURRENT_VERSION = 2
+
+    # Must subclass to select a schema and proxy class for writing buffers
+    # Reading version-2 and above doesn't require subclassing
     schema = None
     proxy_class = None
 
     _Header = struct.Struct("=QQQ")
+    _NewHeader = struct.Struct("=QQQ")
     
     def __init__(self, buf, offset = 0, idmap = None, idmap_size = 1024):
         if idmap is None:
@@ -1546,6 +1587,22 @@ class MappedArrayProxyBase(object):
             dtype = numpy.uint64, 
             count = self.index_elements)
         self.idmap = idmap
+
+        if self.index_elements > 0 and self.index[0] >= (self._Header.size + self._NewHeader.size):
+            # New version, most likely
+            self.version, self.schema_offset, self.schema_size = self._NewHeader.unpack_from(buf, self._Header.size)
+            if self.schema_offset and self.schema_size:
+                if self.schema_offset > len(buf) or (self.schema_size + self.schema_offset) > len(buf):
+                    raise ValueError("Corrupted input - bad schema location")
+                stored_schema = cPickle.loads(bytes(buffer(buf, self.schema_offset, self.schema_size)))
+                if not isinstance(stored_schema, Schema):
+                    raise ValueError("Corrupted input - unrecognizable schema")
+                if self.schema is None or not self.schema.compatible(stored_schema):
+                    self.schema = stored_schema
+            elif self.schema is None:
+                raise ValueError("Cannot map schema-less buffer without specifying schema")
+        else:
+            self.version = 0
 
     def __getitem__(self, pos):
         return self.getter()(pos)
@@ -1607,7 +1664,8 @@ class MappedArrayProxyBase(object):
         return len(self.index)
 
     @classmethod
-    @cython.locals(schema = Schema, data_pos = cython.size_t, initial_pos = cython.size_t, current_pos = object)
+    @cython.locals(schema = Schema, data_pos = cython.size_t, initial_pos = cython.size_t, current_pos = object,
+        schema_pos = cython.size_t, schema_end = cython.size_t)
     def build(cls, initializer, destfile = None, tempdir = None, idmap = None):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
@@ -1615,6 +1673,7 @@ class MappedArrayProxyBase(object):
         initial_pos = destfile.tell()
         write = destfile.write
         write(cls._Header.pack(0, 0, 0))
+        write(cls._NewHeader.pack(cls._CURRENT_VERSION, 0, 0))
         destfile.flush()
         data_pos = destfile.tell()
         schema = cls.schema
@@ -1642,9 +1701,15 @@ class MappedArrayProxyBase(object):
         index = numpy.array(index, dtype = numpy.uint64)
         write(buffer(index))
         destfile.flush()
+
+        schema_pos = destfile.tell()
+        cPickle.dump(schema, destfile, 2)
+        destfile.flush()
+
         final_pos = destfile.tell()
         destfile.seek(initial_pos)
         write(cls._Header.pack(final_pos - initial_pos, index_pos - initial_pos, len(index)))
+        write(cls._NewHeader.pack(cls._CURRENT_VERSION, schema_pos - initial_pos, final_pos - schema_pos))
         destfile.flush()
         destfile.seek(final_pos)
         return cls.map_file(destfile, initial_pos)
