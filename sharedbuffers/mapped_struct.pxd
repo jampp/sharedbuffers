@@ -10,3 +10,4 @@ cpdef size_t hinted_bsearch(a, hkey, size_t hint) except 0xFFFFFFFFFFFFFFFF
 cpdef size_t bsearch(a, hkey) except 0xFFFFFFFFFFFFFFFF
 cpdef bint hinted_sorted_contains(a, hkey, size_t hint) except 0xFFFFFFFFFFFFFFFF
 cpdef bint sorted_contains(a, hkey) except 0xFFFFFFFFFFFFFFFF
+cpdef size_t index_merge(index1, index2, dest) except 0xFFFFFFFFFFFFFFFF

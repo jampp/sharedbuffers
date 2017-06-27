@@ -7,6 +7,20 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.4.0 - Unreleased
+==================
+
+Added
+-----
+
+- Added ability to efficiently merge numeric and approximate id mappers
+  (not yet supported for exact mappers)
+
+Bugfixes
+--------
+
+- Several fixes to pure-python mode
+
 0.3.3 - 2017-04-25
 ==================
 
