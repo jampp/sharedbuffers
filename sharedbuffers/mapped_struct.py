@@ -2098,13 +2098,13 @@ def sorted_contains(a, hkey):
     return hinted_sorted_contains(a, hkey, (lo+hi)//2)
 
 if cython.compiled:
-    @cython.cfunc
+    #@cython.cfunc
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
         stride0 = cython.size_t, ref = cython.ulonglong,
         pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
         pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char)
-    @cython.returns(cython.size_t)
+    #@cython.returns(cython.size_t)
     def _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         # Main merge
         pend1 = pindex1 + stride0 * length1
@@ -2139,13 +2139,13 @@ if cython.compiled:
             pindex2 += stride0
         return (pdest - pdeststart) / stride0
 
-    @cython.cfunc
+    #@cython.cfunc
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
         stride0 = cython.size_t, ref = cython.longlong,
         pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
         pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char)
-    @cython.returns(cython.size_t)
+    #@cython.returns(cython.size_t)
     def _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         # Main merge
         pend1 = pindex1 + stride0 * length1
@@ -2180,13 +2180,13 @@ if cython.compiled:
             pindex2 += stride0
         return (pdest - pdeststart) / stride0
 
-    @cython.cfunc
+    #@cython.cfunc
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
         stride0 = cython.size_t, ref = cython.uint,
         pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
         pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char)
-    @cython.returns(cython.size_t)
+    #@cython.returns(cython.size_t)
     def _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         # Main merge
         pend1 = pindex1 + stride0 * length1
@@ -2221,13 +2221,13 @@ if cython.compiled:
             pindex2 += stride0
         return (pdest - pdeststart) / stride0
 
-    @cython.cfunc
+    #@cython.cfunc
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
         stride0 = cython.size_t, ref = cython.int,
         pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
         pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char)
-    @cython.returns(cython.size_t)
+    #@cython.returns(cython.size_t)
     def _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         # Main merge
         pend1 = pindex1 + stride0 * length1
@@ -2262,13 +2262,13 @@ if cython.compiled:
             pindex2 += stride0
         return (pdest - pdeststart) / stride0
 
-    @cython.cfunc
+    #@cython.cfunc
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
         stride0 = cython.size_t, ref = cython.double,
         pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
         pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char)
-    @cython.returns(cython.size_t)
+    #@cython.returns(cython.size_t)
     def _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         # Main merge
         pend1 = pindex1 + stride0 * length1
@@ -2303,13 +2303,13 @@ if cython.compiled:
             pindex2 += stride0
         return (pdest - pdeststart) / stride0
 
-    @cython.cfunc
+    #@cython.cfunc
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
         stride0 = cython.size_t, ref = cython.float,
         pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
         pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char)
-    @cython.returns(cython.size_t)
+    #@cython.returns(cython.size_t)
     def _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         # Main merge
         pend1 = pindex1 + stride0 * length1
@@ -2412,22 +2412,28 @@ if cython.compiled:
                     #lint:enable
                     if dtype == 'L' or dtype == 'Q':
                         # TO-DO: better hints?
-                        return _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                        with cython.nogil:
+                            return _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'I':
                         # TO-DO: better hints?
-                        return _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                        with cython.nogil:
+                            return _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'l' or dtype == 'q':
                         # TO-DO: better hints?
-                        return _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                        with cython.nogil:
+                            return _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'i':
                         # TO-DO: better hints?
-                        return _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                        with cython.nogil:
+                            return _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'd':
                         # TO-DO: better hints?
-                        return _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                        with cython.nogil:
+                            return _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'f':
                         # TO-DO: better hints?
-                        return _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                        with cython.nogil:
+                            return _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     else:
                         raise NotImplementedError("Unsupported array type %s" % (chr(dtype),))
                 finally:
