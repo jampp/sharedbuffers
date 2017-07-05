@@ -2372,9 +2372,8 @@ if cython.compiled:
         try:
             PyObject_GetBuffer(index2, cython.address(index2buf), PyBUF_STRIDED_RO)
             try:
+                PyObject_GetBuffer(dest, cython.address(destbuf), PyBUF_STRIDED_RO)
                 try:
-                    PyObject_GetBuffer(dest, cython.address(destbuf), PyBUF_STRIDED_RO)
-
                     if ( index1buf.strides == cython.NULL
                             or index1buf.len < length1 * index1buf.strides[0] ):
                         raise ValueError("Invalid buffer state on index1")
