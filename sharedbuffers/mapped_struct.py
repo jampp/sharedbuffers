@@ -2491,6 +2491,25 @@ else:
         return pdest
     globals()['index_merge'] = _index_merge
 
+@cython.ccall
+@cython.locals(i = int)
+def _merge_all(parts, dtype):
+    if len(parts) == 1:
+        return parts[0]
+    else:
+        nparts = []
+        for i in xrange(0, len(parts), 2):
+            if i+1 < len(parts):
+                npart = numpy.empty((len(parts[i])+len(parts[i+1]), 2), dtype)
+                merge_elements = index_merge(parts[i], parts[i+1], npart)
+                if merge_elements != len(npart):
+                    npart = npart[:merge_elements]
+                nparts.append(npart)
+            else:
+                nparts.append(parts[i])
+        del parts
+        return _merge_all(nparts, dtype)
+
 @cython.cclass
 class NumericIdMapper(object):
     dtype = npuint64
@@ -2893,23 +2912,7 @@ class NumericIdMapper(object):
         indexpos = basepos + cls._Header.size
 
         # Merge the indexes
-        def merge_all(parts):
-            if len(parts) == 1:
-                return parts[0]
-            else:
-                nparts = []
-                for i in xrange(0, len(parts), 2):
-                    if i+1 < len(parts):
-                        npart = numpy.empty((len(parts[i])+len(parts[i+1]), 2), dtype)
-                        merge_elements = index_merge(parts[i], parts[i+1], npart)
-                        if merge_elements != len(npart):
-                            npart = npart[:merge_elements]
-                        nparts.append(npart)
-                    else:
-                        nparts.append(parts[i])
-                del parts
-                return merge_all(nparts)
-        index = merge_all([mapper.index for mapper in parts])
+        index = _merge_all([mapper.index for mapper in parts], dtype)
 
         write(buffer(index))
         nitems = len(index)
