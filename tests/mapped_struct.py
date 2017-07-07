@@ -11,6 +11,11 @@ import random
 
 from sharedbuffers import mapped_struct
 
+try:
+    import cPickle
+except ImportError:
+    import pickle as cPickle
+
 class SimpleStruct(object):
     __slot_types__ = {
         'a' : int,
@@ -146,6 +151,32 @@ class AttributeBitmapTest(unittest.TestCase):
         self._testStruct(Attr33Struct)
     def testAttr63(self):
         self._testStruct(Attr63Struct)
+
+class SchemaPicklingTest(AttributeBitmapTest):
+    def _testStruct(self, Struct, values = {}):
+        schema = mapped_struct.Schema.from_typed_slots(Struct)
+        x = Struct()
+
+        for k,v in values.iteritems():
+            setattr(x, k, v)
+
+        px = schema.pack(x)
+
+        old_schema = schema
+        schema = cPickle.loads(cPickle.dumps(schema, 2))
+
+        self.assertTrue(old_schema.compatible(schema))
+        self.assertTrue(schema.compatible(old_schema))
+
+        dx = schema.unpack(px)
+        for k in Struct.__slots__:
+            self.assertEquals(getattr(dx, k, None), getattr(x, k, None))
+
+    def testPrimitiveStruct(self):
+        self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s='3', u=u'A'))
+
+    def testContainerStruct(self):
+        self._testStruct(ContainerStruct, dict(fset=frozenset([3]), t=(1,3), l=[1,2]))
 
 class BasePackingTestMixin(object):
     Struct = None
@@ -420,11 +451,35 @@ class MappedArrayTest(unittest.TestCase):
             mapped = self.MappedArrayClass.map_buffer(buffer(destfile.read()))
             self._checkValues(mapped, mapped)
 
+    def testSchemaReading(self):
+        with tempfile.NamedTemporaryFile() as destfile:
+            self.MappedArrayClass.build(self.test_values, destfile = destfile, idmap = {})
+            destfile.seek(0)
+            mapped = mapped_struct.MappedArrayProxyBase.map_buffer(buffer(destfile.read()))
+            self._checkValues(mapped, mapped)
+
     def testFastIteration(self):
         with tempfile.NamedTemporaryFile() as destfile:
             self.MappedArrayClass.build(self.test_values, destfile = destfile, idmap = {})
             mapped = self.MappedArrayClass.map_file(destfile)
             self._checkValues(mapped, mapped.iter_fast())
+
+    def testFutureCompatible(self):
+        with tempfile.NamedTemporaryFile() as destfile:
+            class FutureClass(self.MappedArrayClass):
+                _CURRENT_VERSION = self.MappedArrayClass._CURRENT_VERSION + 1
+            FutureClass.build(self.test_values, destfile = destfile, idmap = {})
+            destfile.seek(0)
+            mapped = self.MappedArrayClass.map_buffer(buffer(destfile.read()))
+            self._checkValues(mapped, mapped)
+
+    def testFutureIncompatible(self):
+        with tempfile.NamedTemporaryFile() as destfile:
+            class FutureClass(self.MappedArrayClass):
+                _CURRENT_VERSION = _CURRENT_MINIMUM_READER_VERSION = self.MappedArrayClass._CURRENT_VERSION + 1
+            FutureClass.build(self.test_values, destfile = destfile, idmap = {})
+            destfile.seek(0)
+            self.assertRaises(ValueError, self.MappedArrayClass.map_buffer, buffer(destfile.read()))
 
 class MappedMappingTest(unittest.TestCase):
     # Reuse test values from MappedArrayTest to simplify test code
