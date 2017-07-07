@@ -7,6 +7,17 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.3.4 - Unreleased
+==================
+
+Bugfixes
+--------
+
+- Fix setup.py to fail properly when built without Cython and without an explicit
+  disable of cython optimizations
+- Fix setup.py to try to automatically install Cython as a dependency if not present
+- Require setuptools 20.0 and above. Earlier versions don't interact well with Cython
+
 0.3.3 - 2017-04-25
 ==================
 
