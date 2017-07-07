@@ -1611,7 +1611,7 @@ class MappedArrayProxyBase(object):
             elif self.schema is None:
                 raise ValueError("Cannot map schema-less buffer without specifying schema")
         else:
-            self.version = 0
+            raise ValueError("Cannot reliably map version-0 buffers")
 
     def __getitem__(self, pos):
         return self.getter()(pos)
