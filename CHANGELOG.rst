@@ -25,6 +25,10 @@ Added
   be safely mapped from other interpreters and versions of the code, as long
   as client code still understands the foreign schemas. That is, as long as
   schemas are source-code compatible
+- Fix setup.py to fail properly when built without Cython and without an explicit
+  disable of cython optimizations
+- Fix setup.py to try to automatically install Cython as a dependency if not present
+- Require setuptools 20.0 and above. Earlier versions don't interact well with Cython
 
 0.3.3 - 2017-04-25
 ==================
