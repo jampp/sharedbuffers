@@ -464,6 +464,23 @@ class MappedArrayTest(unittest.TestCase):
             mapped = self.MappedArrayClass.map_file(destfile)
             self._checkValues(mapped, mapped.iter_fast())
 
+    def testFutureCompatible(self):
+        with tempfile.NamedTemporaryFile() as destfile:
+            class FutureClass(self.MappedArrayClass):
+                _CURRENT_VERSION = self.MappedArrayClass._CURRENT_VERSION + 1
+            FutureClass.build(self.test_values, destfile = destfile, idmap = {})
+            destfile.seek(0)
+            mapped = self.MappedArrayClass.map_buffer(buffer(destfile.read()))
+            self._checkValues(mapped, mapped)
+
+    def testFutureIncompatible(self):
+        with tempfile.NamedTemporaryFile() as destfile:
+            class FutureClass(self.MappedArrayClass):
+                _CURRENT_VERSION = _CURRENT_MINIMUM_READER_VERSION = self.MappedArrayClass._CURRENT_VERSION + 1
+            FutureClass.build(self.test_values, destfile = destfile, idmap = {})
+            destfile.seek(0)
+            self.assertRaises(ValueError, self.MappedArrayClass.map_buffer, buffer(destfile.read()))
+
 class MappedMappingTest(unittest.TestCase):
     # Reuse test values from MappedArrayTest to simplify test code
     Struct = MappedArrayTest.Struct

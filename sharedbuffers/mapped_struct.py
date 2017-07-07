@@ -1564,6 +1564,7 @@ class mapped_object_with_schema(object):
 
 class MappedArrayProxyBase(object):
     _CURRENT_VERSION = 2
+    _CURRENT_MINIMUM_READER_VERSION = 2
 
     # Must subclass to select a schema and proxy class for writing buffers
     # Reading version-2 and above doesn't require subclassing
@@ -1571,7 +1572,7 @@ class MappedArrayProxyBase(object):
     proxy_class = None
 
     _Header = struct.Struct("=QQQ")
-    _NewHeader = struct.Struct("=QQQ")
+    _NewHeader = struct.Struct("=QQQQ")
     
     def __init__(self, buf, offset = 0, idmap = None, idmap_size = 1024):
         if idmap is None:
@@ -1590,7 +1591,15 @@ class MappedArrayProxyBase(object):
 
         if self.index_elements > 0 and self.index[0] >= (self._Header.size + self._NewHeader.size):
             # New version, most likely
-            self.version, self.schema_offset, self.schema_size = self._NewHeader.unpack_from(buf, self._Header.size)
+            self.version, min_reader_version, self.schema_offset, self.schema_size = self._NewHeader.unpack_from(
+                buf, self._Header.size)
+            if self._CURRENT_VERSION < min_reader_version:
+                raise ValueError((
+                    "Incompatible buffer, this buffer needs a reader with support for version %d at least, "
+                    "this reader supports up to version %d") % (
+                        min_reader_version,
+                        self._CURRENT_VERSION
+                    ))
             if self.schema_offset and self.schema_size:
                 if self.schema_offset > len(buf) or (self.schema_size + self.schema_offset) > len(buf):
                     raise ValueError("Corrupted input - bad schema location")
@@ -1673,7 +1682,7 @@ class MappedArrayProxyBase(object):
         initial_pos = destfile.tell()
         write = destfile.write
         write(cls._Header.pack(0, 0, 0))
-        write(cls._NewHeader.pack(cls._CURRENT_VERSION, 0, 0))
+        write(cls._NewHeader.pack(cls._CURRENT_VERSION, cls._CURRENT_MINIMUM_READER_VERSION, 0, 0))
         destfile.flush()
         data_pos = destfile.tell()
         schema = cls.schema
@@ -1709,7 +1718,9 @@ class MappedArrayProxyBase(object):
         final_pos = destfile.tell()
         destfile.seek(initial_pos)
         write(cls._Header.pack(final_pos - initial_pos, index_pos - initial_pos, len(index)))
-        write(cls._NewHeader.pack(cls._CURRENT_VERSION, schema_pos - initial_pos, final_pos - schema_pos))
+        write(cls._NewHeader.pack(
+            cls._CURRENT_VERSION, cls._CURRENT_MINIMUM_READER_VERSION,
+            schema_pos - initial_pos, final_pos - schema_pos))
         destfile.flush()
         destfile.seek(final_pos)
         return cls.map_file(destfile, initial_pos)
