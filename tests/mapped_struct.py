@@ -729,10 +729,17 @@ class MappedString32MappingBigTest(MappedString32MappingTest):
     TEST_VALUES = [ v for v in MappedStringMappingTest.TEST_VALUES for i in xrange(64) ]
 
 class BsearchTest(unittest.TestCase):
-    SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, 
-        numpy.double, numpy.single, numpy.float64, numpy.float32 ]
+    if mapped_struct._cythonized:
+        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, 
+            numpy.double, numpy.single, numpy.float64, numpy.float32 ]
 
-    UNSUPPORTED_DTYPES = [ numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
+        UNSUPPORTED_DTYPES = [ numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
+    else:
+        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, 
+            numpy.double, numpy.single, numpy.float64, numpy.float32,
+            numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
+
+        UNSUPPORTED_DTYPES = []
 
     for dtype in SUPPORTED_DTYPES:
         def testBsearch(self, dtype=dtype):
@@ -781,6 +788,147 @@ class BsearchTest(unittest.TestCase):
         self.assertEqual(0, mapped_struct.bsearch(a, 2))
         self.assertEqual(0, mapped_struct.bsearch(a, 4))
         self.assertEqual(0, mapped_struct.bsearch(a, 6))
+
+class MergeTest(unittest.TestCase):
+    if mapped_struct._cythonized:
+        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
+            numpy.double, numpy.single, numpy.float64, numpy.float32 ]
+
+        UNSUPPORTED_DTYPES = [ numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
+    else:
+        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
+            numpy.double, numpy.single, numpy.float64, numpy.float32,
+            numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
+
+        UNSUPPORTED_DTYPES = []
+
+    for dtype in SUPPORTED_DTYPES:
+        def testMerge(self, dtype=dtype):
+            testarray1 = range(1,101)
+            testarray2 = range(5,106)
+            a = numpy.empty((100,2), dtype=dtype)
+            b = numpy.empty((100,2), dtype=dtype)
+            merged = numpy.empty((200,2), dtype=dtype)
+            incompatible1 = numpy.empty((200,3), dtype=dtype)
+            incompatible2 = numpy.empty(200, dtype=dtype)
+            a[:,0] = numpy.arange(1,101)
+            a[:,1] = numpy.arange(2,102)
+            b[:,0] = numpy.arange(5,105)
+            b[:,1] = numpy.arange(6,106)
+            ref = numpy.concatenate([a,b])
+            ref = ref[numpy.argsort(ref[:,0])]
+            self.assertEqual(mapped_struct.index_merge(a, b, merged), 200)
+            self.assertTrue((merged == ref).all())
+            self.assertRaises(ValueError, mapped_struct.index_merge, a, b, incompatible1)
+            self.assertRaises(ValueError, mapped_struct.index_merge, a, incompatible1, merged)
+            self.assertRaises(ValueError, mapped_struct.index_merge, a, b, incompatible2)
+            self.assertRaises(ValueError, mapped_struct.index_merge, a, incompatible2, merged)
+        testMerge.__name__ += dtype.__name__.title()
+        locals()[testMerge.__name__] = testMerge
+        del testMerge
+        del dtype
+
+    for dtype in UNSUPPORTED_DTYPES:
+        def testMergeUnsupported(self, dtype=dtype):
+            a = numpy.empty((50,2), dtype=dtype)
+            dest = numpy.empty((100,2), dtype=dtype)
+            self.assertRaises(NotImplementedError, mapped_struct.index_merge, a, a, dest)
+        testMergeUnsupported.__name__ += dtype.__name__.title()
+        locals()[testMergeUnsupported.__name__] = testMergeUnsupported
+        del testMergeUnsupported
+        del dtype
+
+    def testRejectInPlace(self):
+        a = numpy.empty(dtype=numpy.uint32, shape = [0,2])
+        self.assertRaises(NotImplementedError, mapped_struct.index_merge, a, a, a)
+
+    def testRejectOverlapping(self):
+        x = numpy.empty(dtype=numpy.uint32, shape = [4,2])
+
+        a = x[:1]
+        b = x[:1]
+        d = x
+        self.assertRaises(NotImplementedError, mapped_struct.index_merge, a, b, d)
+
+        a = x[:1]
+        b = x[2:3]
+        d = x[1:]
+        self.assertRaises(NotImplementedError, mapped_struct.index_merge, a, b, d)
+
+    def testMergeEmpty(self):
+        a = numpy.empty(shape=[0,2], dtype=numpy.uint32)
+        d = numpy.empty(shape=[1,2], dtype=numpy.uint32)
+        self.assertEqual(0, mapped_struct.index_merge(a, a, d))
+
+class IdMapperMergeTest(unittest.TestCase):
+    NUMERIC_TEST_1 = [ (1,2), (3,4), (5,6) ]
+    NUMERIC_TEST_2 = [ (2,3), (4,5), (6,7) ]
+    NUMERIC_TEST_3 = [ (10,11), (12,13), (14,15) ]
+    NUMERIC_TEST_4 = [ (10,12), (12,14), (14,16) ]
+
+    STRING_TEST_1 = [ ('1',2), ('3',4), ('5',6) ]
+    STRING_TEST_2 = [ ('2',3), ('4',5), ('6',7) ]
+    STRING_TEST_3 = [ ('10',11), ('12',13), ('14',15) ]
+    STRING_TEST_4 = [ ('10',12), ('12',14), ('14',16) ]
+
+    def _testMerge(self, cls, part_data):
+        parts = [ cls.build(seq) for seq in part_data ]
+        merged = cls.merge(parts)
+        all_items = set()
+        for seq in part_data:
+            all_items |= set(seq)
+            for k,v in seq:
+                self.assertEqual(merged[k], v)
+        self.assertEqual(set(merged.items()), all_items)
+
+    def _testMergeMulti(self, cls, part_data):
+        parts = [ cls.build(seq) for seq in part_data ]
+        merged = cls.merge(parts)
+        all_items = set()
+        for seq in part_data:
+            all_items |= set(seq)
+            for k,v in seq:
+                self.assertIn(v, merged[k])
+
+    def testMergeNumericIdMapper(self):
+        self._testMerge(mapped_struct.NumericIdMapper,
+            [self.NUMERIC_TEST_1, self.NUMERIC_TEST_2])
+
+    def testMergeNumericIdMapper3(self):
+        self._testMerge(mapped_struct.NumericIdMapper,
+            [self.NUMERIC_TEST_1, self.NUMERIC_TEST_2, self.NUMERIC_TEST_3])
+
+    def testMergeNumericId32Mapper(self):
+        self._testMerge(mapped_struct.NumericId32Mapper,
+            [self.NUMERIC_TEST_1, self.NUMERIC_TEST_2])
+
+    def testMergeNumericId32Mapper3(self):
+        self._testMerge(mapped_struct.NumericId32Mapper,
+            [self.NUMERIC_TEST_1, self.NUMERIC_TEST_2, self.NUMERIC_TEST_3])
+
+    def testMergeNumericIdMultiMapper(self):
+        self._testMergeMulti(mapped_struct.NumericIdMultiMapper,
+            [self.NUMERIC_TEST_1, self.NUMERIC_TEST_2, self.NUMERIC_TEST_3, self.NUMERIC_TEST_4])
+
+    def testMergeNumericId32MultiMapper(self):
+        self._testMergeMulti(mapped_struct.NumericId32MultiMapper,
+            [self.NUMERIC_TEST_1, self.NUMERIC_TEST_2, self.NUMERIC_TEST_3, self.NUMERIC_TEST_4])
+
+    def testMergeApproxStringIdMultiMapper(self):
+        self._testMergeMulti(mapped_struct.ApproxStringIdMultiMapper,
+            [self.STRING_TEST_1, self.STRING_TEST_2])
+
+    def testMergeApproxStringIdMultiMapper4(self):
+        self._testMergeMulti(mapped_struct.ApproxStringIdMultiMapper,
+            [self.STRING_TEST_1, self.STRING_TEST_2, self.STRING_TEST_3, self.STRING_TEST_4])
+
+    def testMergeApproxStringId32MultiMapper(self):
+        self._testMergeMulti(mapped_struct.ApproxStringId32MultiMapper,
+            [self.STRING_TEST_1, self.STRING_TEST_2])
+
+    def testMergeApproxStringId32MultiMapper4(self):
+        self._testMergeMulti(mapped_struct.ApproxStringId32MultiMapper,
+            [self.STRING_TEST_1, self.STRING_TEST_2, self.STRING_TEST_3, self.STRING_TEST_4])
 
 class FrozensetPackingTest(unittest.TestCase):
     def testUnpackOffBounds(self):

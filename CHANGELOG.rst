@@ -13,6 +13,7 @@ The format is largely inspired by keepachangelog_.
 Bugfixes
 --------
 
+- Several fixes to pure-python mode
 - Ensure deterministic attribute ordering when using dict slot_types
 
 Added
@@ -29,6 +30,8 @@ Added
   disable of cython optimizations
 - Fix setup.py to try to automatically install Cython as a dependency if not present
 - Require setuptools 20.0 and above. Earlier versions don't interact well with Cython
+- Added ability to efficiently merge numeric and approximate id mappers
+  (not yet supported for exact mappers)
 
 0.3.3 - 2017-04-25
 ==================

@@ -10,3 +10,24 @@ cpdef size_t hinted_bsearch(a, hkey, size_t hint) except 0xFFFFFFFFFFFFFFFF
 cpdef size_t bsearch(a, hkey) except 0xFFFFFFFFFFFFFFFF
 cpdef bint hinted_sorted_contains(a, hkey, size_t hint) except 0xFFFFFFFFFFFFFFFF
 cpdef bint sorted_contains(a, hkey) except 0xFFFFFFFFFFFFFFFF
+
+cdef size_t _c_merge_ui64(
+    char* pindex1, size_t length1, char* pindex2, size_t length2,
+    char* pdest, size_t destlength, size_t stride0) nogil except 0xFFFFFFFFFFFFFFFF
+cdef size_t _c_merge_i64(
+    char* pindex1, size_t length1, char* pindex2, size_t length2,
+    char* pdest, size_t destlength, size_t stride0) nogil except 0xFFFFFFFFFFFFFFFF
+cdef size_t _c_merge_ui32(
+    char* pindex1, size_t length1, char* pindex2, size_t length2,
+    char* pdest, size_t destlength, size_t stride0) nogil except 0xFFFFFFFFFFFFFFFF
+cdef size_t _c_merge_i32(
+    char* pindex1, size_t length1, char* pindex2, size_t length2,
+    char* pdest, size_t destlength, size_t stride0) nogil except 0xFFFFFFFFFFFFFFFF
+cdef size_t _c_merge_f64(
+    char* pindex1, size_t length1, char* pindex2, size_t length2,
+    char* pdest, size_t destlength, size_t stride0) nogil except 0xFFFFFFFFFFFFFFFF
+cdef size_t _c_merge_f32(
+    char* pindex1, size_t length1, char* pindex2, size_t length2,
+    char* pdest, size_t destlength, size_t stride0) nogil except 0xFFFFFFFFFFFFFFFF
+
+cpdef size_t index_merge(index1, index2, dest) except 0xFFFFFFFFFFFFFFFF
