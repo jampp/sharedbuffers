@@ -185,7 +185,7 @@ class BasePackingTestMixin(object):
 
     def setUp(self):
         self.schema = mapped_struct.Schema.from_typed_slots(self.Struct)
-    
+
     def testAllUnset(self):
         x = self.Struct()
         dx = self.schema.unpack(self.schema.pack(x))
@@ -203,6 +203,18 @@ class BasePackingTestMixin(object):
         for TEST_VALUES in self.TEST_VALUES:
             x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
             dx = self.schema.unpack(self.schema.pack(x))
+            for k,v in TEST_VALUES.iteritems():
+                self.assertTrue(hasattr(dx, k))
+                self.assertEqual(getattr(dx, k), v)
+            for k in self.Struct.__slots__:
+                if k not in TEST_VALUES:
+                    self.assertFalse(hasattr(dx, k))
+
+    def testPackPickleUnpack(self):
+        for TEST_VALUES in self.TEST_VALUES:
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            pschema = cPickle.loads(cPickle.dumps(self.schema))
+            dx = pschema.unpack(self.schema.pack(x))
             for k,v in TEST_VALUES.iteritems():
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
@@ -349,6 +361,7 @@ class NestedObjectPackagingTest(SimplePackingTest):
     Struct = ObjectStruct
     SubStruct = ContainerStruct
     subschema = mapped_struct.Schema.from_typed_slots(SubStruct)
+    doregister = True
     
     TEST_VALUES = [
         { 
@@ -361,7 +374,11 @@ class NestedObjectPackagingTest(SimplePackingTest):
     ]
 
     def setUp(self):
-        mapped_struct.mapped_object.register_schema(self.SubStruct, self.subschema, '{')
+        if self.doregister:
+            # hack - unregister schema
+            mapped_struct.mapped_object.TYPE_CODES.pop(self.SubStruct,None)
+            mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+            mapped_struct.mapped_object.register_schema(self.SubStruct, self.subschema, '{')
         super(NestedObjectPackagingTest, self).setUp()
 
     def assertEqual(self, value, expected, *p, **kw):
@@ -372,6 +389,67 @@ class NestedObjectPackagingTest(SimplePackingTest):
                     self.assertEqual(getattr(value, k), getattr(expected, k), *p, **kw)
         else:
             return super(NestedObjectPackagingTest, self).assertEqual(value, expected, *p, **kw)
+
+class NestedTypedObjectPackagingTest(NestedObjectPackagingTest):
+    SubStruct = ContainerStruct
+    subschema = mapped_struct.Schema.from_typed_slots(SubStruct)
+    doregister = False
+
+    TEST_VALUES = [
+        {
+            'o' : ContainerStruct(**{
+                'fset' : frozenset([1000,3000,7000]),
+                't' : (3000,6000,7000),
+                'l' : [1000,2000,3000],
+            }),
+        },
+    ]
+
+    def setUp(self):
+        class ContainerObjectStruct(object):
+            __slot_types__ = {
+                'o' : ContainerStruct,
+            }
+            __slots__ = __slot_types__.keys()
+
+            def __init__(self, **kw):
+                for k,v in kw.iteritems():
+                    setattr(self, k, v)
+        self.Struct = ContainerObjectStruct
+
+        # hack - unregister schema
+        mapped_struct.mapped_object.TYPE_CODES.pop(self.SubStruct,None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+
+        mapped_struct.mapped_object.register_schema(self.SubStruct, self.subschema, '}')
+        super(NestedTypedObjectPackagingTest, self).setUp()
+
+class NestedAutoregisterTypedObjectPackagingTest(NestedTypedObjectPackagingTest):
+    def testPackPickleUnpack(self):
+        # hack - unregister subschema (can't register twice)
+        mapped_struct.mapped_object.TYPE_CODES.pop(self.SubStruct,None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+
+        for TEST_VALUES in self.TEST_VALUES:
+            # re-register subschema
+            mapped_struct.mapped_object.register_schema(self.SubStruct, self.subschema, '}')
+
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            pschema = cPickle.dumps(self.schema)
+
+            # Unregister schema to force the need for auto-register
+            mapped_struct.mapped_object.TYPE_CODES.pop(self.SubStruct,None)
+            mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+
+            pschema = cPickle.loads(pschema)
+
+            dx = pschema.unpack(self.schema.pack(x))
+            for k,v in TEST_VALUES.iteritems():
+                self.assertTrue(hasattr(dx, k))
+                self.assertEqual(getattr(dx, k), v)
+            for k in self.Struct.__slots__:
+                if k not in TEST_VALUES:
+                    self.assertFalse(hasattr(dx, k))
 
 class MappedArrayTest(unittest.TestCase):
     Struct = ContainerStruct

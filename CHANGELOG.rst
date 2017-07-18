@@ -7,6 +7,17 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.4.1 - 2017-07-18
+==================
+
+Bugfixes
+--------
+
+- Fix complex schema unpickling. When schemas contained typed object
+  references with their own schema, unpickling wouldn't properly
+  register the unpickled schemas with the mapped_object proxy
+  factory, and would fail to build the required objects with a KeyError
+
 0.4.0 - 2017-07-12
 ==================
 
