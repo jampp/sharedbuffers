@@ -592,17 +592,21 @@ class mapped_object(object):
 
     @classmethod
     def register_schema(cls, typ, schema, typecode):
-        if typ in cls.TYPE_CODES:
+        if typecode is not None and typ in cls.TYPE_CODES:
             if cls.TYPE_CODES[typ] != typecode or cls.OBJ_PACKERS[typecode][2].schema is not schema:
                 raise ValueError("Registering different types with same typecode %r: %r" % (cls.TYPE_CODES[typ], typ))
             return cls.OBJ_PACKERS[typecode][2]
 
-        packable = mapped_object_with_schema(schema)
+        if isinstance(typ, mapped_object_with_schema):
+            packable = typ
+        else:
+            packable = mapped_object_with_schema(schema)
         class SchemaBufferProxyProperty(GenericBufferProxyProperty):
             typ = packable
-        cls.TYPE_CODES[typ] = typecode
-        cls.TYPE_CODES[packable] = typecode
-        cls.OBJ_PACKERS[typecode] = (packable.pack_into, packable.unpack_from, packable)
+        if typecode is not None:
+            cls.TYPE_CODES[typ] = typecode
+            cls.TYPE_CODES[packable] = typecode
+            cls.OBJ_PACKERS[typecode] = (packable.pack_into, packable.unpack_from, packable)
         TYPES[typ] = packable
         TYPES[packable] = packable
         PROXY_TYPES[typ] = SchemaBufferProxyProperty
@@ -620,7 +624,7 @@ class mapped_object(object):
             self.typecode = TYPE_CODES[typ]
             self.value = value
 mapped_object.TYPE_CODES[mapped_object] = 'o'
-mapped_object.OBJ_PACKERS['o'] = mapped_object.pack_into
+mapped_object.OBJ_PACKERS['o'] = (mapped_object.pack_into, mapped_object.unpack_from, mapped_object)
 
 VARIABLE_TYPES = {
     frozenset : mapped_frozenset,
@@ -1135,6 +1139,7 @@ class Schema(object):
         # Not needed for unpacking anyway
         state.pop('pack_buffer_size', None)
         state.pop('max_pack_buffer_size', None)
+        state['autoregister'] = True
 
         self.init(**state)
 
@@ -1172,10 +1177,41 @@ class Schema(object):
 
     @cython.locals(slot_types = dict, slot_keys = tuple)
     def init(self, slot_types = None, slot_keys = None, alignment = 8, pack_buffer_size = 65536,
-            max_pack_buffer_size = None, packer_cache = None, unpacker_cache = None):
+            max_pack_buffer_size = None, packer_cache = None, unpacker_cache = None,
+            autoregister = False):
         # Freeze slot order, sort by descending size to optimize alignment
         if slot_types is None:
             slot_types = self.slot_types
+
+        # Map compatible types
+        for k, typ in slot_types.iteritems():
+            if not isinstance(typ, mapped_object_with_schema):
+                continue
+            if typ in mapped_object.TYPE_CODES:
+                continue
+
+            typ_schema = getattr(typ, 'schema', None)
+            if typ_schema is None:
+                continue
+
+            # Find compatible type
+            for packer, unpacker, packable_type in mapped_object.OBJ_PACKERS.itervalues():
+                if not isinstance(packable_type, mapped_object_with_schema):
+                    continue
+
+                packable_schema = getattr(packable_type, 'schema', None)
+                if packable_schema is None:
+                    continue
+
+                if packable_schema.compatible(typ_schema):
+                    slot_types[k] = packable_type
+                    break
+            else:
+                # No compatible schema found, register if we're in autoregister mode
+                # without a typecode (ie: only for explicitly typed references)
+                if autoregister:
+                    mapped_object.register_schema(typ, typ_schema, None)
+
         if slot_keys is None:
             slot_keys = tuple(
                 sorted(
@@ -1615,7 +1651,7 @@ class MappedArrayProxyBase(object):
                     self.schema = stored_schema
             elif self.schema is None:
                 raise ValueError("Cannot map schema-less buffer without specifying schema")
-        else:
+        elif self.index_elements > 0:
             raise ValueError("Cannot reliably map version-0 buffers")
 
     def __getitem__(self, pos):
