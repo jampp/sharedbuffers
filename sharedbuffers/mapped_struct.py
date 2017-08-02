@@ -1743,12 +1743,13 @@ class MappedArrayProxyBase(object):
         if _index:
             index_parts.append(numpy.array(_index, dtype = numpy.uint64))
             del _index
-        if index_parts:
-            index = numpy.concatenate(numpy.array(index_parts))
+        if len(index_parts) > 1:
+            index = numpy.concatenate(index_parts)
+        elif index_parts:
+            index = index_parts[0]
         else:
             index = numpy.array([], dtype = numpy.uint64)
         del index_parts
-        index = numpy.array(index, dtype = numpy.uint64)
         write(buffer(index))
         destfile.flush()
 
@@ -2977,16 +2978,24 @@ class NumericIdMapper(object):
         del parts
 
         if bigparts:
-            index = numpy.concatenate(bigparts)
+            if len(bigparts) > 1:
+                bigindex = numpy.concatenate(bigparts)
+                if discard_duplicate_keys or discard_duplicates:
+                    bigindex = _discard_duplicates(
+                        bigindex, struct_dt,
+                        discard_duplicate_keys, discard_duplicates)
+            else:
+                bigindex = bigparts[0]
             del bigparts[:]
             if discard_duplicate_keys or discard_duplicates:
-                index = _discard_duplicates(
-                    index, struct_dt,
-                    discard_duplicate_keys, discard_duplicates)
+                # Already deduplicated and sorted
+                index = bigindex
             else:
-                shuffle = numpy.argsort(index[:,0])
-                index = index[shuffle]
+                # Just sort
+                shuffle = numpy.argsort(bigindex[:,0])
+                index = bigindex[shuffle]
                 del shuffle
+            del bigindex
         else:
             index = numpy.empty(shape=(0,2), dtype=dtype)
         del bigparts
