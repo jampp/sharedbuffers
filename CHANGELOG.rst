@@ -7,6 +7,15 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.4.2 - Unreleased
+==================
+
+Changes
+-------
+
+- Reduce peak memory usage during IdMapper builds, especially when
+  using deduplication
+
 0.4.1 - 2017-07-18
 ==================
 

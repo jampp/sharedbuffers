@@ -2622,6 +2622,15 @@ def _merge_all(parts, dtype):
         del parts
         return _merge_all(nparts, dtype)
 
+@cython.cfunc
+@cython.locals(parts = list, discard_duplicate_keys = cython.bint, discard_duplicates = cython.bint)
+def _discard_duplicates(apart, struct_dt, discard_duplicate_keys, discard_duplicates):
+    if discard_duplicate_keys:
+        apart = apart[numpy.unique(apart[:,0], return_index=True)[1]]
+    elif discard_duplicates:
+        apart = apart[numpy.unique(apart.view(struct_dt), return_index=True)[1]]
+    return apart
+
 @cython.cclass
 class NumericIdMapper(object):
     dtype = npuint64
@@ -2929,6 +2938,7 @@ class NumericIdMapper(object):
             initializer = initializer.iteritems()
         else:
             initializer = iter(initializer)
+        bigparts = []
         parts = []
         islice = itertools.islice
         array = numpy.array
@@ -2937,7 +2947,6 @@ class NumericIdMapper(object):
         bytes_pack_into = mapped_bytes.pack_into
         valbuf = bytearray(65536)
         valbuflen = 65536
-        n = 0
         part = []
         struct_dt = numpy.dtype([
             ('key', dtype),
@@ -2947,30 +2956,40 @@ class NumericIdMapper(object):
             del part[:]
             for k,i in islice(initializer, 1000):
                 # Add the index item
-                n += 1
                 part.append((k,i))
             if part:
-                apart = array(part, dtype)
-                if discard_duplicate_keys:
-                    apart = apart[unique(apart[:,0], return_index=True)[1]]
-                elif discard_duplicates:
-                    apart = apart[unique(apart.view(struct_dt), return_index=True)[1]]
-                parts.append(apart)
+                parts.append(_discard_duplicates(
+                    array(part, dtype), struct_dt,
+                    discard_duplicate_keys, discard_duplicates))
             else:
                 break
-        if parts:
-            index = numpy.concatenate(array(parts))
-            if discard_duplicate_keys:
-                index = index[unique(index[:,0], return_index=True)[1]]
-            elif discard_duplicates:
-                index = index[unique(index.view(struct_dt), return_index=True)[1]]
+            if len(parts) > 1000:
+                # merge into a big part to flatten
+                apart = numpy.concatenate(parts)
+                del parts[:]
+                bigparts.append(_discard_duplicates(
+                    apart, struct_dt,
+                    discard_duplicate_keys, discard_duplicates))
+                del apart
+        del part
+
+        bigparts.extend(parts)
+        del parts
+
+        if bigparts:
+            index = numpy.concatenate(bigparts)
+            del bigparts[:]
+            if discard_duplicate_keys or discard_duplicates:
+                index = _discard_duplicates(
+                    index, struct_dt,
+                    discard_duplicate_keys, discard_duplicates)
             else:
                 shuffle = numpy.argsort(index[:,0])
                 index = index[shuffle]
                 del shuffle
         else:
             index = numpy.empty(shape=(0,2), dtype=dtype)
-        del parts, part
+        del bigparts
 
         indexpos = curpos
         write(buffer(index))
@@ -3468,12 +3487,12 @@ class StringIdMapper(object):
             else:
                 break
         if parts:
-            index = numpy.concatenate(numpy.array(parts))
+            index = numpy.concatenate(parts)
         else:
             index = numpy.empty(shape=(0,3), dtype=dtype)
+        del parts, part
         shuffle = numpy.argsort(index[:,0])
         index = index[shuffle]
-        del parts, part
 
         indexpos = curpos
         write(buffer(index))
