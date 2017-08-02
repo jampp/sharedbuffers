@@ -2977,6 +2977,7 @@ class NumericIdMapper(object):
         bigparts.extend(parts)
         del parts
 
+        # Merge the final batch of parts and build the sorted index
         if bigparts:
             if len(bigparts) > 1:
                 bigindex = numpy.concatenate(bigparts)
