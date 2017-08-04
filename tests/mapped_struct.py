@@ -124,39 +124,46 @@ class ObjectStruct(object):
             setattr(self, k, v)
 
 class AttributeBitmapTest(unittest.TestCase):
-    def _testStruct(self, Struct):
+    def _testStruct(self, Struct, delattrs = ()):
         schema = mapped_struct.Schema.from_typed_slots(Struct)
         x = Struct()
+        for k in delattrs:
+            delattr(x, k)
         dx = schema.unpack(schema.pack(x))
         for k in Struct.__slots__:
-            self.assertEquals(getattr(dx, k, None), getattr(x, k, None))
+            if k in delattrs:
+                self.assertFalse(hasattr(dx, k))
+            else:
+                self.assertEquals(getattr(dx, k, None), getattr(x, k, None))
 
     def testAttr7(self):
         self._testStruct(Attr7Struct)
     def testAttr8(self):
-        self._testStruct(Attr8Struct)
+        self._testStruct(Attr8Struct, delattrs = [ "a%d" % i for i in range(3) ])
     def testAttr9(self):
-        self._testStruct(Attr9Struct)
+        self._testStruct(Attr9Struct, delattrs = [ "a%d" % i for i in range(4) ])
     def testAttr15(self):
-        self._testStruct(Attr15Struct)
+        self._testStruct(Attr15Struct, delattrs = [ "a%d" % i for i in range(6) ])
     def testAttr16(self):
-        self._testStruct(Attr16Struct)
+        self._testStruct(Attr16Struct, delattrs = [ "a%d" % i for i in range(7) ])
     def testAttr17(self):
-        self._testStruct(Attr17Struct)
+        self._testStruct(Attr17Struct, delattrs = [ "a%d" % i for i in range(8) ])
     def testAttr31(self):
-        self._testStruct(Attr31Struct)
+        self._testStruct(Attr31Struct, delattrs = [ "a%d" % i for i in range(13) ])
     def testAttr32(self):
-        self._testStruct(Attr32Struct)
+        self._testStruct(Attr32Struct, delattrs = [ "a%d" % i for i in range(14) ])
     def testAttr33(self):
-        self._testStruct(Attr33Struct)
+        self._testStruct(Attr33Struct, delattrs = [ "a%d" % i for i in range(15) ])
     def testAttr63(self):
-        self._testStruct(Attr63Struct)
+        self._testStruct(Attr63Struct, delattrs = [ "a%d" % i for i in range(30) ])
 
 class SchemaPicklingTest(AttributeBitmapTest):
-    def _testStruct(self, Struct, values = {}):
+    def _testStruct(self, Struct, values = {}, delattrs = ()):
         schema = mapped_struct.Schema.from_typed_slots(Struct)
         x = Struct()
 
+        for k in delattrs:
+            delattr(x, k)
         for k,v in values.iteritems():
             setattr(x, k, v)
 
@@ -170,7 +177,10 @@ class SchemaPicklingTest(AttributeBitmapTest):
 
         dx = schema.unpack(px)
         for k in Struct.__slots__:
-            self.assertEquals(getattr(dx, k, None), getattr(x, k, None))
+            if k in values or k not in delattrs:
+                self.assertEquals(getattr(dx, k, None), getattr(x, k, None))
+            else:
+                self.assertFalse(hasattr(dx, k))
 
     def testPrimitiveStruct(self):
         self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s='3', u=u'A'))
