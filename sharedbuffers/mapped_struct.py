@@ -2626,10 +2626,16 @@ def _merge_all(parts, dtype):
 @cython.cfunc
 @cython.locals(parts = list, discard_duplicate_keys = cython.bint, discard_duplicates = cython.bint)
 def _discard_duplicates(apart, struct_dt, discard_duplicate_keys, discard_duplicates):
-    if discard_duplicate_keys:
-        apart = apart[numpy.unique(apart[:,0], return_index=True)[1]]
-    elif discard_duplicates:
-        apart = apart[numpy.unique(apart.view(struct_dt), return_index=True)[1]]
+    if discard_duplicate_keys or discard_duplicates:
+        # What numpy.unique does, but using MUCH less RAM
+        vpart = apart.view(struct_dt)
+        vpart.sort(0)
+        if discard_duplicate_keys:
+            flags = numpy.concatenate([[True], apart[1:,0] != apart[:-1,0]])
+        elif discard_duplicates:
+            flags = numpy.concatenate([[True], vpart[1:,0] != vpart[:-1,0]])
+        if not numpy.all(flags):
+            apart = apart[flags]
     return apart
 
 @cython.cclass
