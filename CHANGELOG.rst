@@ -16,6 +16,12 @@ Bugfixes
 - Fix integer overflow in handling masks that made a subtle mess of
   things if you had more than 32 attributes
 
+Changes
+-------
+
+- Reduce peak memory usage during IdMapper builds, especially when
+  using deduplication
+
 0.4.1 - 2017-07-18
 ==================
 
