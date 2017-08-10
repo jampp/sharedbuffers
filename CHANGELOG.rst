@@ -10,6 +10,12 @@ The format is largely inspired by keepachangelog_.
 0.4.2 - Unreleased
 ==================
 
+Bugfixes
+--------
+
+- Fix integer overflow in handling masks that made a subtle mess of
+  things if you had more than 32 attributes
+
 Changes
 -------
 

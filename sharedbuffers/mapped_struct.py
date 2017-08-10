@@ -1253,9 +1253,9 @@ class Schema(object):
         fixed_bitmap = 0
         for i,slot in enumerate(self.slot_keys):
             if self.slot_types[slot] in FIXED_TYPES:
-                fixed_bitmap |= 1 << i
+                fixed_bitmap |= cython.cast(cython.ulonglong, 1) << i
             else:
-                var_bitmap |= 1 << i
+                var_bitmap |= cython.cast(cython.ulonglong, 1) << i
         self._var_bitmap = var_bitmap
         self._fixed_bitmap = fixed_bitmap
         self._last_unpacker = None
@@ -1305,7 +1305,7 @@ class Schema(object):
             ] + [
                 self.slot_struct_types[slot]
                 for i,slot in enumerate(self.slot_keys)
-                if present_bitmap & (1 << i)
+                if present_bitmap & (cython.cast(cython.ulonglong, 1) << i)
             ]))
             alignment = self.alignment
             size = packer.size
@@ -1326,7 +1326,7 @@ class Schema(object):
             pformat = "".join([
                 self.slot_struct_types[slot]
                 for i,slot in enumerate(self.slot_keys)
-                if present_bitmap & (1 << i)
+                if present_bitmap & (cython.cast(cython.ulonglong, 1) << i)
             ])
             unpacker = struct.Struct(pformat)
             alignment = self.alignment
@@ -1365,7 +1365,7 @@ class Schema(object):
         slot_types = self.slot_types
         alignment = self.alignment
         for i,slot in enumerate(self.slot_keys):
-            mask = 1 << i
+            mask = cython.cast(cython.ulonglong, 1) << i
             if present_bitmap & mask:
                 val = getattr(obj, slot)
                 if fixed_present & mask:
@@ -1486,7 +1486,7 @@ class Schema(object):
                     value_ix = 0
                     pbuf2 = pbuf
                     for i in xrange(self.slot_count):
-                        mask = 1 << i
+                        mask = cython.cast(cython.ulonglong, 1) << i
                         if has_bitmap & mask:
                             slot = self.slot_keys[i]
     
