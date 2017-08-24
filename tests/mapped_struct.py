@@ -1026,3 +1026,9 @@ class FrozensetPackingTest(unittest.TestCase):
     def testUnpackBeyondEnd(self):
         b = buffer("m")
         self.assertRaises(IndexError, mapped_struct.mapped_frozenset.unpack_from, b, 0)
+
+    def testSingletons(self):
+        a = bytearray(16)
+        fs = frozenset()
+        mapped_struct.mapped_frozenset.pack_into(fs, a, 0)
+        self.assertIs(mapped_struct.mapped_frozenset.unpack_from(a, 0), fs)
