@@ -156,3 +156,13 @@ rather than the first one, so multi-maps and simple mappings are binary compatib
 Multi-maps with string keys can also be approximate, meaning the original keys will be discarded and the mapping will
 only work with hashes, making the map much faster and more compact, at the expense of some inaccuracy where the
 returned values could have extra values corresponding to other keys whose hash collide with the one being requested.
+
+Tests
+=====
+
+Tests can be run on docker with the following command line:
+
+.. code::shell
+
+  $> docker run -v ${PWD}:/opt/sharedbuffers -w /opt/sharedbuffers python:2.7 /bin/sh run-docker-tests.sh
+
