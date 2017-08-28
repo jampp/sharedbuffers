@@ -160,7 +160,17 @@ returned values could have extra values corresponding to other keys whose hash c
 Tests
 =====
 
-Tests can be run on docker with the following command line:
+When running tests, Using virtualenv is recommended in order to isolate the environment:
+
+.. code:: shell
+
+  $> virtualenv venv
+  $> ./venv/bin/activate
+  $> pip install -r requirements.txt
+  $> python setup.py tests
+
+
+Alternatively, you can also run tests on docker:
 
 .. code::shell
 
