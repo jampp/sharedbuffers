@@ -164,6 +164,8 @@ Running tests can be done locally or on docker, using the script `run-tests.sh`:
 
 .. code:: shell
 
+  $> virtualenv venv
+  $> . venv/bin/activate
   $> sh ./run-tests.sh
 
 
