@@ -160,14 +160,11 @@ returned values could have extra values corresponding to other keys whose hash c
 Tests
 =====
 
-Running tests can be done locally or on docker, using the script `run-tests.sh`.
-
-To run it locally using virtualenv, adding the parameter `virtualenv` to the execution
-of the above script will create the necessary things:
+Running tests can be done locally or on docker, using the script `run-tests.sh`:
 
 .. code:: shell
 
-  $> sh ./run-tests.sh virtualenv
+  $> sh ./run-tests.sh
 
 
 Alternatively, running it on docker can be done with the following command:
