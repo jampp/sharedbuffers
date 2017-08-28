@@ -160,19 +160,19 @@ returned values could have extra values corresponding to other keys whose hash c
 Tests
 =====
 
-When running tests, Using virtualenv is recommended in order to isolate the environment:
+Running tests can be done locally or on docker, using the script `run-tests.sh`.
+
+To run it locally using virtualenv, adding the parameter `virtualenv` to the execution
+of the above script will create the necessary things:
 
 .. code:: shell
 
-  $> virtualenv venv
-  $> ./venv/bin/activate
-  $> pip install -r requirements.txt
-  $> python setup.py tests
+  $> sh ./run-tests.sh virtualenv
 
 
-Alternatively, you can also run tests on docker:
+Alternatively, running it on docker can be done with the following command:
 
 .. code::shell
 
-  $> docker run -v ${PWD}:/opt/sharedbuffers -w /opt/sharedbuffers python:2.7 /bin/sh run-docker-tests.sh
+  $> docker run -v ${PWD}:/opt/sharedbuffers -w /opt/sharedbuffers python:2.7 /bin/sh run-tests.sh
 
