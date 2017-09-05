@@ -171,7 +171,7 @@ Running tests can be done locally or on docker, using the script `run-tests.sh`:
 
 Alternatively, running it on docker can be done with the following command:
 
-.. code::shell
+.. code:: shell
 
   $> docker run -v ${PWD}:/opt/sharedbuffers -w /opt/sharedbuffers python:2.7 /bin/sh run-tests.sh
 
