@@ -7,7 +7,18 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
-0.4.2 - Unreleased
+0.4.3 - Unreleased
+==================
+
+Changes
+-------
+
+- Unpack frozensets as actual frozensets, not subclasses of it
+  (mapped_frozenset). Matches the behavior of other primitve
+  unpackers and allows singleton empty sets to be unpacked as
+  singletons
+
+0.4.2 - 2017-08-14
 ==================
 
 Bugfixes

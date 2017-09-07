@@ -127,10 +127,10 @@ class mapped_frozenset(frozenset):
                         for j in xrange(8):
                             if b & (1<<j):
                                 rv.append(i*8+j)
-                return cls(rv)
+                return frozenset(rv)
             else:
                 # unpack a list, build a set from it
-                return cls(mapped_list.unpack_from(buf, offs, idmap))
+                return frozenset(mapped_list.unpack_from(buf, offs, idmap))
         finally:
             if cython.compiled:
                 if type(buf) is buffer:
