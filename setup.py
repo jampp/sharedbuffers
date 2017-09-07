@@ -125,7 +125,7 @@ if not os.path.exists(version_path):
     with open(version_path, "w") as version_file:
         pass
 with open(version_path, "r+") as version_file:
-    version_content = "__version__ = %r" % (VERSION,)
+    version_content = "__version__ = %r\n" % (VERSION,)
     if version_file.read() != version_content:
         version_file.seek(0)
         version_file.write(version_content)
