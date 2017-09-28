@@ -2931,95 +2931,100 @@ class NumericIdMapper(object):
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
         partsfile = None
 
-        dtype = cls.dtype
-        basepos = destfile.tell()
+        try:
+            dtype = cls.dtype
+            basepos = destfile.tell()
 
-        # Reserve space for the header
-        write = destfile.write
-        write(cls._Header.pack(0, 0))
+            # Reserve space for the header
+            write = destfile.write
+            write(cls._Header.pack(0, 0))
 
-        # Build the index - the index is a matrix of the form:
-        # [ [ key, value id ], ... ]
-        #
-        # With the rows ordered by hash
-        if isinstance(initializer, dict):
-            initializer = initializer.iteritems()
-        else:
-            initializer = iter(initializer)
-        bigparts = []
-        parts = []
-        islice = itertools.islice
-        array = numpy.array
-        unique = numpy.unique
-        curpos = basepos + cls._Header.size
-        bytes_pack_into = mapped_bytes.pack_into
-        valbuf = bytearray(65536)
-        valbuflen = 65536
-        part = []
-        struct_dt = numpy.dtype([
-            ('key', dtype),
-            ('value', dtype),
-        ])
-        while 1:
-            del part[:]
-            for k,i in islice(initializer, 1000):
-                # Add the index item
-                part.append((k,i))
-            if part:
-                parts.append(_discard_duplicates(
-                    array(part, dtype), struct_dt,
-                    discard_duplicate_keys, discard_duplicates))
+            # Build the index - the index is a matrix of the form:
+            # [ [ key, value id ], ... ]
+            #
+            # With the rows ordered by hash
+            if isinstance(initializer, dict):
+                initializer = initializer.iteritems()
             else:
-                break
-            if len(parts) > 1000:
-                # merge into a big part to flatten
-                apart = numpy.concatenate(parts)
-                del parts[:]
-                apart = _discard_duplicates(
-                    apart, struct_dt,
-                    discard_duplicate_keys, discard_duplicates)
-                if tempdir is not None:
-                    # Accumulate in tempfile
-                    if partsfile is None:
-                        partsfile = tempfile.TemporaryFile(dir = tempdir)
-                    partsfile.write(buffer(apart))
+                initializer = iter(initializer)
+            bigparts = []
+            parts = []
+            islice = itertools.islice
+            array = numpy.array
+            unique = numpy.unique
+            curpos = basepos + cls._Header.size
+            bytes_pack_into = mapped_bytes.pack_into
+            valbuf = bytearray(65536)
+            valbuflen = 65536
+            part = []
+            struct_dt = numpy.dtype([
+                ('key', dtype),
+                ('value', dtype),
+            ])
+            while 1:
+                del part[:]
+                for k,i in islice(initializer, 1000):
+                    # Add the index item
+                    part.append((k,i))
+                if part:
+                    parts.append(_discard_duplicates(
+                        array(part, dtype), struct_dt,
+                        discard_duplicate_keys, discard_duplicates))
                 else:
-                    # Accumulate in memory
-                    bigparts.append(apart)
-                del apart
-        del part
+                    break
+                if len(parts) > 1000:
+                    # merge into a big part to flatten
+                    apart = numpy.concatenate(parts)
+                    del parts[:]
+                    apart = _discard_duplicates(
+                        apart, struct_dt,
+                        discard_duplicate_keys, discard_duplicates)
+                    if tempdir is not None:
+                        # Accumulate in tempfile
+                        if partsfile is None:
+                            partsfile = tempfile.TemporaryFile(dir = tempdir)
+                        partsfile.write(buffer(apart))
+                    else:
+                        # Accumulate in memory
+                        bigparts.append(apart)
+                    del apart
+            del part
 
-        bigparts.extend(parts)
-        del parts
+            bigparts.extend(parts)
+            del parts
 
-        if partsfile is not None:
-            partsfile.flush()
-            partsfile.seek(0)
-            bigparts.append(numpy.memmap(partsfile, dtype).reshape(-1,2))
+            if partsfile is not None:
+                partsfile.flush()
+                partsfile.seek(0)
+                bigparts.append(numpy.memmap(partsfile, dtype).reshape(-1,2))
 
-        # Merge the final batch of parts and build the sorted index
-        if bigparts:
-            if len(bigparts) > 1:
-                bigindex = numpy.concatenate(bigparts)
-                del bigparts[:]
-                bigindex = _discard_duplicates(
-                    bigindex, struct_dt,
-                    discard_duplicate_keys, discard_duplicates)
+            # Merge the final batch of parts and build the sorted index
+            if bigparts:
+                if len(bigparts) > 1:
+                    bigindex = numpy.concatenate(bigparts)
+                    del bigparts[:]
+                    bigindex = _discard_duplicates(
+                        bigindex, struct_dt,
+                        discard_duplicate_keys, discard_duplicates)
+                else:
+                    bigindex = bigparts[0]
+                    del bigparts[:]
+                if not (discard_duplicate_keys or discard_duplicates):
+                    # Just sort, else already deduplicated and sorted
+                    bigindex.view(struct_dt).sort(0)
+                index = bigindex
+                del bigindex
             else:
-                bigindex = bigparts[0]
-                del bigparts[:]
-            if not (discard_duplicate_keys or discard_duplicates):
-                # Just sort, else already deduplicated and sorted
-                bigindex.view(struct_dt).sort(0)
-            index = bigindex
-            del bigindex
-        else:
-            index = numpy.empty(shape=(0,2), dtype=dtype)
-        del bigparts
+                index = numpy.empty(shape=(0,2), dtype=dtype)
+            del bigparts
 
-        indexpos = curpos
-        write(buffer(index))
-        nitems = len(index)
+            indexpos = curpos
+            write(buffer(index))
+            nitems = len(index)
+        finally:
+            if partsfile is not None:
+                partsfile.close()
+            partsfile = None
 
         finalpos = destfile.tell()
         if finalpos & 31:
