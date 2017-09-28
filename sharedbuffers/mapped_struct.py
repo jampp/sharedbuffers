@@ -2929,6 +2929,7 @@ class NumericIdMapper(object):
             discard_duplicates = False, discard_duplicate_keys = False):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
+        partsfile = None
 
         dtype = cls.dtype
         basepos = destfile.tell()
@@ -2974,14 +2975,27 @@ class NumericIdMapper(object):
                 # merge into a big part to flatten
                 apart = numpy.concatenate(parts)
                 del parts[:]
-                bigparts.append(_discard_duplicates(
+                apart = _discard_duplicates(
                     apart, struct_dt,
-                    discard_duplicate_keys, discard_duplicates))
+                    discard_duplicate_keys, discard_duplicates)
+                if tempdir is not None:
+                    # Accumulate in tempfile
+                    if partsfile is None:
+                        partsfile = tempfile.TemporaryFile(dir = tempdir)
+                    partsfile.write(buffer(apart))
+                else:
+                    # Accumulate in memory
+                    bigparts.append(apart)
                 del apart
         del part
 
         bigparts.extend(parts)
         del parts
+
+        if partsfile is not None:
+            partsfile.flush()
+            partsfile.seek(0)
+            bigparts.append(numpy.memmap(partsfile, dtype).reshape(-1,2))
 
         # Merge the final batch of parts and build the sorted index
         if bigparts:

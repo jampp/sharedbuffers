@@ -569,6 +569,27 @@ class MappedArrayTest(unittest.TestCase):
             destfile.seek(0)
             self.assertRaises(ValueError, self.MappedArrayClass.map_buffer, buffer(destfile.read()))
 
+class IdMapperTest(unittest.TestCase):
+    IdMapperClass = mapped_struct.NumericIdMapper
+
+    def gen_values(self, n):
+        return itertools.izip(xrange(n), xrange(0, 2*n, 2))
+
+    def testBuildHugeInMem(self):
+        N = 2000000
+        rv = self.IdMapperClass.build(self.gen_values(N))
+        for k, v in self.gen_values(N):
+            self.assertEquals(rv.get(k), v)
+
+    def testBuildHugeOnDisk(self):
+        N = 10000000
+        rv = self.IdMapperClass.build(self.gen_values(N), tempdir = tempfile.gettempdir())
+        for k, v in self.gen_values(N):
+            self.assertEquals(rv.get(k), v)
+
+class Id32MapperTest(unittest.TestCase):
+    IdMapperClass = mapped_struct.NumericId32Mapper
+
 class MappedMappingTest(unittest.TestCase):
     # Reuse test values from MappedArrayTest to simplify test code
     Struct = MappedArrayTest.Struct
