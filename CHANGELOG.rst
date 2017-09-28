@@ -17,6 +17,8 @@ Changes
   (mapped_frozenset). Matches the behavior of other primitve
   unpackers and allows singleton empty sets to be unpacked as
   singletons
+- Significantly reduce memory usage during IdMapper builds,
+  especially when given a tempdir where to stage temprary data
 
 0.4.2 - 2017-08-14
 ==================
