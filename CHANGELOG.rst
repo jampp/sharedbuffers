@@ -7,7 +7,7 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
-0.4.3 - Unreleased
+0.4.3 - 2017-09-28
 ==================
 
 Changes
