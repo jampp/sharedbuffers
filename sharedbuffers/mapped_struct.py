@@ -2987,21 +2987,17 @@ class NumericIdMapper(object):
         if bigparts:
             if len(bigparts) > 1:
                 bigindex = numpy.concatenate(bigparts)
-                if discard_duplicate_keys or discard_duplicates:
-                    bigindex = _discard_duplicates(
-                        bigindex, struct_dt,
-                        discard_duplicate_keys, discard_duplicates)
+                del bigparts[:]
+                bigindex = _discard_duplicates(
+                    bigindex, struct_dt,
+                    discard_duplicate_keys, discard_duplicates)
             else:
                 bigindex = bigparts[0]
-            del bigparts[:]
-            if discard_duplicate_keys or discard_duplicates:
-                # Already deduplicated and sorted
-                index = bigindex
-            else:
-                # Just sort
-                shuffle = numpy.argsort(bigindex[:,0])
-                index = bigindex[shuffle]
-                del shuffle
+                del bigparts[:]
+            if not (discard_duplicate_keys or discard_duplicates):
+                # Just sort, else already deduplicated and sorted
+                bigindex.view(struct_dt).sort(0)
+            index = bigindex
             del bigindex
         else:
             index = numpy.empty(shape=(0,2), dtype=dtype)
