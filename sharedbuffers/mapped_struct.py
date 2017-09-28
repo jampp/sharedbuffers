@@ -2994,6 +2994,11 @@ class NumericIdMapper(object):
             del parts
 
             if partsfile is not None:
+                if bigparts:
+                    # Flush the rest to do the final sort in mapped memory
+                    for apart in bigparts:
+                        partsfile.write(buffer(apart))
+                    del bigparts[:]
                 partsfile.flush()
                 partsfile.seek(0)
                 bigparts.append(numpy.memmap(partsfile, dtype).reshape(-1,2))

@@ -576,13 +576,13 @@ class IdMapperTest(unittest.TestCase):
         return itertools.izip(xrange(n), xrange(0, 2*n, 2))
 
     def testBuildHugeInMem(self):
-        N = 2000000
+        N = 2001000
         rv = self.IdMapperClass.build(self.gen_values(N))
         for k, v in self.gen_values(N):
             self.assertEquals(rv.get(k), v)
 
     def testBuildHugeOnDisk(self):
-        N = 10000000
+        N = 10010000
         rv = self.IdMapperClass.build(self.gen_values(N), tempdir = tempfile.gettempdir())
         for k, v in self.gen_values(N):
             self.assertEquals(rv.get(k), v)
