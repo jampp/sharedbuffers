@@ -572,23 +572,81 @@ class MappedArrayTest(unittest.TestCase):
 class IdMapperTest(unittest.TestCase):
     IdMapperClass = mapped_struct.NumericIdMapper
 
-    def gen_values(self, n):
-        return itertools.izip(xrange(n), xrange(0, 2*n, 2))
+    def gen_values(self, n, reversed = False, shuffled = False, gen_dupes = False):
+        if reversed:
+            keys = xrange(n-1,-1,-1)
+        else:
+            keys = xrange(n)
+        if shuffled:
+            keys = list(keys)
+            r = random.Random(1234827)
+            r.shuffle(keys)
+        if gen_dupes:
+            return itertools.chain(
+                itertools.izip(keys, xrange(0, 2*n, 2)),
+                itertools.izip(keys, xrange(0, 2*n, 2)),
+            )
+        else:
+            return itertools.izip(keys, xrange(0, 2*n, 2))
+
+    def _testBuild(self, N, tempdir, **gen_kwargs):
+        build_kwargs = gen_kwargs.pop('build_kwargs', {})
+        rv = self.IdMapperClass.build(self.gen_values(N, **gen_kwargs), tempdir = tempdir, **build_kwargs)
+        for k, v in self.gen_values(N, **gen_kwargs):
+            self.assertEquals(rv.get(k), v)
 
     def testBuildHugeInMem(self):
-        N = 2001000
-        rv = self.IdMapperClass.build(self.gen_values(N))
-        for k, v in self.gen_values(N):
-            self.assertEquals(rv.get(k), v)
+        self._testBuild(2010530, None)
+
+    def testBuildHugeInMemReversed(self):
+        self._testBuild(2010530, None, reversed = True)
+
+    def testBuildHugeInMemShuffled(self):
+        self._testBuild(2010530, None, shuffled = True)
+
+    def testBuildHugeInMemDiscardDuplicates(self):
+        self._testBuild(2010530, None, build_kwargs = dict(discard_duplicates = True),
+            gen_dupes = True)
 
     def testBuildHugeOnDisk(self):
-        N = 10010000
-        rv = self.IdMapperClass.build(self.gen_values(N), tempdir = tempfile.gettempdir())
-        for k, v in self.gen_values(N):
-            self.assertEquals(rv.get(k), v)
+        self._testBuild(10107530, tempfile.gettempdir())
 
-class Id32MapperTest(unittest.TestCase):
+    def testBuildHugeOnDiskReversed(self):
+        self._testBuild(10107530, tempfile.gettempdir(), reversed=True)
+
+    def testBuildHugeOnDiskShuffled(self):
+        self._testBuild(10107530, tempfile.gettempdir(), shuffled=True)
+
+    def testBuildHugeOnDiskDiscardDuplicates(self):
+        self._testBuild(10107530, tempfile.gettempdir(), build_kwargs = dict(discard_duplicates = True),
+            gen_dupes = True)
+
+class Id32MapperTest(IdMapperTest):
     IdMapperClass = mapped_struct.NumericId32Mapper
+
+class ApproxStringIdMultiMapperTest(IdMapperTest):
+    IdMapperClass = mapped_struct.ApproxStringIdMultiMapper
+
+    def gen_values(self, *p, **kw):
+        str_ = str
+        for k, v in super(ApproxStringIdMultiMapperTest, self).gen_values(*p, **kw):
+            yield str_(k), v
+
+    def _testBuild(self, N, tempdir, **gen_kwargs):
+        build_kwargs = gen_kwargs.pop('build_kwargs', {})
+        rv = self.IdMapperClass.build(self.gen_values(N, **gen_kwargs), tempdir = tempdir, **build_kwargs)
+        str_ = str
+        for k, v in self.gen_values(N, **gen_kwargs):
+            elem = rv.get(str_(k))
+            self.assertIsNotNone(elem)
+            self.assertIn(v, elem)
+
+    # Too much memory
+    testBuildHugeInMemShuffled = None
+    testBuildHugeOnDiskShuffled = None
+
+class ApproxStringId32MultiMapperTest(ApproxStringIdMultiMapperTest):
+    IdMapperClass = mapped_struct.ApproxStringId32MultiMapper
 
 class MappedMappingTest(unittest.TestCase):
     # Reuse test values from MappedArrayTest to simplify test code
