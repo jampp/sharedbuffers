@@ -3001,7 +3001,12 @@ class NumericIdMapper(object):
                     del bigparts[:]
                 partsfile.flush()
                 partsfile.seek(0)
-                bigparts.append(numpy.memmap(partsfile, dtype).reshape(-1,2))
+                apart = numpy.memmap(partsfile, dtype).reshape(-1,2)
+                apart = _discard_duplicates(
+                    apart, struct_dt,
+                    discard_duplicate_keys, discard_duplicates)
+                bigparts.append(apart)
+                del apart
 
             # Merge the final batch of parts and build the sorted index
             if bigparts:
