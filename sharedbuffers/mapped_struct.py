@@ -2952,11 +2952,7 @@ class NumericIdMapper(object):
             parts = []
             islice = itertools.islice
             array = numpy.array
-            unique = numpy.unique
             curpos = basepos + cls._Header.size
-            bytes_pack_into = mapped_bytes.pack_into
-            valbuf = bytearray(65536)
-            valbuflen = 65536
             part = []
             struct_dt = numpy.dtype([
                 ('key', dtype),
