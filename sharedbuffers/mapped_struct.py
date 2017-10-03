@@ -2624,7 +2624,7 @@ def _merge_all(parts, dtype):
         return _merge_all(nparts, dtype)
 
 @cython.cfunc
-@cython.locals(parts = list, discard_duplicate_keys = cython.bint, discard_duplicates = cython.bint)
+@cython.locals(discard_duplicate_keys = cython.bint, discard_duplicates = cython.bint)
 def _discard_duplicates(apart, struct_dt, discard_duplicate_keys, discard_duplicates):
     if discard_duplicate_keys or discard_duplicates:
         # What numpy.unique does, but using MUCH less RAM
@@ -2930,7 +2930,7 @@ class NumericIdMapper(object):
             discard_duplicates = False, discard_duplicate_keys = False):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
-        partsfile = None
+        partsfile = partswrite = None
 
         try:
             dtype = cls.dtype
@@ -2962,6 +2962,8 @@ class NumericIdMapper(object):
                 ('key', dtype),
                 ('value', dtype),
             ])
+            void_dt = numpy.dtype((numpy.void, struct_dt.itemsize))
+            concatenate = numpy.concatenate
             while 1:
                 del part[:]
                 for k,i in islice(initializer, 1000):
@@ -2969,22 +2971,23 @@ class NumericIdMapper(object):
                     part.append((k,i))
                 if part:
                     parts.append(_discard_duplicates(
-                        array(part, dtype), struct_dt,
+                        array(part, dtype), void_dt,
                         discard_duplicate_keys, discard_duplicates))
                 else:
                     break
                 if len(parts) > 1000:
                     # merge into a big part to flatten
-                    apart = numpy.concatenate(parts)
+                    apart = concatenate(parts)
                     del parts[:]
                     apart = _discard_duplicates(
-                        apart, struct_dt,
+                        apart, void_dt,
                         discard_duplicate_keys, discard_duplicates)
                     if tempdir is not None:
                         # Accumulate in tempfile
                         if partsfile is None:
                             partsfile = tempfile.TemporaryFile(dir = tempdir)
-                        partsfile.write(buffer(apart))
+                            partswrite = partsfile.write
+                        partswrite(buffer(apart))
                     else:
                         # Accumulate in memory
                         bigparts.append(apart)
@@ -2998,7 +3001,7 @@ class NumericIdMapper(object):
                 if bigparts:
                     # Flush the rest to do the final sort in mapped memory
                     for apart in bigparts:
-                        partsfile.write(buffer(apart))
+                        partswrite(buffer(apart))
                     del bigparts[:]
                 partsfile.flush()
                 partsfile.seek(0)
@@ -3011,8 +3014,9 @@ class NumericIdMapper(object):
 
             # Merge the final batch of parts and build the sorted index
             if bigparts:
+                needs_resort = not (discard_duplicate_keys or discard_duplicates)
                 if len(bigparts) > 1:
-                    bigindex = numpy.concatenate(bigparts)
+                    bigindex = concatenate(bigparts)
                     del bigparts[:]
                     bigindex = _discard_duplicates(
                         bigindex, struct_dt,
@@ -3020,7 +3024,10 @@ class NumericIdMapper(object):
                 else:
                     bigindex = bigparts[0]
                     del bigparts[:]
-                if not (discard_duplicate_keys or discard_duplicates):
+                    if partsfile is None:
+                        # Must re-sort with structural sort. Void sort may not have the same ordering.
+                        needs_resort = True
+                if needs_resort:
                     # Just sort, else already deduplicated and sorted
                     bigindex.view(struct_dt).sort(0)
                 index = bigindex
@@ -3035,7 +3042,7 @@ class NumericIdMapper(object):
         finally:
             if partsfile is not None:
                 partsfile.close()
-            partsfile = None
+            partsfile = partswrite = None
 
         finalpos = destfile.tell()
         if finalpos & 31:
