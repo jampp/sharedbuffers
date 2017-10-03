@@ -2631,10 +2631,11 @@ def _discard_duplicates(apart, struct_dt, discard_duplicate_keys, discard_duplic
         vpart = apart.view(struct_dt)
         vpart.sort(0)
         if discard_duplicate_keys:
-            flags = numpy.concatenate([[True], apart[1:,0] != apart[:-1,0]])
+            flags = apart[1:,0] != apart[:-1,0]
         elif discard_duplicates:
-            flags = numpy.concatenate([[True], vpart[1:,0] != vpart[:-1,0]])
+            flags = vpart[1:,0] != vpart[:-1,0]
         if not numpy.all(flags):
+            flags = numpy.concatenate([[True], flags])
             apart = apart[flags]
     return apart
 
