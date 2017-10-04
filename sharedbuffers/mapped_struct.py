@@ -2624,8 +2624,9 @@ def _merge_all(parts, dtype):
         return _merge_all(nparts, dtype)
 
 @cython.cfunc
-@cython.locals(discard_duplicate_keys = cython.bint, discard_duplicates = cython.bint)
-def _discard_duplicates(apart, struct_dt, discard_duplicate_keys, discard_duplicates):
+@cython.locals(discard_duplicate_keys = cython.bint, discard_duplicates = cython.bint, copy = cython.bint,
+    nout = cython.size_t, nmin = cython.size_t, out_start = cython.size_t)
+def _discard_duplicates(apart, struct_dt, discard_duplicate_keys, discard_duplicates, copy):
     if discard_duplicate_keys or discard_duplicates:
         # What numpy.unique does, but using MUCH less RAM
         vpart = apart.view(struct_dt)
@@ -2634,9 +2635,33 @@ def _discard_duplicates(apart, struct_dt, discard_duplicate_keys, discard_duplic
             flags = apart[1:,0] != apart[:-1,0]
         elif discard_duplicates:
             flags = vpart[1:,0] != vpart[:-1,0]
-        if not numpy.all(flags):
-            flags = numpy.concatenate([[True], flags])
-            apart = apart[flags]
+        np = numpy
+        if not np.all(flags):
+            if copy:
+                # Simple boolean indexing, best implementation for constructing a deduplicated copy
+                flags = np.concatenate([[True], flags])
+                apart = apart[flags]
+            else:
+                # In-place compress operation, best option for non-copying deduplication, to avoid
+                # having to allocate temporary workspace proportional to output size. This
+                # way only uses a fixed amount of temporary workspace and builds a compressed
+                # result into the input array directly.
+                nmin = np.argmin(flags)
+                count_nonzero = np.count_nonzero
+                start = nmin
+                end = len(flags)
+                out_start = start+1
+                while start < end:
+                    chunk_end = min(end, start + 100000)
+                    flags_slice = flags[start:chunk_end]
+                    nout = count_nonzero(flags_slice)
+                    dedup_slice = apart[start+1:chunk_end+1]
+                    if nout != (chunk_end - start):
+                        dedup_slice = dedup_slice[flags_slice]
+                    apart[out_start:out_start+nout] = dedup_slice
+                    start = chunk_end
+                    out_start += nout
+                apart = apart[:out_start]
     return apart
 
 @cython.cclass
@@ -2968,7 +2993,7 @@ class NumericIdMapper(object):
                 if part:
                     parts.append(_discard_duplicates(
                         array(part, dtype), void_dt,
-                        discard_duplicate_keys, discard_duplicates))
+                        discard_duplicate_keys, discard_duplicates, False))
                 else:
                     break
                 if len(parts) > 1000:
@@ -2977,7 +3002,8 @@ class NumericIdMapper(object):
                     del parts[:]
                     apart = _discard_duplicates(
                         apart, void_dt,
-                        discard_duplicate_keys, discard_duplicates)
+                        discard_duplicate_keys, discard_duplicates,
+                        tempdir is None)
                     if tempdir is not None:
                         # Accumulate in tempfile
                         if partsfile is None:
@@ -3004,7 +3030,7 @@ class NumericIdMapper(object):
                 apart = numpy.memmap(partsfile, dtype).reshape(-1,2)
                 apart = _discard_duplicates(
                     apart, struct_dt,
-                    discard_duplicate_keys, discard_duplicates)
+                    discard_duplicate_keys, discard_duplicates, False)
                 bigparts.append(apart)
                 del apart
 
@@ -3016,7 +3042,7 @@ class NumericIdMapper(object):
                     del bigparts[:]
                     bigindex = _discard_duplicates(
                         bigindex, struct_dt,
-                        discard_duplicate_keys, discard_duplicates)
+                        discard_duplicate_keys, discard_duplicates, False)
                 else:
                     bigindex = bigparts[0]
                     del bigparts[:]

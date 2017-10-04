@@ -584,7 +584,7 @@ class IdMapperTest(unittest.TestCase):
         if gen_dupes:
             return itertools.chain(
                 itertools.izip(keys, xrange(0, 2*n, 2)),
-                itertools.izip(keys, xrange(0, 2*n, 2)),
+                itertools.islice(itertools.izip(keys, xrange(0, 2*n, 2)), 10, None),
             )
         else:
             return itertools.izip(keys, xrange(0, 2*n, 2))
