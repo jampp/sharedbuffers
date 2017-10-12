@@ -2655,10 +2655,13 @@ def _discard_duplicates(apart, struct_dt, discard_duplicate_keys, discard_duplic
                     chunk_end = min(end, start + 100000)
                     flags_slice = flags[start:chunk_end]
                     nout = count_nonzero(flags_slice)
-                    dedup_slice = apart[start+1:chunk_end+1]
-                    if nout != (chunk_end - start):
-                        dedup_slice = dedup_slice[flags_slice]
-                    apart[out_start:out_start+nout] = dedup_slice
+                    if nout != 0:
+                        dedup_slice = apart[start+1:chunk_end+1]
+                        if nout < (chunk_end - start):
+                            dedup_slice = dedup_slice[flags_slice]
+                        apart[out_start:out_start+nout] = dedup_slice
+                        del dedup_slice
+                    del flags_slice
                     start = chunk_end
                     out_start += nout
                 apart = apart[:out_start]
