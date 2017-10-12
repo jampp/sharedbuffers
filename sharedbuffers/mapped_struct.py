@@ -2624,18 +2624,47 @@ def _merge_all(parts, dtype):
         return _merge_all(nparts, dtype)
 
 @cython.cfunc
-@cython.locals(parts = list, discard_duplicate_keys = cython.bint, discard_duplicates = cython.bint)
-def _discard_duplicates(apart, struct_dt, discard_duplicate_keys, discard_duplicates):
+@cython.locals(discard_duplicate_keys = cython.bint, discard_duplicates = cython.bint, copy = cython.bint,
+    nout = cython.size_t, nmin = cython.size_t, out_start = cython.size_t)
+def _discard_duplicates(apart, struct_dt, discard_duplicate_keys, discard_duplicates, copy):
     if discard_duplicate_keys or discard_duplicates:
         # What numpy.unique does, but using MUCH less RAM
         vpart = apart.view(struct_dt)
         vpart.sort(0)
         if discard_duplicate_keys:
-            flags = numpy.concatenate([[True], apart[1:,0] != apart[:-1,0]])
+            flags = apart[1:,0] != apart[:-1,0]
         elif discard_duplicates:
-            flags = numpy.concatenate([[True], vpart[1:,0] != vpart[:-1,0]])
-        if not numpy.all(flags):
-            apart = apart[flags]
+            flags = vpart[1:,0] != vpart[:-1,0]
+        np = numpy
+        if not np.all(flags):
+            if copy:
+                # Simple boolean indexing, best implementation for constructing a deduplicated copy
+                flags = np.concatenate([[True], flags])
+                apart = apart[flags]
+            else:
+                # In-place compress operation, best option for non-copying deduplication, to avoid
+                # having to allocate temporary workspace proportional to output size. This
+                # way only uses a fixed amount of temporary workspace and builds a compressed
+                # result into the input array directly.
+                nmin = np.argmin(flags)
+                count_nonzero = np.count_nonzero
+                start = nmin
+                end = len(flags)
+                out_start = start+1
+                while start < end:
+                    chunk_end = min(end, start + 100000)
+                    flags_slice = flags[start:chunk_end]
+                    nout = count_nonzero(flags_slice)
+                    if nout != 0:
+                        dedup_slice = apart[start+1:chunk_end+1]
+                        if nout < (chunk_end - start):
+                            dedup_slice = dedup_slice[flags_slice]
+                        apart[out_start:out_start+nout] = dedup_slice
+                        del dedup_slice
+                    del flags_slice
+                    start = chunk_end
+                    out_start += nout
+                apart = apart[:out_start]
     return apart
 
 @cython.cclass
@@ -2929,7 +2958,7 @@ class NumericIdMapper(object):
             discard_duplicates = False, discard_duplicate_keys = False):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
-        partsfile = None
+        partsfile = partswrite = None
 
         try:
             dtype = cls.dtype
@@ -2951,16 +2980,14 @@ class NumericIdMapper(object):
             parts = []
             islice = itertools.islice
             array = numpy.array
-            unique = numpy.unique
             curpos = basepos + cls._Header.size
-            bytes_pack_into = mapped_bytes.pack_into
-            valbuf = bytearray(65536)
-            valbuflen = 65536
             part = []
             struct_dt = numpy.dtype([
                 ('key', dtype),
                 ('value', dtype),
             ])
+            void_dt = numpy.dtype((numpy.void, struct_dt.itemsize))
+            concatenate = numpy.concatenate
             while 1:
                 del part[:]
                 for k,i in islice(initializer, 1000):
@@ -2968,22 +2995,24 @@ class NumericIdMapper(object):
                     part.append((k,i))
                 if part:
                     parts.append(_discard_duplicates(
-                        array(part, dtype), struct_dt,
-                        discard_duplicate_keys, discard_duplicates))
+                        array(part, dtype), void_dt,
+                        discard_duplicate_keys, discard_duplicates, False))
                 else:
                     break
                 if len(parts) > 1000:
                     # merge into a big part to flatten
-                    apart = numpy.concatenate(parts)
+                    apart = concatenate(parts)
                     del parts[:]
                     apart = _discard_duplicates(
-                        apart, struct_dt,
-                        discard_duplicate_keys, discard_duplicates)
+                        apart, void_dt,
+                        discard_duplicate_keys, discard_duplicates,
+                        tempdir is None)
                     if tempdir is not None:
                         # Accumulate in tempfile
                         if partsfile is None:
                             partsfile = tempfile.TemporaryFile(dir = tempdir)
-                        partsfile.write(buffer(apart))
+                            partswrite = partsfile.write
+                        partswrite(buffer(apart))
                     else:
                         # Accumulate in memory
                         bigparts.append(apart)
@@ -2997,29 +3026,33 @@ class NumericIdMapper(object):
                 if bigparts:
                     # Flush the rest to do the final sort in mapped memory
                     for apart in bigparts:
-                        partsfile.write(buffer(apart))
+                        partswrite(buffer(apart))
                     del bigparts[:]
                 partsfile.flush()
                 partsfile.seek(0)
                 apart = numpy.memmap(partsfile, dtype).reshape(-1,2)
                 apart = _discard_duplicates(
                     apart, struct_dt,
-                    discard_duplicate_keys, discard_duplicates)
+                    discard_duplicate_keys, discard_duplicates, False)
                 bigparts.append(apart)
                 del apart
 
             # Merge the final batch of parts and build the sorted index
             if bigparts:
+                needs_resort = not (discard_duplicate_keys or discard_duplicates)
                 if len(bigparts) > 1:
-                    bigindex = numpy.concatenate(bigparts)
+                    bigindex = concatenate(bigparts)
                     del bigparts[:]
                     bigindex = _discard_duplicates(
                         bigindex, struct_dt,
-                        discard_duplicate_keys, discard_duplicates)
+                        discard_duplicate_keys, discard_duplicates, False)
                 else:
                     bigindex = bigparts[0]
                     del bigparts[:]
-                if not (discard_duplicate_keys or discard_duplicates):
+                    if partsfile is None:
+                        # Must re-sort with structural sort. Void sort may not have the same ordering.
+                        needs_resort = True
+                if needs_resort:
                     # Just sort, else already deduplicated and sorted
                     bigindex.view(struct_dt).sort(0)
                 index = bigindex
@@ -3034,7 +3067,7 @@ class NumericIdMapper(object):
         finally:
             if partsfile is not None:
                 partsfile.close()
-            partsfile = None
+            partsfile = partswrite = None
 
         finalpos = destfile.tell()
         if finalpos & 31:

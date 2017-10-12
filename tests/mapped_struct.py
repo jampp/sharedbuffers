@@ -584,7 +584,7 @@ class IdMapperTest(unittest.TestCase):
         if gen_dupes:
             return itertools.chain(
                 itertools.izip(keys, xrange(0, 2*n, 2)),
-                itertools.izip(keys, xrange(0, 2*n, 2)),
+                itertools.islice(itertools.izip(keys, xrange(0, 2*n, 2)), 10, None),
             )
         else:
             return itertools.izip(keys, xrange(0, 2*n, 2))
@@ -592,8 +592,11 @@ class IdMapperTest(unittest.TestCase):
     def _testBuild(self, N, tempdir, **gen_kwargs):
         build_kwargs = gen_kwargs.pop('build_kwargs', {})
         rv = self.IdMapperClass.build(self.gen_values(N, **gen_kwargs), tempdir = tempdir, **build_kwargs)
+        rvget = rv.get
         for k, v in self.gen_values(N, **gen_kwargs):
-            self.assertEquals(rv.get(k), v)
+            rvv = rvget(k)
+            if rvv != v:
+                self.assertEquals(rvv, v)
 
     def testBuildHugeInMem(self):
         self._testBuild(2010530, None)
@@ -636,10 +639,13 @@ class ApproxStringIdMultiMapperTest(IdMapperTest):
         build_kwargs = gen_kwargs.pop('build_kwargs', {})
         rv = self.IdMapperClass.build(self.gen_values(N, **gen_kwargs), tempdir = tempdir, **build_kwargs)
         str_ = str
+        rvget = rv.get
         for k, v in self.gen_values(N, **gen_kwargs):
-            elem = rv.get(str_(k))
-            self.assertIsNotNone(elem)
-            self.assertIn(v, elem)
+            elem = rvget(str_(k))
+            if elem is None:
+                self.assertIsNotNone(elem)
+            if v not in elem:
+                self.assertIn(v, elem)
 
     # Too much memory
     testBuildHugeInMemShuffled = None
