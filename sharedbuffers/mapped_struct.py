@@ -8,7 +8,10 @@ import numpy
 import tempfile
 import functools
 import lz4
-import cPickle
+try:
+    import cPickle
+except ImportError:
+    import pickle as cPickle
 import os
 import sys
 import xxhash
@@ -28,7 +31,10 @@ npfloat32 = cython.declare(object, numpy.float32)
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
     buffer = cython.declare(object, buffer)  # lint:ok
-    from types import BufferType as buffer
+    try:
+        from types import BufferType as buffer
+    except ImportError:
+        buffer = memoryview
 
 class ubyte(int):
     pass
@@ -121,10 +127,10 @@ class mapped_frozenset(frozenset):
                 if cython.compiled and offs+7 >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
                 rv = []
-                for i in xrange(7):
+                for i in range(7):
                     b = ord(pbuf[offs+1+i])
                     if b:
-                        for j in xrange(8):
+                        for j in range(8):
                             if b & (1<<j):
                                 rv.append(i*8+j)
                 return frozenset(rv)
@@ -1403,7 +1409,7 @@ class Schema(object):
 
     @cython.ccall
     def pack(self, obj, idmap = None, packer = None, padding = None, implicit_offs = 0):
-        for i in xrange(24):
+        for i in range(24):
             try:
                 endp = self.pack_into(obj, self._pack_buffer, 0, idmap, packer, padding, implicit_offs)
                 return self._pack_buffer[:endp]
@@ -1485,7 +1491,7 @@ class Schema(object):
                     pformat = opformat
                     value_ix = 0
                     pbuf2 = pbuf
-                    for i in xrange(self.slot_count):
+                    for i in range(self.slot_count):
                         mask = cython.cast(cython.ulonglong, 1) << i
                         if has_bitmap & mask:
                             slot = self.slot_keys[i]
@@ -1563,7 +1569,7 @@ class Schema(object):
                     offs += stride
         
                     value_ix = 0
-                    for i in xrange(self.slot_count):
+                    for i in range(self.slot_count):
                         mask = 1 << i
                         if has_bitmap & mask:
                             slot = self.slot_keys[i]
@@ -1689,7 +1695,7 @@ class MappedArrayProxyBase(object):
         else:
             proxy_class_new = None
 
-        for i in xrange(len(self)):
+        for i in range(len(self)):
             yield schema.unpack_from(buf, index[i], idmap, proxy_class_new)
 
     @cython.locals(i = int, schema = Schema)
@@ -1707,7 +1713,7 @@ class MappedArrayProxyBase(object):
             proxy_class_new = None
 
         proxy_into = schema.Proxy()
-        for i in xrange(len(self)):
+        for i in range(len(self)):
             yield schema.unpack_from(buf, index[i], idmap, proxy_class_new, proxy_into)
 
     def __len__(self):
@@ -2611,7 +2617,7 @@ def _merge_all(parts, dtype):
         return parts[0]
     else:
         nparts = []
-        for i in xrange(0, len(parts), 2):
+        for i in range(0, len(parts), 2):
             if i+1 < len(parts):
                 npart = numpy.empty((len(parts[i])+len(parts[i+1]), 2), dtype)
                 merge_elements = index_merge(parts[i], parts[i+1], npart)
@@ -2792,7 +2798,7 @@ class NumericIdMapper(object):
                         stride0 = indexbuf.strides[0]
                         stride1 = indexbuf.strides[1]
                         pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in xrange(self.index_elements):
+                        for i in range(self.index_elements):
                             yield (
                                 cython.cast(cython.p_ulonglong, pindex)[0],
                                 cython.cast(cython.p_ulonglong, pindex + stride1)[0]
@@ -2810,7 +2816,7 @@ class NumericIdMapper(object):
                         stride0 = indexbuf.strides[0]
                         stride1 = indexbuf.strides[1]
                         pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in xrange(self.index_elements):
+                        for i in range(self.index_elements):
                             yield (
                                 cython.cast(cython.p_uint, pindex)[0],
                                 cython.cast(cython.p_uint, pindex + stride1)[0]
@@ -2819,7 +2825,7 @@ class NumericIdMapper(object):
                     finally:
                         PyBuffer_Release(cython.address(indexbuf))
                 else:
-                    for i in xrange(self.index_elements):
+                    for i in range(self.index_elements):
                         yield (
                             index[i,0],
                             index[i,1]
@@ -2828,7 +2834,7 @@ class NumericIdMapper(object):
                 PyBuffer_Release(cython.address(pybuf))
             #lint:enable
         else:
-            for i in xrange(self.index_elements):
+            for i in range(self.index_elements):
                 yield (index[i,0], index[i,1])
 
     def items(self):
@@ -3247,7 +3253,7 @@ class StringIdMapper(object):
                     try:
                         if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
                             raise ValueError("Invalid buffer state")
-                        for i in xrange(self.index_elements):
+                        for i in range(self.index_elements):
                             yield _unpack_bytes_from_cbuffer(
                                 cython.cast(cython.p_char, pybuf.buf),
                                 cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs],
@@ -3259,7 +3265,7 @@ class StringIdMapper(object):
                     try:
                         if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
                             raise ValueError("Invalid buffer state")
-                        for i in xrange(self.index_elements):
+                        for i in range(self.index_elements):
                             yield _unpack_bytes_from_cbuffer(
                                 cython.cast(cython.p_char, pybuf.buf),
                                 cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs],
@@ -3267,7 +3273,7 @@ class StringIdMapper(object):
                     finally:
                         PyBuffer_Release(cython.address(indexbuf))
                 else:
-                    for i in xrange(self.index_elements):
+                    for i in range(self.index_elements):
                         yield _unpack_bytes_from_cbuffer(
                             cython.cast(cython.p_char, pybuf.buf),
                             index[i],
@@ -3276,7 +3282,7 @@ class StringIdMapper(object):
                 PyBuffer_Release(cython.address(pybuf))
             #lint:enable
         else:
-            for i in xrange(self.index_elements):
+            for i in range(self.index_elements):
                 yield _unpack_bytes_from_pybuffer(buf, index[i], None)
 
     def __iter__(self):
@@ -3318,7 +3324,7 @@ class StringIdMapper(object):
                         stride0 = indexbuf.strides[0]
                         stride1 = indexbuf.strides[1]
                         pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in xrange(self.index_elements):
+                        for i in range(self.index_elements):
                             yield (
                                 _unpack_bytes_from_cbuffer(
                                     cython.cast(cython.p_char, pybuf.buf),
@@ -3339,7 +3345,7 @@ class StringIdMapper(object):
                         stride0 = indexbuf.strides[0]
                         stride1 = indexbuf.strides[1]
                         pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in xrange(self.index_elements):
+                        for i in range(self.index_elements):
                             yield (
                                 _unpack_bytes_from_cbuffer(
                                     cython.cast(cython.p_char, pybuf.buf),
@@ -3351,7 +3357,7 @@ class StringIdMapper(object):
                     finally:
                         PyBuffer_Release(cython.address(indexbuf))
                 else:
-                    for i in xrange(self.index_elements):
+                    for i in range(self.index_elements):
                         yield (
                             _unpack_bytes_from_cbuffer(
                                 cython.cast(cython.p_char, pybuf.buf),
@@ -3363,7 +3369,7 @@ class StringIdMapper(object):
                 PyBuffer_Release(cython.address(pybuf))
             #lint:enable
         else:
-            for i in xrange(self.index_elements):
+            for i in range(self.index_elements):
                 yield (_unpack_bytes_from_pybuffer(buf, index[i,1], None), index[i,2])
 
     def items(self):
@@ -4223,7 +4229,7 @@ class MappedMappingProxyBase(object):
             values_pos = destfile.tell()
 
             blocklen = 1 << 20
-            for start in xrange(0, len(value_array.buf), blocklen):
+            for start in range(0, len(value_array.buf), blocklen):
                 destfile.write(buffer(value_array.buf, start, blocklen))
             destfile.write(cls._Footer.pack(values_pos - initial_pos))
             destfile.flush()

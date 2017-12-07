@@ -12,6 +12,16 @@ import random
 from sharedbuffers import mapped_struct
 
 try:
+    range = xrange
+except:
+    pass
+
+try:
+    unicode
+except:
+    unicode = str
+
+try:
     import cPickle
 except ImportError:
     import pickle as cPickle
@@ -30,7 +40,7 @@ class SimpleStruct(object):
 def _make_nattrs(n):
     return dict(
         ('a%d' % i, int)
-        for i in xrange(n)
+        for i in range(n)
     )
 
 class Attr7Struct(object):
@@ -92,7 +102,7 @@ class PrimitiveStruct(object):
     __slot_types__ = {
         'a' : int,
         'b' : float,
-        's' : str,
+        's' : bytes,
         'u' : unicode,
     }
     __slots__ = __slot_types__.keys()
