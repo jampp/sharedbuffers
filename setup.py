@@ -138,45 +138,45 @@ with open(os.path.join(os.path.dirname(__file__), 'requirements.txt')) as requir
         if r.strip() not in setup_requires ]))
 
 packages = [
-      "sharedbuffers",
+    "sharedbuffers",
 ]
 
 setup(
-  name = "sharedbuffers",
-  version = VERSION,
-  description = "Shared-memory structured buffers",
-  author = "Jampp",
-  author_email = "klauss@jampp.com",
-  maintainer = "Claudio Freire",
-  maintainer_email = "klauss@jampp.com",
-  url = "https://github.com/jampp/sharedbuffers/",
-  #license = "?",
-  long_description = readme,
-  packages = packages,
-  package_dir = {'sharedbuffers':'sharedbuffers'},
-  
-  tests_require = 'nose',
-  test_suite = 'tests',
-  license = 'BSD 3-Clause',
+    name = "sharedbuffers",
+    version = VERSION,
+    description = "Shared-memory structured buffers",
+    author = "Jampp",
+    author_email = "klauss@jampp.com",
+    maintainer = "Claudio Freire",
+    maintainer_email = "klauss@jampp.com",
+    url = "https://github.com/jampp/sharedbuffers/",
+    #license = "?",
+    long_description = readme,
+    packages = packages,
+    package_dir = {'sharedbuffers':'sharedbuffers'},
 
-  cmdclass = cmd_class,
+    tests_require = 'nose',
+    test_suite = 'tests',
+    license = 'BSD 3-Clause',
 
-  install_requires = requirements,
+    cmdclass = cmd_class,
 
-  classifiers=[
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: BSD License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-  ],
+    install_requires = requirements,
 
-  data_files = [
-      ("", ["LICENSE"])
-  ],
+    classifiers=[
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: BSD License",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+    ],
 
-  zip_safe = False,
-  **extra
+    data_files = [
+        ("", ["LICENSE"])
+    ],
+
+    zip_safe = False,
+    **extra
 )
 
