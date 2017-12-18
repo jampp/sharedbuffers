@@ -1,6 +1,6 @@
 lz4
 xxhash
 numpy
-Cython>=0.22,!=0.27.1
+Cython>=0.22,!=0.27.1,!=0.27.2,!=0.27.3
 chorde
 
