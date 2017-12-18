@@ -7,6 +7,14 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.4.6 - 2017-10-18
+==================
+
+Bugfixes
+--------
+
+- Reject Cython >= 0.27.1, since they break the build
+
 0.4.5 - 2017-10-12
 ==================
 
