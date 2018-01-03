@@ -7,6 +7,14 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.4.7 - Unreleased
+==================
+
+Bugfixes
+--------
+
+- Solve issue when using lz4 0.18.1
+
 0.4.6 - 2017-10-18
 ==================
 
@@ -158,7 +166,7 @@ Bugfixes
 Added
 -----
 
-- Add multimaps, binary compatible with simple mappings, 
+- Add multimaps, binary compatible with simple mappings,
   but return all matching values for a key rather than a single one
 - Add approximate string multimaps
 
