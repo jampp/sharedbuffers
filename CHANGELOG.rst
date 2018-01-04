@@ -158,7 +158,7 @@ Bugfixes
 Added
 -----
 
-- Add multimaps, binary compatible with simple mappings, 
+- Add multimaps, binary compatible with simple mappings,
   but return all matching values for a key rather than a single one
 - Add approximate string multimaps
 

@@ -190,7 +190,7 @@ class SchemaPicklingTest(AttributeBitmapTest):
 
 class BasePackingTestMixin(object):
     Struct = None
-    
+
     TEST_VALUES = [{}]
 
     def setUp(self):
@@ -372,9 +372,9 @@ class NestedObjectPackagingTest(SimplePackingTest):
     SubStruct = ContainerStruct
     subschema = mapped_struct.Schema.from_typed_slots(SubStruct)
     doregister = True
-    
+
     TEST_VALUES = [
-        { 
+        {
             'o' : ContainerStruct(**{
                 'fset' : frozenset([1000,3000,7000]),
                 't' : (3000,6000,7000),
@@ -903,12 +903,12 @@ class MappedString32MappingBigTest(MappedString32MappingTest):
 
 class BsearchTest(unittest.TestCase):
     if mapped_struct._cythonized:
-        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, 
+        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
             numpy.double, numpy.single, numpy.float64, numpy.float32 ]
 
         UNSUPPORTED_DTYPES = [ numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
     else:
-        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, 
+        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
             numpy.double, numpy.single, numpy.float64, numpy.float32,
             numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
 
