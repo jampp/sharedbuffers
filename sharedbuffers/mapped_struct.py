@@ -7,7 +7,6 @@ import mmap
 import numpy
 import tempfile
 import functools
-import lz4
 import cPickle
 import os
 import sys
@@ -298,8 +297,13 @@ class mapped_list(list):
             raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
         return rv
 
-lz4_decompress = cython.declare(object, lz4.decompress)
-lz4_compress = cython.declare(object, lz4.compress)
+try:
+    import lz4.block as lz4_block
+except ImportError:
+    import lz4 as lz4_block
+
+lz4_decompress = cython.declare(object, lz4_block.decompress)
+lz4_compress = cython.declare(object, lz4_block.compress)
 
 MIN_COMPRESS_THRESHOLD = cython.declare(cython.size_t, 512)
 
