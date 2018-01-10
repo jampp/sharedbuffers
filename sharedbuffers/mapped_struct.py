@@ -298,14 +298,12 @@ class mapped_list(list):
         return rv
 
 try:
-    import lz4.block
-    lz4_functions_module = lz4.block
+    import lz4.block as lz4_block
 except ImportError:
-    import lz4
-    lz4_functions_module = lz4
+    import lz4 as lz4_block
 
-lz4_decompress = cython.declare(object, lz4_functions_module.decompress)
-lz4_compress = cython.declare(object, lz4_functions_module.compress)
+lz4_decompress = cython.declare(object, lz4_block.decompress)
+lz4_compress = cython.declare(object, lz4_block.compress)
 
 MIN_COMPRESS_THRESHOLD = cython.declare(cython.size_t, 512)
 
