@@ -1,7 +1,7 @@
 sharedbuffers
 =============
 
-This library implements shared-memory typed buffers that can be read and manipulated (and we'll eventually 
+This library implements shared-memory typed buffers that can be read and manipulated (and we'll eventually
 support writes too) efficiently without serialization or deserialization.
 
 The main supported implementation of obtaining shared memory is by memory-mapping files, but the library also supports
@@ -130,18 +130,18 @@ them while they're still referenced in the idmap, so its usage is non-trivial. A
         iter_all = iter(some_generator)
         while True:
             idmap.clear()
-    
+
             sstructs = list(itertools.islice(iter_all, 10000))
             if not sstructs:
                 break
-    
+
             for ss in sstructs :
                 # mapping from "s" attribute to struct
                 yield (ss.s, ss)
             del sstructs
-    
+
     idmap = {}
-    name_mapping = StructNameMapping.build(all_structs(idmap), 
+    name_mapping = StructNameMapping.build(all_structs(idmap),
         destfile = destfile, idmap = idmap)
 
 The above code syncs the lifetime of objects and their idmap entries to avoid mapping issues. If the invariant
