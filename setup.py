@@ -70,7 +70,7 @@ if '--xml' in sys.argv:
     unittest.runner.TextTestRunner = xmlrunner.XMLTestRunner
     del sys.argv[sys.argv.index('--xml')]
 
-setup_requires = ['Cython>=0.22']
+setup_requires = ['Cython>=0.22,<0.27.1']
 
 if '--no-cython' in sys.argv:
     del sys.argv[sys.argv.index('--no-cython')]
@@ -118,7 +118,7 @@ else:
     extra['ext_modules'] = lazy_modules()
     extra['setup_requires'] = setup_requires
 
-VERSION = "0.4.5"
+VERSION = "0.4.7"
 
 version_path = os.path.join(os.path.dirname(__file__), 'sharedbuffers', '_version.py')
 if not os.path.exists(version_path):
@@ -138,45 +138,45 @@ with open(os.path.join(os.path.dirname(__file__), 'requirements.txt')) as requir
         if r.strip() not in setup_requires ]))
 
 packages = [
-      "sharedbuffers",
+    "sharedbuffers",
 ]
 
 setup(
-  name = "sharedbuffers",
-  version = VERSION,
-  description = "Shared-memory structured buffers",
-  author = "Jampp",
-  author_email = "klauss@jampp.com",
-  maintainer = "Claudio Freire",
-  maintainer_email = "klauss@jampp.com",
-  url = "https://github.com/jampp/sharedbuffers/",
-  #license = "?",
-  long_description = readme,
-  packages = packages,
-  package_dir = {'sharedbuffers':'sharedbuffers'},
-  
-  tests_require = 'nose',
-  test_suite = 'tests',
-  license = 'BSD 3-Clause',
+    name = "sharedbuffers",
+    version = VERSION,
+    description = "Shared-memory structured buffers",
+    author = "Jampp",
+    author_email = "klauss@jampp.com",
+    maintainer = "Claudio Freire",
+    maintainer_email = "klauss@jampp.com",
+    url = "https://github.com/jampp/sharedbuffers/",
+    #license = "?",
+    long_description = readme,
+    packages = packages,
+    package_dir = {'sharedbuffers':'sharedbuffers'},
 
-  cmdclass = cmd_class,
+    tests_require = 'nose',
+    test_suite = 'tests',
+    license = 'BSD 3-Clause',
 
-  install_requires = requirements,
+    cmdclass = cmd_class,
 
-  classifiers=[
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: BSD License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-  ],
+    install_requires = requirements,
 
-  data_files = [
-      ("", ["LICENSE"])
-  ],
+    classifiers=[
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: BSD License",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+    ],
 
-  zip_safe = False,
-  **extra
+    data_files = [
+        ("", ["LICENSE"])
+    ],
+
+    zip_safe = False,
+    **extra
 )
 

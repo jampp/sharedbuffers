@@ -34,7 +34,7 @@ class SimpleStruct(object):
     __slots__ = __slot_types__.keys()
 
     def __init__(self, **kw):
-        for k,v in kw.iteritems():
+        for k,v in kw.items():
             setattr(self, k, v)
 
 def _make_nattrs(n):
@@ -95,7 +95,7 @@ class SizedNumericStruct(object):
     __slots__ = __slot_types__.keys()
 
     def __init__(self, **kw):
-        for k,v in kw.iteritems():
+        for k,v in kw.items():
             setattr(self, k, v)
 
 class PrimitiveStruct(object):
@@ -108,7 +108,7 @@ class PrimitiveStruct(object):
     __slots__ = __slot_types__.keys()
 
     def __init__(self, **kw):
-        for k,v in kw.iteritems():
+        for k,v in kw.items():
             setattr(self, k, v)
 
 class ContainerStruct(object):
@@ -120,7 +120,7 @@ class ContainerStruct(object):
     __slots__ = __slot_types__.keys()
 
     def __init__(self, **kw):
-        for k,v in kw.iteritems():
+        for k,v in kw.items():
             setattr(self, k, v)
 
 class ObjectStruct(object):
@@ -130,7 +130,7 @@ class ObjectStruct(object):
     __slots__ = __slot_types__.keys()
 
     def __init__(self, **kw):
-        for k,v in kw.iteritems():
+        for k,v in kw.items():
             setattr(self, k, v)
 
 class AttributeBitmapTest(unittest.TestCase):
@@ -174,7 +174,7 @@ class SchemaPicklingTest(AttributeBitmapTest):
 
         for k in delattrs:
             delattr(x, k)
-        for k,v in values.iteritems():
+        for k,v in values.items():
             setattr(x, k, v)
 
         px = schema.pack(x)
@@ -200,7 +200,7 @@ class SchemaPicklingTest(AttributeBitmapTest):
 
 class BasePackingTestMixin(object):
     Struct = None
-    
+
     TEST_VALUES = [{}]
 
     def setUp(self):
@@ -221,9 +221,9 @@ class BasePackingTestMixin(object):
 
     def testPackUnpack(self):
         for TEST_VALUES in self.TEST_VALUES:
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.items()})
             dx = self.schema.unpack(self.schema.pack(x))
-            for k,v in TEST_VALUES.iteritems():
+            for k,v in TEST_VALUES.items():
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
@@ -232,10 +232,10 @@ class BasePackingTestMixin(object):
 
     def testPackPickleUnpack(self):
         for TEST_VALUES in self.TEST_VALUES:
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.items()})
             pschema = cPickle.loads(cPickle.dumps(self.schema))
             dx = pschema.unpack(self.schema.pack(x))
-            for k,v in TEST_VALUES.iteritems():
+            for k,v in TEST_VALUES.items():
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
@@ -245,10 +245,10 @@ class BasePackingTestMixin(object):
     def testUnpackInto(self):
         dx = self.schema.Proxy()
         for TEST_VALUES in self.TEST_VALUES * 2:
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.items()})
             px = self.schema.pack(x)
             dx = self.schema.unpack(px, proxy_into = dx)
-            for k,v in TEST_VALUES.iteritems():
+            for k,v in TEST_VALUES.items():
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
@@ -382,9 +382,9 @@ class NestedObjectPackagingTest(SimplePackingTest):
     SubStruct = ContainerStruct
     subschema = mapped_struct.Schema.from_typed_slots(SubStruct)
     doregister = True
-    
+
     TEST_VALUES = [
-        { 
+        {
             'o' : ContainerStruct(**{
                 'fset' : frozenset([1000,3000,7000]),
                 't' : (3000,6000,7000),
@@ -433,7 +433,7 @@ class NestedTypedObjectPackagingTest(NestedObjectPackagingTest):
             __slots__ = __slot_types__.keys()
 
             def __init__(self, **kw):
-                for k,v in kw.iteritems():
+                for k,v in kw.items():
                     setattr(self, k, v)
         self.Struct = ContainerObjectStruct
 
@@ -454,7 +454,7 @@ class NestedAutoregisterTypedObjectPackagingTest(NestedTypedObjectPackagingTest)
             # re-register subschema
             mapped_struct.mapped_object.register_schema(self.SubStruct, self.subschema, '}')
 
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.items()})
             pschema = cPickle.dumps(self.schema)
 
             # Unregister schema to force the need for auto-register
@@ -464,7 +464,7 @@ class NestedAutoregisterTypedObjectPackagingTest(NestedTypedObjectPackagingTest)
             pschema = cPickle.loads(pschema)
 
             dx = pschema.unpack(self.schema.pack(x))
-            for k,v in TEST_VALUES.iteritems():
+            for k,v in TEST_VALUES.items():
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
@@ -708,9 +708,9 @@ class MappedMappingTest(unittest.TestCase):
         self.assertEqual(set(test_values.iterkeys()), set(mapping.iterkeys()))
 
         # test lookup
-        for k,reference in test_values.iteritems():
+        for k,reference in test_values.items():
             self.assertStructEquals(reference, mapping.get(k))
-        for k,reference in test_values.iteritems():
+        for k,reference in test_values.items():
             self.assertStructEquals(reference, mapping[k])
 
         # test item iteration and enumeration
@@ -913,12 +913,12 @@ class MappedString32MappingBigTest(MappedString32MappingTest):
 
 class BsearchTest(unittest.TestCase):
     if mapped_struct._cythonized:
-        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, 
+        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
             numpy.double, numpy.single, numpy.float64, numpy.float32 ]
 
         UNSUPPORTED_DTYPES = [ numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
     else:
-        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, 
+        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
             numpy.double, numpy.single, numpy.float64, numpy.float32,
             numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
 
