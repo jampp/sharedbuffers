@@ -8,6 +8,7 @@ import tempfile
 import os
 import numpy
 import random
+import binascii
 
 from sharedbuffers import mapped_struct
 
@@ -25,6 +26,11 @@ try:
     import cPickle
 except ImportError:
     import pickle as cPickle
+
+try:
+    izip = itertools.izip
+except AttributeError:
+    izip = zip
 
 class SimpleStruct(object):
     __slot_types__ = {
@@ -193,7 +199,7 @@ class SchemaPicklingTest(AttributeBitmapTest):
                 self.assertFalse(hasattr(dx, k))
 
     def testPrimitiveStruct(self):
-        self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s='3', u=u'A'))
+        self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s=b'3', u=u'A'))
 
     def testContainerStruct(self):
         self._testStruct(ContainerStruct, dict(fset=frozenset([3]), t=(1,3), l=[1,2]))
@@ -522,7 +528,7 @@ class MappedArrayTest(unittest.TestCase):
 
     def _checkValues(self, mapping, iterator):
         self.assertEqual(len(self.test_values), len(mapping))
-        for reference, proxy in itertools.izip(self.test_values, iterator):
+        for reference, proxy in izip(self.test_values, iterator):
             self.assertEqual(reference.fset, proxy.fset)
             self.assertEqual(reference.t, proxy.t)
             self.assertEqual(reference.l, proxy.l)
@@ -584,20 +590,20 @@ class IdMapperTest(unittest.TestCase):
 
     def gen_values(self, n, reversed = False, shuffled = False, gen_dupes = False):
         if reversed:
-            keys = xrange(n-1,-1,-1)
+            keys = range(n-1,-1,-1)
         else:
-            keys = xrange(n)
+            keys = range(n)
         if shuffled:
             keys = list(keys)
             r = random.Random(1234827)
             r.shuffle(keys)
         if gen_dupes:
             return itertools.chain(
-                itertools.izip(keys, xrange(0, 2*n, 2)),
-                itertools.islice(itertools.izip(keys, xrange(0, 2*n, 2)), 10, None),
+                izip(keys, range(0, 2*n, 2)),
+                itertools.islice(izip(keys, range(0, 2*n, 2)), 10, None),
             )
         else:
-            return itertools.izip(keys, xrange(0, 2*n, 2))
+            return izip(keys, range(0, 2*n, 2))
 
     def _testBuild(self, N, tempdir, **gen_kwargs):
         build_kwargs = gen_kwargs.pop('build_kwargs', {})
@@ -668,7 +674,7 @@ class MappedMappingTest(unittest.TestCase):
     # Reuse test values from MappedArrayTest to simplify test code
     Struct = MappedArrayTest.Struct
     TEST_VALUES = MappedArrayTest.TEST_VALUES
-    TEST_KEYS = [ x*7 for x in xrange(len(TEST_VALUES)) ]
+    TEST_KEYS = [ x*7 for x in range(len(TEST_VALUES)) ]
     IdMapperClass = mapped_struct.NumericIdMapper
 
     def setUp(self):
@@ -827,7 +833,7 @@ class MappedMultiMappingInt32Test(MappedMultiMappingTest):
 
 class MappedStringMappingTest(MappedMappingTest):
     IdMapperClass = mapped_struct.StringIdMapper
-    TEST_KEYS = map(str, MappedMappingTest.TEST_KEYS) + [os.urandom(65537)]
+    TEST_KEYS = list(map(str, MappedMappingTest.TEST_KEYS)) + [str(binascii.hexlify(os.urandom(65537)))]
     TEST_VALUES = MappedMappingTest.TEST_VALUES + [{
         'fset' : frozenset([(1,2),(3,4),(6,7)]),
         't' : ((3,),(6,7,8),(1,7)),
@@ -840,7 +846,7 @@ class MappedStringMultiMappingTest(MappedMultiMappingTest):
     TEST_VALUES = MappedStringMappingTest.TEST_VALUES * 2
 
 class MappedStringMappingRepeatedValuesTest(MappedStringMappingTest):
-    TEST_KEYS = MappedStringMappingTest.TEST_KEYS + map('X2_'.__add__, MappedStringMappingTest.TEST_KEYS)
+    TEST_KEYS = MappedStringMappingTest.TEST_KEYS + list(map('X2_'.__add__, MappedStringMappingTest.TEST_KEYS))
     TEST_VALUES = MappedStringMappingTest.TEST_VALUES * 2
 
 class MappedString32MappingTest(MappedStringMappingTest):
@@ -904,12 +910,12 @@ class MappedString32MappingUnicodeTest(MappedString32MappingTest):
     TEST_KEYS = MappedStringMappingUnicodeTest.TEST_KEYS
 
 class MappedStringMappingBigTest(MappedStringMappingTest):
-    TEST_KEYS = [ "%d%s" % (i,k) for k in MappedStringMappingTest.TEST_KEYS for i in xrange(64) ]
-    TEST_VALUES = [ v for v in MappedStringMappingTest.TEST_VALUES for i in xrange(64) ]
+    TEST_KEYS = [ "%d%s" % (i,k) for k in MappedStringMappingTest.TEST_KEYS for i in range(64) ]
+    TEST_VALUES = [ v for v in MappedStringMappingTest.TEST_VALUES for i in range(64) ]
 
 class MappedString32MappingBigTest(MappedString32MappingTest):
-    TEST_KEYS = [ "%d%s" % (i,k) for k in MappedStringMappingTest.TEST_KEYS for i in xrange(64) ]
-    TEST_VALUES = [ v for v in MappedStringMappingTest.TEST_VALUES for i in xrange(64) ]
+    TEST_KEYS = [ "%d%s" % (i,k) for k in MappedStringMappingTest.TEST_KEYS for i in range(64) ]
+    TEST_VALUES = [ v for v in MappedStringMappingTest.TEST_VALUES for i in range(64) ]
 
 class BsearchTest(unittest.TestCase):
     if mapped_struct._cythonized:
@@ -926,10 +932,10 @@ class BsearchTest(unittest.TestCase):
 
     for dtype in SUPPORTED_DTYPES:
         def testBsearch(self, dtype=dtype):
-            testarray = range(1,101)
+            testarray = list(range(1,101))
             random.shuffle(testarray)
             a = numpy.array(testarray[:50], dtype)
-            b = numpy.array([0] + testarray[50:] + range(101,103), dtype)
+            b = numpy.array([0] + testarray[50:] + list(range(101,103)), dtype)
             a = numpy.sort(a)
             self.assertEqual(mapped_struct.bsearch(a, 0), 0)
             self.assertEqual(mapped_struct.bsearch(a, 101), len(a))
@@ -987,8 +993,8 @@ class MergeTest(unittest.TestCase):
 
     for dtype in SUPPORTED_DTYPES:
         def testMerge(self, dtype=dtype):
-            testarray1 = range(1,101)
-            testarray2 = range(5,106)
+            testarray1 = list(range(1,101))
+            testarray2 = list(range(5,106))
             a = numpy.empty((100,2), dtype=dtype)
             b = numpy.empty((100,2), dtype=dtype)
             merged = numpy.empty((200,2), dtype=dtype)

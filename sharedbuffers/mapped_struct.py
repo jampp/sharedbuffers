@@ -26,14 +26,34 @@ npuint32 = cython.declare(object, numpy.uint32)
 npint32 = cython.declare(object, numpy.int32)
 npfloat64 = cython.declare(object, numpy.float64)
 npfloat32 = cython.declare(object, numpy.float32)
+_py3 = cython.declare(cython.bint, False)
+_py3 = sys.version_info[0] >= 3
+
+@cython.inline
+@cython.ccall
+def untyped_buffer(buf):
+    buf = memoryview(buf)
+    if _py3:
+        if buf.itemsize > 1:
+            buf = buf.cast('B')
+    return buf
 
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
     buffer = cython.declare(object, buffer)  # lint:ok
+    buffer_type = cython.declare(object, buffer)  # lint:ok
     try:
-        from types import BufferType as buffer
+        from types import BufferType as buffer_type
+        buffer = buffer_type
     except ImportError:
-        buffer = memoryview
+        buffer = untyped_buffer
+        buffer_type = memoryview
+else:
+    try:
+        unicode
+    except NameError:
+        # py3 unicode=str alias, in a way that lets cython still use its built-in unicode
+        globals()['unicode'] = str
 
 class ubyte(int):
     pass
@@ -70,13 +90,27 @@ class float64(float):
     pass
 double = float64
 
+_array = cython.declare(object, array.array)
+
+@cython.cfunc
+@cython.inline
+def _buf_as_array(dcode, buf):
+    if _py3 and isinstance(dcode, bytes):
+        dcode = cython.cast(bytes, dcode).decode('ascii')
+    a = _array(dcode)
+    if _py3:
+        a.frombytes(buf)
+    else:
+        a.fromstring(buf)
+    return a
+
 @cython.cfunc
 @cython.inline
 def _likebuffer(buf):
-    if type(buf) is buffer or type(buf) is bytearray or type(buf) is bytes or isinstance(buf, bytes):
+    if type(buf) is buffer_type or type(buf) is bytearray or type(buf) is bytes or isinstance(buf, bytes):
         return buf
     else:
-        return buffer(buf)
+        return untyped_buffer(buf)
 
 class mapped_frozenset(frozenset):
     @classmethod
@@ -91,10 +125,10 @@ class mapped_frozenset(frozenset):
             minval = min(obj) if obj else 0
             if 0 <= minval and maxval < 120:
                 # inline bitmap
-                buf[offs] = 'm'
-                buf[offs+1:offs+8] = '\x00\x00\x00\x00\x00\x00\x00\x00'
+                buf[offs:offs+1] = b'm'
+                buf[offs+1:offs+8] = b'\x00\x00\x00\x00\x00\x00\x00\x00'
                 for x in obj:
-                    buf[offs+1+x/8] |= 1 << (x & 7)
+                    buf[offs+1+x//8] |= 1 << (x & 7)
                 offs += 8
                 return offs
             else:
@@ -121,7 +155,11 @@ class mapped_frozenset(frozenset):
         else:
             pbuf = buf
         try:
-            if pbuf[offs] == 'm':
+            if cython.compiled or not _py3:
+                is_bitmap = pbuf[offs] == b'm'
+            else:
+                is_bitmap = pbuf[offs:offs+1] == b'm'
+            if is_bitmap:
                 # inline bitmap
                 if cython.compiled and offs+7 >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
@@ -138,13 +176,13 @@ class mapped_frozenset(frozenset):
                 return frozenset(mapped_list.unpack_from(buf, offs, idmap))
         finally:
             if cython.compiled:
-                if type(buf) is buffer:
-                    PyBuffer_Release(cython.address(pybuf))  # lint:ok
+                PyBuffer_Release(cython.address(pybuf))  # lint:ok
 
 class mapped_tuple(tuple):
     @classmethod
+    @cython.locals(dtype = bytes, offs = cython.longlong)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
-            int = int, type = type, min = min, max = max, array = array.array, id = id):
+            array = array.array):
         all_int = 1
         all_float = 1
         baseoffs = offs
@@ -162,55 +200,55 @@ class mapped_tuple(tuple):
             minval = min(obj) if obj else 0
             if 0 <= minval and maxval <= 0xFF:
                 # inline unsigned bytes
-                buf[offs] = dtype = 'B'
+                buf[offs:offs+1] = dtype = b'B'
             elif -0x80 <= maxval <= 0x7F:
                 # inline signed bytes
-                buf[offs] = dtype = 'b'
+                buf[offs:offs+1] = dtype = b'b'
             elif 0 <= minval and maxval <= 0xFFFF:
                 # inline unsigned shorts
-                buf[offs] = dtype = 'H'
+                buf[offs:offs+1] = dtype = b'H'
             elif -0x8000 <= maxval <= 0x7FFF:
                 # inline signed shorts
-                buf[offs] = dtype = 'h'
+                buf[offs:offs+1] = dtype = b'h'
             elif 0 <= minval and maxval <= 0xFFFFFFFF:
                 # inline unsigned shorts
-                buf[offs] = dtype = 'I'
+                buf[offs:offs+1] = dtype = b'I'
             elif -0x80000000 <= maxval <= 0x7FFFFFFF:
                 # inline signed shorts
-                buf[offs] = dtype = 'i'
+                buf[offs:offs+1] = dtype = b'i'
             else:
                 # inline sorted int64 list
-                buf[offs] = 'q'
-                dtype = 'l'
-            if dtype == 'l':
+                buf[offs:offs+1] = b'q'
+                dtype = b'l'
+            if dtype == b'l':
                 buf[offs+1:offs+8] = struct.pack('<Q', objlen)[:7]
                 offs += 8
             elif objlen < 0xFFFFFF:
                 buf[offs+1:offs+4] = struct.pack('<I', objlen)[:3]
                 offs += 4
             else:
-                buf[offs+1:offs+8] = '\xff\xff\xff\xff\xff\xff\xff'
-                buf[offs+8:offs+12] = struct.pack('<Q', objlen)
+                buf[offs+1:offs+4] = b'\xff\xff\xff\xff\xff\xff\xff'
+                buf[offs+4:offs+12] = struct.pack('<Q', objlen)
                 offs += 12
-            a = array(dtype, obj)
-            abuf = buffer(a)
+            a = array(dtype.decode('ascii'), obj)
+            abuf = untyped_buffer(a)
             buf[offs:offs+len(abuf)] = abuf
             offs += len(abuf)
             offs = (offs + 7) / 8 * 8
             return offs
         elif all_float:
-            buf[offs] = 'd'
+            buf[offs:offs+1] = b'd'
             a = array('d', obj)
             buf[offs+1:offs+8] = struct.pack('<Q', objlen)[:7]
             offs += 8
-            abuf = buffer(a)
+            abuf = untyped_buffer(a)
             buf[offs:offs+len(abuf)] = abuf
             offs += len(abuf)
             offs = (offs + 7) / 8 * 8
             return offs
         else:
             # inline object tuple
-            buf[offs] = 't'
+            buf[offs:offs+1] = b't'
             buf[offs+1:offs+8] = struct.pack('<Q', objlen)[:7]
             offs += 8
 
@@ -218,7 +256,8 @@ class mapped_tuple(tuple):
             # (it would point into this tuple's header, 0 would be the tuple itself so it's valid)
             indexoffs = offs
             index = array('l', [1]*len(obj))
-            offs += len(buffer(index))
+            indexbuf = untyped_buffer(index)
+            offs += len(indexbuf)
 
             if idmap is None:
                 idmap = {}
@@ -235,7 +274,7 @@ class mapped_tuple(tuple):
                     index[i] = val_offs - baseoffs - implicit_offs
 
             # write index
-            buf[indexoffs:indexoffs+len(buffer(index))] = buffer(index)
+            buf[indexoffs:indexoffs+len(indexbuf)] = indexbuf
 
             return offs
 
@@ -266,30 +305,32 @@ class mapped_list(list):
 
         baseoffs = offs
         dcode = buf[offs]
+        if _py3:
+            dcode = chr(dcode)
         if dcode in ('B','b','H','h','I','i'):
             dtype = dcode
-            objlen, = struct.unpack('<I', buf[offs+1:offs+4] + '\x00')
+            objlen, = struct.unpack('<I', bytes(buf[offs+1:offs+4]) + b'\x00')
             offs += 4
             if objlen == 0xFFFFFF:
                 objlen = struct.unpack_from('<Q', buf, offs)
                 offs += 8
-            rv = cls(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
+            rv = cls(_buf_as_array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
         elif dcode == 'q':
             dtype = 'l'
-            objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
+            objlen, = struct.unpack('<Q', bytes(buf[offs+1:offs+8]) + b'\x00')
             offs += 8
-            rv = cls(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
+            rv = cls(_buf_as_array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
         elif dcode == 'd':
             dtype = 'd'
-            objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
+            objlen, = struct.unpack('<Q', bytes(buf[offs+1:offs+8]) + b'\x00')
             offs += 8
-            rv = cls(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
+            rv = cls(_buf_as_array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
         elif dcode == 't':
             dtype = 'l'
-            objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
+            objlen, = struct.unpack('<Q', bytes(buf[offs+1:offs+8]) + b'\x00')
             offs += 8
 
-            index = array(dtype, buf[offs:offs+itemsizes[dtype]*objlen])
+            index = _buf_as_array(dtype, buf[offs:offs+itemsizes[dtype]*objlen])
 
             rv = idmap[baseoffs] = cls([None] * objlen)
             for i,ix in enumerate(index):
@@ -534,7 +575,7 @@ class mapped_object(object):
 
         int : 'q',
         float : 'd',
-        str : 's',
+        bytes : 's',
         unicode : 'u',
     }
 
@@ -570,14 +611,18 @@ class mapped_object(object):
         if not isinstance(obj, cls):
             obj = cls(obj)
         typecode = obj.typecode
+        if isinstance(typecode, unicode):
+            btypecode = cython.cast(unicode, typecode).encode('ascii')
+        else:
+            btypecode = typecode
         endp = offs
         if typecode in cls.PACKERS:
             packer, padding = cls.PACKERS[typecode]
-            packer.pack_into(buf, offs, typecode, obj.value)
+            packer.pack_into(buf, offs, btypecode, obj.value)
             endp += packer.size + padding
         elif typecode in cls.OBJ_PACKERS:
             cpacker, cpadding = cls.CODE_PACKER
-            cpacker.pack_into(buf, offs, typecode)
+            cpacker.pack_into(buf, offs, btypecode)
             endp += cpacker.size + cpadding
             packer = cls.OBJ_PACKERS[typecode][0]
             endp = packer(obj.value, buf, endp, idmap, implicit_offs)
@@ -589,6 +634,8 @@ class mapped_object(object):
     def unpack_from(cls, buf, offs, idmap = None):
         cpacker, cpadding = cls.CODE_PACKER
         typecode, = cpacker.unpack_from(buf, offs)
+        if _py3:
+            typecode = cython.cast(bytes, typecode).decode('ascii')
         if typecode in cls.PACKERS:
             packer, padding = cls.PACKERS[typecode]
             typecode, value = packer.unpack_from(buf, offs)
@@ -640,7 +687,7 @@ VARIABLE_TYPES = {
     frozenset : mapped_frozenset,
     tuple : mapped_tuple,
     list : mapped_list,
-    str : mapped_bytes,
+    bytes : mapped_bytes,
     unicode : mapped_unicode,
     bytes : mapped_bytes,
     object : mapped_object,
@@ -1077,7 +1124,7 @@ PROXY_TYPES = {
 
     int : LongBufferProxyProperty,
     float : DoubleBufferProxyProperty,
-    str : BytesBufferProxyProperty,
+    bytes : BytesBufferProxyProperty,
     unicode : UnicodeBufferProxyProperty,
 }
 
@@ -1125,7 +1172,7 @@ class Schema(object):
 
     @property
     def Proxy(self):
-        return functools.partial(self._Proxy, "\x00" * self.bitmap_size, 0, 0, None)
+        return functools.partial(self._Proxy, b"\x00" * self.bitmap_size, 0, 0, None)
 
     def __init__(self, slot_types, alignment = 8, pack_buffer_size = 65536, packer_cache = None, unpacker_cache = None,
             max_pack_buffer_size = None):
@@ -1311,7 +1358,7 @@ class Schema(object):
         rv = self.packer_cache.get(present_bitmap)
         if rv is None:
             packer = struct.Struct("".join([
-                self.bitmap_packer.format,
+                unicode(self.bitmap_packer.format, 'ascii'),
             ] + [
                 self.slot_struct_types[slot]
                 for i,slot in enumerate(self.slot_keys)
@@ -1599,7 +1646,7 @@ class Schema(object):
                 PyBuffer_Release(cython.address(pybuf))  # lint:ok
 
     def unpack(self, buf, idmap = None, factory_class_new = None, proxy_into = None):
-        return self.unpack_from(buffer(buf), 0, idmap, factory_class_new, proxy_into)
+        return self.unpack_from(untyped_buffer(buf), 0, idmap, factory_class_new, proxy_into)
 
 class mapped_object_with_schema(object):
     cython.declare(schema = Schema)
@@ -1760,7 +1807,7 @@ class MappedArrayProxyBase(object):
         else:
             index = numpy.array([], dtype = numpy.uint64)
         del index_parts
-        write(buffer(index))
+        write(untyped_buffer(index))
         destfile.flush()
 
         schema_pos = destfile.tell()
@@ -2164,7 +2211,10 @@ if cython.compiled:
             pindex = cython.cast(cython.p_char, indexbuf.buf)
             stride0 = indexbuf.strides[0]
             #lint:enable
-            dtype = cython.cast('char*', a.dtype.char)[0]
+            bdtype = a.dtype.char
+            if isinstance(bdtype, unicode):
+                bdtype = cython.cast(unicode, bdtype).encode('ascii')
+            dtype = cython.cast('char*', bdtype)[0]
             if dtype == 'L' or dtype == 'Q':
                 # TO-DO: better hints?
                 return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint)
@@ -2518,10 +2568,20 @@ if cython.compiled:
                     if destbuf.strides[0] != stride0:
                         raise ValueError("Incompatible destination")
 
-                    dtype = cython.cast('char*', index1.dtype.char)[0]
-                    if cython.cast('char*', index2.dtype.char)[0] != dtype:
+                    dtype1 = index1.dtype.char
+                    dtype2 = index2.dtype.char
+                    dtypedest = dest.dtype.char
+                    if _py3:
+                        if type(dtype1) is unicode:
+                            dtype1 = cython.cast(unicode, dtype1).encode('ascii')
+                        if type(dtype2) is unicode:
+                            dtype2 = cython.cast(unicode, dtype2).encode('ascii')
+                        if type(dtypedest) is unicode:
+                            dtypedest = cython.cast(unicode, dtypedest).encode('ascii')
+                    dtype = cython.cast('char*', dtype1)[0]
+                    if cython.cast('char*', dtype2)[0] != dtype:
                         raise ValueError("Incompatible indexes")
-                    if cython.cast('char*', dest.dtype.char)[0] != dtype:
+                    if cython.cast('char*', dtypedest)[0] != dtype:
                         raise ValueError("Incompatible destination")
 
                     if ( pdest == pindex1 or pdest == pindex2
@@ -3022,7 +3082,7 @@ class NumericIdMapper(object):
                         if partsfile is None:
                             partsfile = tempfile.TemporaryFile(dir = tempdir)
                             partswrite = partsfile.write
-                        partswrite(buffer(apart))
+                        partswrite(untyped_buffer(apart))
                     else:
                         # Accumulate in memory
                         bigparts.append(apart)
@@ -3036,7 +3096,7 @@ class NumericIdMapper(object):
                 if bigparts:
                     # Flush the rest to do the final sort in mapped memory
                     for apart in bigparts:
-                        partswrite(buffer(apart))
+                        partswrite(untyped_buffer(apart))
                     del bigparts[:]
                 partsfile.flush()
                 partsfile.seek(0)
@@ -3072,7 +3132,7 @@ class NumericIdMapper(object):
             del bigparts
 
             indexpos = curpos
-            write(buffer(index))
+            write(untyped_buffer(index))
             nitems = len(index)
         finally:
             if partsfile is not None:
@@ -3129,7 +3189,7 @@ class NumericIdMapper(object):
         # Merge the indexes
         index = _merge_all([mapper.index for mapper in parts], dtype)
 
-        write(buffer(index))
+        write(untyped_buffer(index))
         nitems = len(index)
 
         finalpos = destfile.tell()
@@ -3579,7 +3639,7 @@ class StringIdMapper(object):
         index = index[shuffle]
 
         indexpos = curpos
-        write(buffer(index))
+        write(untyped_buffer(index))
         nitems = len(index)
 
         finalpos = destfile.tell()
@@ -4234,7 +4294,7 @@ class MappedMappingProxyBase(object):
 
             blocklen = 1 << 20
             for start in range(0, len(value_array.buf), blocklen):
-                destfile.write(buffer(value_array.buf, start, blocklen))
+                destfile.write(buffer(untyped_buffer(value_array.buf), start, blocklen))
             destfile.write(cls._Footer.pack(values_pos - initial_pos))
             destfile.flush()
 
