@@ -7,6 +7,15 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.4.8 - Unreleased
+==================
+
+Bugfixes
+--------
+
+- Reduce memory usage of MHM index merge, it was unnecessarily
+  holding onto temporary intermediate results
+
 0.4.7 - 2018-02-22
 ==================
 

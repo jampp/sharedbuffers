@@ -2609,8 +2609,8 @@ else:
     globals()['index_merge'] = _index_merge
 
 @cython.ccall
-@cython.locals(i = int)
-def _merge_all(parts, dtype):
+@cython.locals(i = int, clobber = cython.bint)
+def _merge_all(parts, dtype, clobber):
     if len(parts) == 1:
         return parts[0]
     else:
@@ -2624,8 +2624,10 @@ def _merge_all(parts, dtype):
                 nparts.append(npart)
             else:
                 nparts.append(parts[i])
+        if clobber:
+            del parts[:]
         del parts
-        return _merge_all(nparts, dtype)
+        return _merge_all(nparts, dtype, True)
 
 @cython.cfunc
 @cython.locals(discard_duplicate_keys = cython.bint, discard_duplicates = cython.bint, copy = cython.bint,
@@ -3121,7 +3123,7 @@ class NumericIdMapper(object):
         indexpos = basepos + cls._Header.size
 
         # Merge the indexes
-        index = _merge_all([mapper.index for mapper in parts], dtype)
+        index = _merge_all([mapper.index for mapper in parts], dtype, True)
 
         write(buffer(index))
         nitems = len(index)
