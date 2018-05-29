@@ -7,6 +7,14 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.4.9 - Unreleased
+==================
+
+Changes
+-------
+
+- Allow building with Cython 0.28 and above
+
 0.4.8 - 2018-05-28
 ==================
 
