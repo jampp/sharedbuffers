@@ -7,16 +7,17 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
-0.4.9 - Unreleased
-==================
+v0.4.9 - Unreleased
+===================
 
 Changes
 -------
 
 - Allow building with Cython 0.28 and above
+- Use `v` prefix on releases to have fixed links for this document
 
-0.4.8 - 2018-05-28
-==================
+v0.4.8 - 2018-05-28
+===================
 
 Bugfixes
 --------
@@ -24,32 +25,32 @@ Bugfixes
 - Reduce memory usage of MHM index merge, it was unnecessarily
   holding onto temporary intermediate results
 
-0.4.7 - 2018-02-22
-==================
+v0.4.7 - 2018-02-22
+===================
 
 Bugfixes
 --------
 
 - Solve issue when using lz4 0.18.1
 
-0.4.6 - 2017-10-18
-==================
+v0.4.6 - 2017-10-18
+===================
 
 Bugfixes
 --------
 
 - Reject Cython >= 0.27.1, since they break the build
 
-0.4.5 - 2017-10-12
-==================
+v0.4.5 - 2017-10-12
+===================
 
 Changes
 -------
 
 - Small performance optimizations
 
-0.4.4 - 2017-10-02
-==================
+v0.4.4 - 2017-10-02
+===================
 
 Bugfixes
 --------
@@ -57,8 +58,8 @@ Bugfixes
 - Fix on-disk IdMapper build which in some cases could build
   an unsorted (ie: broken) MHM.
 
-0.4.3 - 2017-09-28
-==================
+v0.4.3 - 2017-09-28
+===================
 
 Changes
 -------
@@ -70,8 +71,8 @@ Changes
 - Significantly reduce memory usage during IdMapper builds,
   especially when given a tempdir where to stage temprary data
 
-0.4.2 - 2017-08-14
-==================
+v0.4.2 - 2017-08-14
+===================
 
 Bugfixes
 --------
@@ -85,8 +86,8 @@ Changes
 - Reduce peak memory usage during IdMapper builds, especially when
   using deduplication
 
-0.4.1 - 2017-07-18
-==================
+v0.4.1 - 2017-07-18
+===================
 
 Bugfixes
 --------
@@ -96,8 +97,8 @@ Bugfixes
   register the unpickled schemas with the mapped_object proxy
   factory, and would fail to build the required objects with a KeyError
 
-0.4.0 - 2017-07-12
-==================
+v0.4.0 - 2017-07-12
+===================
 
 Bugfixes
 --------
@@ -122,8 +123,8 @@ Added
 - Added ability to efficiently merge numeric and approximate id mappers
   (not yet supported for exact mappers)
 
-0.3.3 - 2017-04-25
-==================
+v0.3.3 - 2017-04-25
+===================
 
 Bugfixes
 --------
@@ -131,16 +132,16 @@ Bugfixes
 - Limit pack buffer expansion to avoid memory exhaustion on recurring errors
 - Fix bitmap generation for objects with more than 30 attributes
 
-0.3.2 - 2017-04-07
-==================
+v0.3.2 - 2017-04-07
+===================
 
 Bugfixes
 --------
 
 - Fix unpacking of frozensets with big (beyond 32-bit) offsets
 
-0.3.1 - 2016-11-09
-==================
+v0.3.1 - 2016-11-09
+===================
 
 Bugfixes
 --------
@@ -148,8 +149,8 @@ Bugfixes
 - Fix binary search functions to properly test the given array's dtype to avoid
   spurious NotImplementedError s
 
-0.3.0 - 2016-11-08
-==================
+v0.3.0 - 2016-11-08
+===================
 
 Added
 -----
@@ -160,8 +161,8 @@ Added
 - Added sorted_contains and hinted_sorted_contains as useful helpers to use sorted numpy
   arrays as compact number sets
 
-0.2.1 - 2016-10-18
-==================
+v0.2.1 - 2016-10-18
+===================
 
 Bugfixes
 --------
@@ -172,8 +173,8 @@ Bugfixes
 - Implement more of the mapping interface on id mappers
 - Add get_iter and __contains__ on multimappers that avoids materializing big sequences
 
-0.2.0 - 2016-10-11
-==================
+v0.2.0 - 2016-10-11
+===================
 
 Bugfixes
 --------
@@ -187,7 +188,7 @@ Added
   but return all matching values for a key rather than a single one
 - Add approximate string multimaps
 
-0.1.0
+v0.1.0
 =====
 
 *Note*: this release has dependency issues, use 0.2.0_ instead
