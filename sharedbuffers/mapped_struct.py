@@ -72,6 +72,14 @@ def _likebuffer(buf):
     else:
         return buffer(buf)
 
+@cython.inline
+@cython.cfunc
+def _likerobuffer(buf):
+    if type(buf) is buffer or type(buf) is bytes or isinstance(buf, bytes):
+        return buf
+    else:
+        return buffer(buf)
+
 class mapped_frozenset(frozenset):
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
@@ -167,10 +175,10 @@ class mapped_tuple(tuple):
                 # inline signed shorts
                 buf[offs] = dtype = 'h'
             elif 0 <= minval and maxval <= 0xFFFFFFFF:
-                # inline unsigned shorts
+                # inline unsigned ints
                 buf[offs] = dtype = 'I'
             elif -0x80000000 <= maxval <= 0x7FFFFFFF:
-                # inline signed shorts
+                # inline signed ints
                 buf[offs] = dtype = 'i'
             else:
                 # inline sorted int64 list
@@ -259,6 +267,7 @@ class mapped_list(list):
             return idmap[offs]
 
         baseoffs = offs
+        buf = _likerobuffer(buf)
         dcode = buf[offs]
         if dcode in ('B','b','H','h','I','i'):
             dtype = dcode

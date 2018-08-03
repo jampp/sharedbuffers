@@ -1103,17 +1103,66 @@ class IdMapperMergeTest(unittest.TestCase):
         self._testMergeMulti(mapped_struct.ApproxStringId32MultiMapper,
             [self.STRING_TEST_1, self.STRING_TEST_2, self.STRING_TEST_3, self.STRING_TEST_4])
 
-class FrozensetPackingTest(unittest.TestCase):
+class CommonCollectionPackingTest(object):
+
+    def assertPackingOk(self, obj, buffer_size=1024):
+        obj = self.COLLECTION_CLASS(obj)
+        a = bytearray(buffer_size)
+        self.PACKING_CLASS.pack_into(obj, a, 0)
+        self.assertEqual(self.PACKING_CLASS.unpack_from(a, 0), obj)
+
     def testUnpackOffBounds(self):
         b = buffer("")
-        self.assertRaises(IndexError, mapped_struct.mapped_frozenset.unpack_from, b, 5)
+        self.assertRaises(IndexError, self.PACKING_CLASS.unpack_from, b, 5)
 
-    def testUnpackBeyondEnd(self):
-        b = buffer("m")
-        self.assertRaises(IndexError, mapped_struct.mapped_frozenset.unpack_from, b, 0)
+    def testEmpty(self):
+        self.assertPackingOk([])
+
+    def testWithBytes(self):
+        self.assertPackingOk([1])
+        self.assertPackingOk([1, 2, 3])
+        self.assertPackingOk([1, -2, 3])
+
+    def testWithShorts(self):
+        self.assertPackingOk([1000])
+        self.assertPackingOk([1000, 2000, 3000])
+        self.assertPackingOk([1000, -2000, 3000])
+
+    def testWithInts(self):
+        self.assertPackingOk([100000])
+        self.assertPackingOk([100000, 200000, 300000])
+        self.assertPackingOk([100000, -200000, 300000])
+
+    def testWithLongLong(self):
+        self.assertPackingOk([10000000])
+        self.assertPackingOk([10000000, 20000000, 30000000])
+        self.assertPackingOk([10000000, -20000000, 30000000])
+
+    def testWithFloats(self):
+        self.assertPackingOk([1.1])
+        self.assertPackingOk([1.1, -2.2, 3.3])
+
+    def testWithObjects(self):
+        self.assertPackingOk([1, 2.2, "a", frozenset([1, 2]), tuple([3, 4])])
+
+class MappedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest):
+    PACKING_CLASS = mapped_struct.mapped_frozenset
+    COLLECTION_CLASS = frozenset
 
     def testSingletons(self):
         a = bytearray(16)
         fs = frozenset()
         mapped_struct.mapped_frozenset.pack_into(fs, a, 0)
         self.assertIs(mapped_struct.mapped_frozenset.unpack_from(a, 0), fs)
+
+    def testUnpackBeyondEnd(self):
+        b = buffer("m")
+        self.assertRaises(IndexError, self.PACKING_CLASS.unpack_from, b, 0)
+
+class MappedListPackingTest(unittest.TestCase, CommonCollectionPackingTest):
+    PACKING_CLASS = mapped_struct.mapped_list
+    COLLECTION_CLASS = list
+
+class MappedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest):
+    PACKING_CLASS = mapped_struct.mapped_tuple
+    COLLECTION_CLASS = tuple
