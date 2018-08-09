@@ -106,6 +106,8 @@ class ContainerStruct(object):
         'fset' : frozenset,
         't' : tuple,
         'l' : list,
+        'pt': mapped_struct.proxied_tuple,
+        'pl': mapped_struct.proxied_list,
     }
     __slots__ = __slot_types__.keys()
 
@@ -186,7 +188,7 @@ class SchemaPicklingTest(AttributeBitmapTest):
         self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s='3', u=u'A'))
 
     def testContainerStruct(self):
-        self._testStruct(ContainerStruct, dict(fset=frozenset([3]), t=(1,3), l=[1,2]))
+        self._testStruct(ContainerStruct, dict(fset=frozenset([3]), t=(1,3), l=[1,2], pt=(1.0,2.0), pl=[1.0,2.0]))
 
 class BasePackingTestMixin(object):
     Struct = None
@@ -304,6 +306,8 @@ class SmallIntContainerPackingTest(SimplePackingTest):
         'fset' : frozenset([1,3,7]),
         't' : (3,6,7),
         'l' : [1,2,3],
+        'pt' : (3,6,7),
+        'pl' : [1,2,3],
     }]
 
 class ShortIntContainerPackingTest(SimplePackingTest):
@@ -312,6 +316,8 @@ class ShortIntContainerPackingTest(SimplePackingTest):
         'fset' : frozenset([1000,3000,7000]),
         't' : (3000,6000,7000),
         'l' : [1000,2000,3000],
+        'pt' : (3000,6000,7000),
+        'pl' : [1000,2000,3000],
     }]
 
 class LongIntContainerPackingTest(SimplePackingTest):
@@ -320,6 +326,8 @@ class LongIntContainerPackingTest(SimplePackingTest):
         'fset' : frozenset([0x12341234,0x23452345,0x43534353]),
         't' : (0x12241234,0x23352345,0x43334353),
         'l' : [0x13341234,0x24452345,0x45534353],
+        'pt' : (0x12241234,0x23352345,0x43334353),
+        'pl' : [0x13341234,0x24452345,0x45534353],
     }]
 
 class LongLongIntContainerPackingTest(SimplePackingTest):
@@ -328,6 +336,8 @@ class LongLongIntContainerPackingTest(SimplePackingTest):
         'fset' : frozenset([0xf012341234,0xf023452345,0xf043534353]),
         't' : (0xf012241234,0xf023352345,0xf043334353),
         'l' : [0xf013341234,0xf024452345,0xf045534353],
+        'pt' : (0xf012241234,0xf023352345,0xf043334353),
+        'pl' : [0xf013341234,0xf024452345,0xf045534353],
     }]
 
 class FloatContainerPackingTest(SimplePackingTest):
@@ -336,6 +346,8 @@ class FloatContainerPackingTest(SimplePackingTest):
         'fset' : frozenset([1.0,3.0,7.0]),
         't' : (3.0,6.0,7.0),
         'l' : [1.0,2.0,3.0],
+        'pt' : (3.0,6.0,7.0),
+        'pl' : [1.0,2.0,3.0],
     }]
 
 class BytesContainerPackingTest(SimplePackingTest):
@@ -344,6 +356,8 @@ class BytesContainerPackingTest(SimplePackingTest):
         'fset' : frozenset(['1.0','3.0','7.0']),
         't' : ('3.0','6.0','7.0'),
         'l' : ['1.0','2.0','3.0'],
+        'pt' : ('3.0','6.0','7.0'),
+        'pl' : ['1.0','2.0','3.0'],
     }]
 
 class NestedContainerPackingTest(SimplePackingTest):
@@ -352,6 +366,8 @@ class NestedContainerPackingTest(SimplePackingTest):
         'fset' : frozenset([(1,2),(3,4),(6,7)]),
         't' : ((3,),(6,7,8),(1,7)),
         'l' : [[1],[2,3],(3,4)],
+        'pt' : ((3,),(6,7,8),(1,7)),
+        'pl' : [[1],[2,3],(3,4)],
     }]
 
 class ObjectPackagingTest(SimplePackingTest):
@@ -379,6 +395,8 @@ class NestedObjectPackagingTest(SimplePackingTest):
                 'fset' : frozenset([1000,3000,7000]),
                 't' : (3000,6000,7000),
                 'l' : [1000,2000,3000],
+                'pt' : (3000,6000,7000),
+                'pl' : [1000,2000,3000],
             }),
         },
     ]
@@ -411,6 +429,8 @@ class NestedTypedObjectPackagingTest(NestedObjectPackagingTest):
                 'fset' : frozenset([1000,3000,7000]),
                 't' : (3000,6000,7000),
                 'l' : [1000,2000,3000],
+                'pt' : (3000,6000,7000),
+                'pl' : [1000,2000,3000],
             }),
         },
     ]
@@ -468,38 +488,56 @@ class MappedArrayTest(unittest.TestCase):
             'fset' : frozenset(['1.0','3.0','7.0']),
             't' : ('3.0','6.0','7.0'),
             'l' : ['1.0','2.0','3.0'],
+            'pt' : ('3.0','6.0','7.0'),
+            'pl' : ['1.0','2.0','3.0'],
         }, {
             'fset' : frozenset([1,3,7]),
             't' : (3,6,7),
             'l' : [1,2,3],
+            'pt' : (3,6,7),
+            'pl' : [1,2,3],
         }, {
             'fset' : frozenset([1000,3000,7000]),
             't' : (3000,6000,7000),
+            'l' : [1000,2000,3000],
+            'pt' : (3000,6000,7000),
             'l' : [1000,2000,3000],
         }, {
             'fset' : frozenset([0x12341234,0x23452345,0x43534353]),
             't' : (0x12241234,0x23352345,0x43334353),
             'l' : [0x13341234,0x24452345,0x45534353],
+            'pt' : (0x12241234,0x23352345,0x43334353),
+            'pl' : [0x13341234,0x24452345,0x45534353],
         }, {
             'fset' : frozenset([0xf012341234,0xf023452345,0xf043534353]),
             't' : (0xf012241234,0xf023352345,0xf043334353),
             'l' : [0xf013341234,0xf024452345,0xf045534353],
+            'pt' : (0xf012241234,0xf023352345,0xf043334353),
+            'pl' : [0xf013341234,0xf024452345,0xf045534353],
         }, {
             'fset' : frozenset([1.0,3.0,7.0]),
             't' : (3.0,6.0,7.0),
             'l' : [1.0,2.0,3.0],
+            'pt' : (3.0,6.0,7.0),
+            'pl' : [1.0,2.0,3.0],
         }, {
             'fset' : frozenset(['1.0','3.0','7.0']),
             't' : ('3.0','6.0','7.0'),
             'l' : ['1.0','2.0','3.0'],
+            'pt' : ('3.0','6.0','7.0'),
+            'pl' : ['1.0','2.0','3.0'],
         }, {
             'fset' : frozenset(['1.0',os.urandom(128000),'7.0']),
             't' : ('3.0',os.urandom(256000),'7.0'),
             'l' : ['1.0','2.0','3.0'],
+            'pt' : ('3.0',os.urandom(256000),'7.0'),
+            'pl' : ['1.0','2.0','3.0'],
         }, {
             'fset' : frozenset([(1,2),(3,4),(6,7)]),
             't' : ((3,),(6,7,8),(1,7)),
             'l' : [[1],[2,3],(3,4)],
+            'pt' : ((3,),(6,7,8),(1,7)),
+            'pl' : [[1],[2,3],(3,4)],
         }
     ]
 
@@ -1103,51 +1141,150 @@ class IdMapperMergeTest(unittest.TestCase):
         self._testMergeMulti(mapped_struct.ApproxStringId32MultiMapper,
             [self.STRING_TEST_1, self.STRING_TEST_2, self.STRING_TEST_3, self.STRING_TEST_4])
 
-class CommonCollectionPackingTest(object):
+
+class CollectionPackingTestHelpers(object):
+
+    def pack(self, obj, buffer_size=1024):
+        obj = self.COLLECTION_CLASS(obj)
+        a = bytearray(1024)
+        self.PACKING_CLASS.pack_into(obj, a, 0)
+        return self.PACKING_CLASS.unpack_from(a, 0)
 
     def assertPackingOk(self, obj, buffer_size=1024):
         obj = self.COLLECTION_CLASS(obj)
-        a = bytearray(buffer_size)
-        self.PACKING_CLASS.pack_into(obj, a, 0)
-        self.assertEqual(self.PACKING_CLASS.unpack_from(a, 0), obj)
+        c = self.pack(obj, buffer_size)
+        self.assertEqual(c, obj)
 
-    def testUnpackOffBounds(self):
+class CommonCollectionPackingTest(CollectionPackingTestHelpers):
+
+    def testCommonCollectionUnpackOffBounds(self):
         b = buffer("")
         self.assertRaises(IndexError, self.PACKING_CLASS.unpack_from, b, 5)
 
-    def testEmpty(self):
+    def testCommonCollectionEmpty(self):
         self.assertPackingOk([])
 
-    def testWithBytes(self):
+    def testCommonCollectionWithBytes(self):
         self.assertPackingOk([1])
         self.assertPackingOk([1, 2, 3])
         self.assertPackingOk([1, -2, 3])
 
-    def testWithShorts(self):
+    def testCommonCollectionWithShorts(self):
         self.assertPackingOk([1000])
         self.assertPackingOk([1000, 2000, 3000])
         self.assertPackingOk([1000, -2000, 3000])
 
-    def testWithInts(self):
+    def testCommonCollectionWithInts(self):
         self.assertPackingOk([100000])
         self.assertPackingOk([100000, 200000, 300000])
         self.assertPackingOk([100000, -200000, 300000])
 
-    def testWithLongLong(self):
+    def testCommonCollectionWithLongLong(self):
         self.assertPackingOk([10000000])
         self.assertPackingOk([10000000, 20000000, 30000000])
         self.assertPackingOk([10000000, -20000000, 30000000])
 
-    def testWithFloats(self):
+    def testCommonCollectionWithFloats(self):
         self.assertPackingOk([1.1])
         self.assertPackingOk([1.1, -2.2, 3.3])
 
-    def testWithObjects(self):
+    def testCommonCollectionWithObjects(self):
         self.assertPackingOk([1, 2.2, "a", frozenset([1, 2]), tuple([3, 4])])
+
+    def testCommonCollectionContains(self):
+        c = self.pack([])
+        self.assertNotIn(1, c)
+
+        c = self.pack([1])
+        self.assertIn(1, c)
+        self.assertNotIn(2, c)
+
+        c = self.pack([1, 2, 3])
+        self.assertIn(1, c)
+        self.assertIn(2, c)
+        self.assertIn(3, c)
+        self.assertNotIn(4, c)
+        self.assertNotIn(None, c)
+        self.assertNotIn('asd', c)
+
+class IndexedCollectionPackingTest(CollectionPackingTestHelpers):
+
+    def assertIndexOk(self, values):
+        c = self.pack(values)
+
+        for i, v in enumerate(values):
+            self.assertEqual(c[i], v)
+
+    def testIndexedCollectionInts(self):
+        self.assertIndexOk([1])
+        self.assertIndexOk([1, 2, 3])
+
+    def testIndexedCollectionFloats(self):
+        self.assertIndexOk([1])
+        self.assertIndexOk([1, 2, 3])
+
+    def testIndexedCollectionObjects(self):
+        self.assertIndexOk(['1', '2', '3.0', frozenset([1,2,3]), [1,2,3]])
+
+    def testIndexedCollectionStructs(self):
+
+        mapped_struct.mapped_object.TYPE_CODES.pop(SimpleStruct,None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+
+        schema = mapped_struct.Schema.from_typed_slots(SimpleStruct)
+        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, '}')
+
+        c = self.pack([SimpleStruct(a=1, b=2.0), SimpleStruct(a=2, b=None)])
+
+        self.assertEquals(c[0].a, 1)
+        self.assertEquals(c[0].b, 2.0)
+        self.assertEquals(c[1].a, 2)
+        self.assertEquals(c[1].b, None)
+
+    def testIndexedCollectionError(self):
+        c = self.pack([])
+        self.assertRaises(IndexError, c.__getitem__, 0)
+
+        c = self.pack([1])
+        self.assertRaises(IndexError, c.__getitem__, 1)
+
+        c = self.pack([1, 2, 3])
+        self.assertRaises(IndexError, c.__getitem__, 3)
+
+    def testtIndexedCollectionIterators(self):
+        c = self.pack([])
+        self.assertEqual([v for v in c], [])
+
+        c = self.pack([1])
+        self.assertEqual([v for v in c], [1])
+
+        c = self.pack([1, '2', 3.0])
+        self.assertEqual([v for v in c], [1, '2', 3.0])
+
+    def testtIndexedCollectionReversed(self):
+        c = self.pack([])
+        self.assertEqual([v for v in c], [])
+
+        c = self.pack([1])
+        self.assertEqual([v for v in c], [1])
+
+        c = self.pack([1, '2', 3.0])
+        self.assertEqual([v for v in reversed(c)], [3.0, '2', 1])
 
 class MappedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest):
     PACKING_CLASS = mapped_struct.mapped_frozenset
     COLLECTION_CLASS = frozenset
+
+    def testIterators(self):
+        c = self.pack([])
+        self.assertEqual([v for v in c], [])
+
+        c = self.pack([1])
+        self.assertEqual([v for v in c], [1])
+
+        values = [1, '2', 3.0]
+        c = self.pack(values)
+        self.assertEqual(frozenset([v for v in c]), frozenset(values))
 
     def testSingletons(self):
         a = bytearray(16)
@@ -1159,10 +1296,34 @@ class MappedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest)
         b = buffer("m")
         self.assertRaises(IndexError, self.PACKING_CLASS.unpack_from, b, 0)
 
-class MappedListPackingTest(unittest.TestCase, CommonCollectionPackingTest):
+class MappedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, IndexedCollectionPackingTest):
     PACKING_CLASS = mapped_struct.mapped_list
     COLLECTION_CLASS = list
 
-class MappedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest):
+class MappedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest, IndexedCollectionPackingTest):
     PACKING_CLASS = mapped_struct.mapped_tuple
     COLLECTION_CLASS = tuple
+
+class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, IndexedCollectionPackingTest):
+    PACKING_CLASS = mapped_struct.proxied_list
+    COLLECTION_CLASS = list
+
+    def testProxiedListSetItem(self):
+        c = self.pack([1, 2, 3])
+        self.assertRaises(AttributeError, c.__setitem__, 0, 1)
+
+    def testProxiedListDelItem(self):
+        c = self.pack([1, 2, 3])
+        self.assertRaises(AttributeError, c.__delitem__, 0)
+
+    def testProxiedListStr(self):
+        c = self.pack([1, 2.0])
+        self.assertEquals(str(c), "proxied_list([1,2.0])")
+
+class ProxiedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest, IndexedCollectionPackingTest):
+    PACKING_CLASS = mapped_struct.proxied_tuple
+    COLLECTION_CLASS = tuple
+
+    def testProxiedListStr(self):
+        c = self.pack([1, 2.0])
+        self.assertEquals(str(c), "proxied_tuple([1,2.0])")
