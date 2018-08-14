@@ -306,6 +306,17 @@ class mapped_list(list):
             raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
         return rv
 
+class mapped_dict(dict):
+
+    @classmethod
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+        return mapped_list.pack_into((obj.keys(), obj.values()), buf, offs, idmap, implicit_offs)
+
+    @classmethod
+    def unpack_from(cls, buf, offs, idmap = None):
+        key, values = mapped_list.unpack_from(buf, offs, idmap)
+        return cls(zip(key, values))
+
 @cython.cclass
 class proxied_list(object):
     cython.declare(
@@ -753,6 +764,7 @@ class mapped_object(object):
         mapped_list : 'e',
         mapped_unicode : 'u',
         mapped_bytes : 's',
+        mapped_dict : 'c',
 
         proxied_tuple: 'p',
         proxied_list: 'P',
@@ -786,6 +798,7 @@ class mapped_object(object):
         'e' : (mapped_list.pack_into, mapped_list.unpack_from, mapped_list),
         's' : (mapped_bytes.pack_into, mapped_bytes.unpack_from, mapped_bytes),
         'u' : (mapped_unicode.pack_into, mapped_unicode.unpack_from, mapped_unicode),
+        'c' : (mapped_dict.pack_into, mapped_dict.unpack_from, mapped_dict),
 
         'p' : (proxied_tuple.pack_into, proxied_tuple.unpack_from, proxied_tuple),
         'P' : (proxied_list.pack_into, proxied_list.unpack_from, proxied_list),
@@ -868,6 +881,7 @@ VARIABLE_TYPES = {
     frozenset : mapped_frozenset,
     tuple : mapped_tuple,
     list : mapped_list,
+    dict : mapped_dict,
     str : mapped_bytes,
     unicode : mapped_unicode,
     bytes : mapped_bytes,
@@ -1271,6 +1285,10 @@ class FrozensetBufferProxyProperty(GenericBufferProxyProperty):
     typ = mapped_frozenset
 
 @cython.cclass
+class DictBufferProxyProperty(GenericBufferProxyProperty):
+    typ = mapped_dict
+
+@cython.cclass
 class TupleBufferProxyProperty(GenericBufferProxyProperty):
     typ = mapped_tuple
 
@@ -1306,6 +1324,7 @@ PROXY_TYPES = {
     mapped_frozenset : FrozensetBufferProxyProperty,
     mapped_tuple : TupleBufferProxyProperty,
     mapped_list : ListBufferProxyProperty,
+    mapped_dict : DictBufferProxyProperty,
     mapped_bytes : BytesBufferProxyProperty,
     mapped_unicode : UnicodeBufferProxyProperty,
     mapped_bytes : BytesBufferProxyProperty,

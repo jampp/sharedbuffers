@@ -77,31 +77,31 @@ class Attr63Struct(Attr7Struct):
     __slot_types__ = _make_nattrs(63)
     __slots__ = __slot_types__.keys()
 
-class SizedNumericStruct(object):
-    __slot_types__ = {
-        'a' : mapped_struct.int32,
-        'b' : mapped_struct.float32,
-    }
+class TestStruct(object):
+
+    __slot_types__ = {}
+
     __slots__ = __slot_types__.keys()
 
     def __init__(self, **kw):
         for k,v in kw.iteritems():
             setattr(self, k, v)
 
-class PrimitiveStruct(object):
+class SizedNumericStruct(TestStruct):
+    __slot_types__ = {
+        'a' : mapped_struct.int32,
+        'b' : mapped_struct.float32,
+    }
+
+class PrimitiveStruct(TestStruct):
     __slot_types__ = {
         'a' : int,
         'b' : float,
         's' : str,
         'u' : unicode,
     }
-    __slots__ = __slot_types__.keys()
 
-    def __init__(self, **kw):
-        for k,v in kw.iteritems():
-            setattr(self, k, v)
-
-class ContainerStruct(object):
+class ContainerStruct(TestStruct):
     __slot_types__ = {
         'fset' : frozenset,
         't' : tuple,
@@ -109,21 +109,16 @@ class ContainerStruct(object):
         'pt': mapped_struct.proxied_tuple,
         'pl': mapped_struct.proxied_list,
     }
-    __slots__ = __slot_types__.keys()
 
-    def __init__(self, **kw):
-        for k,v in kw.iteritems():
-            setattr(self, k, v)
+class DictStruct(TestStruct):
+    __slot_types__ = {
+        'd' : dict,
+    }
 
-class ObjectStruct(object):
+class ObjectStruct(TestStruct):
     __slot_types__ = {
         'o' : object,
     }
-    __slots__ = __slot_types__.keys()
-
-    def __init__(self, **kw):
-        for k,v in kw.iteritems():
-            setattr(self, k, v)
 
 class AttributeBitmapTest(unittest.TestCase):
     def _testStruct(self, Struct, delattrs = ()):
@@ -186,6 +181,9 @@ class SchemaPicklingTest(AttributeBitmapTest):
 
     def testPrimitiveStruct(self):
         self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s='3', u=u'A'))
+
+    def testDictStruct(self):
+        self._testStruct(DictStruct, dict(d={"a":1}))
 
     def testContainerStruct(self):
         self._testStruct(ContainerStruct, dict(fset=frozenset([3]), t=(1,3), l=[1,2], pt=(1.0,2.0), pl=[1.0,2.0]))
@@ -1146,7 +1144,7 @@ class CollectionPackingTestHelpers(object):
 
     def pack(self, obj, buffer_size=1024):
         obj = self.COLLECTION_CLASS(obj)
-        a = bytearray(1024)
+        a = bytearray(buffer_size)
         self.PACKING_CLASS.pack_into(obj, a, 0)
         return self.PACKING_CLASS.unpack_from(a, 0)
 
@@ -1327,3 +1325,61 @@ class ProxiedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest, In
     def testProxiedListStr(self):
         c = self.pack([1, 2.0])
         self.assertEquals(str(c), "proxied_tuple([1,2.0])")
+
+class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers):
+    PACKING_CLASS = mapped_struct.mapped_dict
+    COLLECTION_CLASS = dict
+
+    def assertUnsortedEquals(self, a, b):
+        return sorted(a) == sorted(b)
+
+    TEST_DICTS = [
+        {},
+        {'a': 'a2', 'b': 'b2', 'c': 'c2'},
+        {1: 10, 2: 20, 3: 30},
+        {1.0: 10.0, 2.0: 2.2, 3.0: 3.3},
+        {frozenset([1]): frozenset(['a']), frozenset([2]): frozenset(['b'])},
+        {'a': 1, 1: 'a', frozenset(): 1.0, (1, 2): 80000 },
+    ]
+
+    def testMappedDictPrimitives(self):
+        for d in self.TEST_DICTS:
+            self.assertPackingOk(d)
+
+    def testMappedDictStructs(self):
+        mapped_struct.mapped_object.TYPE_CODES.pop(SimpleStruct,None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+
+        schema = mapped_struct.Schema.from_typed_slots(SimpleStruct)
+        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, '}')
+
+        d = {
+            1: SimpleStruct(a=1, b=2.0),
+            'a': SimpleStruct(a=2, b=None)
+        }
+        c = self.pack(d)
+
+        self.assertEquals(c[1].a, 1)
+        self.assertEquals(c[1].b, 2.0)
+        self.assertEquals(c['a'].a, 2)
+        self.assertEquals(c['a'].b, None)
+
+    def testMappedDictKeys(self):
+        for d in self.TEST_DICTS:
+            p = self.pack(d)
+            self.assertUnsortedEquals(d.keys(), p.keys())
+
+    def testMappedDictValues(self):
+        for d in self.TEST_DICTS:
+            p = self.pack(d)
+            self.assertUnsortedEquals(d.values(), p.values())
+
+    def testMappedDictIterator(self):
+        for d in self.TEST_DICTS:
+            p = self.pack(d)
+            self.assertUnsortedEquals([v for v in d], [v for v in p])
+
+    def testMappedDictIterItems(self):
+        for d in self.TEST_DICTS:
+            p = self.pack(d)
+            self.assertUnsortedEquals([v for v in d.iteritems()], [v for v in p.iteritems()])
