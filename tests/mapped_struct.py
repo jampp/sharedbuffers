@@ -11,6 +11,8 @@ import random
 
 from sharedbuffers import mapped_struct
 
+SKIP_HUGE = os.environ.get('SKIP_HUGE','')
+
 try:
     import cPickle
 except ImportError:
@@ -634,28 +636,36 @@ class IdMapperTest(unittest.TestCase):
             if rvv != v:
                 self.assertEquals(rvv, v)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeInMem(self):
         self._testBuild(2010530, None)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeInMemReversed(self):
         self._testBuild(2010530, None, reversed = True)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeInMemShuffled(self):
         self._testBuild(2010530, None, shuffled = True)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeInMemDiscardDuplicates(self):
         self._testBuild(2010530, None, build_kwargs = dict(discard_duplicates = True),
             gen_dupes = True)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeOnDisk(self):
         self._testBuild(10107530, tempfile.gettempdir())
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeOnDiskReversed(self):
         self._testBuild(10107530, tempfile.gettempdir(), reversed=True)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeOnDiskShuffled(self):
         self._testBuild(10107530, tempfile.gettempdir(), shuffled=True)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeOnDiskDiscardDuplicates(self):
         self._testBuild(10107530, tempfile.gettempdir(), build_kwargs = dict(discard_duplicates = True),
             gen_dupes = True)
@@ -1157,7 +1167,7 @@ class CommonCollectionPackingTest(CollectionPackingTestHelpers):
 
     def testCommonCollectionUnpackOffBounds(self):
         b = buffer("")
-        self.assertRaises(IndexError, self.PACKING_CLASS.unpack_from, b, 5)
+        self.assertRaises(Exception, self.PACKING_CLASS.unpack_from, b, 5)
 
     def testCommonCollectionEmpty(self):
         self.assertPackingOk([])
@@ -1249,7 +1259,7 @@ class IndexedCollectionPackingTest(CollectionPackingTestHelpers):
         c = self.pack([1, 2, 3])
         self.assertRaises(IndexError, c.__getitem__, 3)
 
-    def testtIndexedCollectionIterators(self):
+    def testIndexedCollectionIterators(self):
         c = self.pack([])
         self.assertEqual([v for v in c], [])
 
@@ -1259,7 +1269,7 @@ class IndexedCollectionPackingTest(CollectionPackingTestHelpers):
         c = self.pack([1, '2', 3.0])
         self.assertEqual([v for v in c], [1, '2', 3.0])
 
-    def testtIndexedCollectionReversed(self):
+    def testIndexedCollectionReversed(self):
         c = self.pack([])
         self.assertEqual([v for v in c], [])
 
@@ -1268,6 +1278,23 @@ class IndexedCollectionPackingTest(CollectionPackingTestHelpers):
 
         c = self.pack([1, '2', 3.0])
         self.assertEqual([v for v in reversed(c)], [3.0, '2', 1])
+
+    def testIndexedCollectionEqual(self):
+        pack = self.pack
+        c = pack([1, 2.0])
+
+        self.assertNotEquals(c, None)
+        self.assertNotEquals(c, dict())
+        self.assertNotEquals(c, 'list')
+
+        self.assertEquals(c, c)
+        self.assertEquals(c, pack([1, 2.0]))
+        self.assertEquals(c, pack([1, 2]))
+
+        self.assertNotEquals(c, pack([]))
+        self.assertNotEquals(c, pack([1]))
+        self.assertNotEquals(c, pack([1, 2.0, 3]))
+        self.assertNotEquals(c, pack([2, 2.0]))
 
 class MappedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest):
     PACKING_CLASS = mapped_struct.mapped_frozenset
@@ -1306,6 +1333,41 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
     PACKING_CLASS = mapped_struct.proxied_list
     COLLECTION_CLASS = list
 
+    def testProxiedListCmp(self):
+        pack = self.pack
+
+        c1 = pack([])
+        c2 = pack([1, 2.0])
+        c3 = pack([1, 2.0, 3])
+        c4 = pack([2, 2.0])
+
+        self.assertTrue(c1 < c2)
+        self.assertTrue(c1 <= c2)
+        self.assertFalse(c1 > c2)
+        self.assertFalse(c1 >= c2)
+
+        self.assertTrue(c2 < c3)
+        self.assertTrue(c2 <= c3)
+        self.assertFalse(c2 > c3)
+        self.assertFalse(c2 >= c3)
+
+        self.assertTrue(c2 < c4)
+        self.assertTrue(c2 <= c4)
+        self.assertFalse(c2 > c4)
+        self.assertFalse(c2 >= c4)
+
+        self.assertRaises(NotImplementedError, lambda: c1 < None)
+        self.assertRaises(NotImplementedError, lambda: c1 < 1)
+
+        self.assertRaises(NotImplementedError, lambda: c1 <= None)
+        self.assertRaises(NotImplementedError, lambda: c1 <= 1)
+
+        self.assertRaises(NotImplementedError, lambda: c1 > None)
+        self.assertRaises(NotImplementedError, lambda: c1 > 1)
+
+        self.assertRaises(NotImplementedError, lambda: c1 >= None)
+        self.assertRaises(NotImplementedError, lambda: c1 >= 1)
+
     def testProxiedListSetItem(self):
         c = self.pack([1, 2, 3])
         self.assertRaises(AttributeError, c.__setitem__, 0, 1)
@@ -1318,11 +1380,53 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         c = self.pack([1, 2.0])
         self.assertEquals(str(c), "proxied_list([1,2.0])")
 
+    def testProxiedListSpecificEqual(self):
+        self.assertEquals(self.pack([1, 2.0]), (1, 2.0))
+
 class ProxiedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest, IndexedCollectionPackingTest):
     PACKING_CLASS = mapped_struct.proxied_tuple
     COLLECTION_CLASS = tuple
 
-    def testProxiedListStr(self):
+    def testProxiedTupleCmp(self):
+        pack = self.pack
+
+        c1 = pack([])
+        c2 = pack([1, 2.0])
+        c3 = pack([1, 2.0, 3])
+        c4 = pack([2, 2.0])
+
+        self.assertTrue(c1 < c2)
+        self.assertTrue(c1 <= c2)
+        self.assertFalse(c1 > c2)
+        self.assertFalse(c1 >= c2)
+
+        self.assertTrue(c2 < c3)
+        self.assertTrue(c2 <= c3)
+        self.assertFalse(c2 > c3)
+        self.assertFalse(c2 >= c3)
+
+        self.assertTrue(c2 < c4)
+        self.assertTrue(c2 <= c4)
+        self.assertFalse(c2 > c4)
+        self.assertFalse(c2 >= c4)
+
+        self.assertRaises(NotImplementedError, lambda: c1 < None)
+        self.assertRaises(NotImplementedError, lambda: c1 < 1)
+
+        self.assertRaises(NotImplementedError, lambda: c1 <= None)
+        self.assertRaises(NotImplementedError, lambda: c1 <= 1)
+
+        self.assertRaises(NotImplementedError, lambda: c1 > None)
+        self.assertRaises(NotImplementedError, lambda: c1 > 1)
+
+        self.assertRaises(NotImplementedError, lambda: c1 >= None)
+        self.assertRaises(NotImplementedError, lambda: c1 >= 1)
+
+
+    def testProxiedTupleSpecificEqual(self):
+        self.assertEquals(self.pack([1, 2.0]), [1, 2.0])
+
+    def testProxiedTupleStr(self):
         c = self.pack([1, 2.0])
         self.assertEquals(str(c), "proxied_tuple([1,2.0])")
 
