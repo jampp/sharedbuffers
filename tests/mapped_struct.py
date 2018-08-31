@@ -115,6 +115,7 @@ class ContainerStruct(TestStruct):
 class DictStruct(TestStruct):
     __slot_types__ = {
         'd' : dict,
+        'D' : mapped_struct.proxied_dict,
     }
 
 class ObjectStruct(TestStruct):
@@ -185,7 +186,7 @@ class SchemaPicklingTest(AttributeBitmapTest):
         self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s='3', u=u'A'))
 
     def testDictStruct(self):
-        self._testStruct(DictStruct, dict(d={"a":1}))
+        self._testStruct(DictStruct, dict(d={"a":1, "b":2}, D={"A":11, "B":22}))
 
     def testContainerStruct(self):
         self._testStruct(ContainerStruct, dict(fset=frozenset([3]), t=(1,3), l=[1,2], pt=(1.0,2.0), pl=[1.0,2.0]))
@@ -1430,21 +1431,11 @@ class ProxiedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest, In
         c = self.pack([1, 2.0])
         self.assertEquals(str(c), "proxied_tuple([1,2.0])")
 
-class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers):
-    PACKING_CLASS = mapped_struct.mapped_dict
-    COLLECTION_CLASS = dict
+
+class DictPackingCommonTest(object):
 
     def assertUnsortedEquals(self, a, b):
         return sorted(a) == sorted(b)
-
-    TEST_DICTS = [
-        {},
-        {'a': 'a2', 'b': 'b2', 'c': 'c2'},
-        {1: 10, 2: 20, 3: 30},
-        {1.0: 10.0, 2.0: 2.2, 3.0: 3.3},
-        {frozenset([1]): frozenset(['a']), frozenset([2]): frozenset(['b'])},
-        {'a': 1, 1: 'a', frozenset(): 1.0, (1, 2): 80000 },
-    ]
 
     def testMappedDictPrimitives(self):
         for d in self.TEST_DICTS:
@@ -1458,15 +1449,15 @@ class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers):
         mapped_struct.mapped_object.register_schema(SimpleStruct, schema, '}')
 
         d = {
-            1: SimpleStruct(a=1, b=2.0),
-            'a': SimpleStruct(a=2, b=None)
+            'a': SimpleStruct(a=1, b=2.0),
+            'b': SimpleStruct(a=2, b=None)
         }
         c = self.pack(d)
 
-        self.assertEquals(c[1].a, 1)
-        self.assertEquals(c[1].b, 2.0)
-        self.assertEquals(c['a'].a, 2)
-        self.assertEquals(c['a'].b, None)
+        self.assertEquals(c['a'].a, 1)
+        self.assertEquals(c['a'].b, 2.0)
+        self.assertEquals(c['b'].a, 2)
+        self.assertEquals(c['b'].b, None)
 
     def testMappedDictKeys(self):
         for d in self.TEST_DICTS:
@@ -1487,3 +1478,29 @@ class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers):
         for d in self.TEST_DICTS:
             p = self.pack(d)
             self.assertUnsortedEquals([v for v in d.iteritems()], [v for v in p.iteritems()])
+
+
+class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, DictPackingCommonTest):
+    PACKING_CLASS = mapped_struct.mapped_dict
+    COLLECTION_CLASS = dict
+
+    TEST_DICTS = [
+        {},
+        {'a': 'a2', 'b': 'b2', 'c': 'c2'},
+        {1: 10, 2: 20, 3: 30},
+        {1.0: 10.0, 2.0: 2.2, 3.0: 3.3},
+        {frozenset([1]): frozenset(['a']), frozenset([2]): frozenset(['b'])},
+        {'a': 1, 1: 'a', frozenset(): 1.0, (1, 2): 80000 },
+    ]
+
+
+class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, DictPackingCommonTest):
+    PACKING_CLASS = mapped_struct.proxied_dict
+    COLLECTION_CLASS = dict
+
+    TEST_DICTS = [
+        {},
+        {'a': 'a2', 'b': 'b2', 'c': 'c2'},
+        {1: 10, 2: 20, 3: 30},
+        {'a': frozenset(), 'b': (1, 2), 'c': 1.0, 'd': [1, 2], 'e': dict(a=1)},
+    ]

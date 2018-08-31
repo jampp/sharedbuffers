@@ -323,6 +323,170 @@ class mapped_dict(dict):
         key, values = mapped_list.unpack_from(buf, offs, idmap)
         return cls(zip(key, values))
 
+class BufferIO(object):
+
+    def __init__(self, buf, offs):
+        self.buf = buf
+        self.offs = offs
+        self.pos = 0
+
+    def write(self, value):
+        size = len(value)
+
+        offs = self.offs + self.pos
+        self.buf[offs:offs + size] = value
+        self.pos += size
+
+        return size
+
+    def tell(self):
+        return self.pos
+
+    def flush(self):
+        pass
+
+    def seek(self, pos):
+        self.pos = pos
+
+@cython.cclass
+class proxied_dict(object):
+
+    cython.declare(
+        value_array = proxied_list,
+        id_mapper   = object,
+    )
+
+    # id mapper class, values offs
+    _Header = struct.Struct("=sQ")
+
+    def __init__(self, value_array, id_mapper):
+        self.value_array = value_array
+        self.id_mapper = id_mapper
+
+    def __getitem__(self, key):
+        return self.value_array[self.id_mapper[key]]
+
+    def __contains__(self, key):
+        return key in self.id_mapper
+
+    def values(self):
+        return self.value_array
+
+    def itervalues(self):
+        return iter(self.value_array)
+
+    def iterkeys(self):
+        return iter(self.id_mapper)
+
+    def keys(self):
+        return self.id_mapper.keys()
+
+    def iteritems(self):
+        for k, i in self.id_mapper.iteritems():
+            yield (k, self.value_array[i])
+
+    def items(self):
+        return list(self.iteritems())
+
+    def __iter__(self):
+        return iter(self.id_mapper)
+
+    def get(self, key, default = None):
+        ix = self.id_mapper.get(key)
+        if ix is None:
+            return default
+        else:
+            return self.value_array[ix]
+
+    def __eq__(self, other):
+
+        if len(self) != len(other):
+            return False
+
+        for k in self:
+            if k not in other or other[k] != self[k]:
+                return False
+
+        return True
+
+    def __len__(self):
+        return len(self.value_array)
+
+    @classmethod
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+
+        all_strs = True
+        all_ints = True
+
+        for k in obj:
+            if type(k) is not str:
+                all_strs = False
+                break
+
+        for k in obj:
+            if type(k) is not int:
+                all_ints = False
+                break
+
+        # Check what id mapper have to use
+        if all_strs:
+            if len(obj) <= 0xFFFFFFFF:
+                ktype = 's'
+                mapper_class = StringId32Mapper
+            else:
+                ktype = 'S'
+                mapper_class = StringIdMapper
+        elif all_ints:
+            if len(obj) <= 0xFFFFFFFF:
+                ktype = 'i'
+                mapper_class = NumericId32Mapper
+            else:
+                ktype = 'I'
+                mapper_class = NumericIdMapper
+        else:
+            raise TypeError("Type of keys not supported")
+
+        header_offs = offs
+        # Reserve space for the header
+        offs += cls._Header.size
+
+        # We need simulate the io protocol over the buffer to reuse the mapper code
+        iobuf = BufferIO(buf, offs)
+        offs += mapper_class.build(_iter_keys(obj), iobuf, return_map=False)
+
+        value_offs = offs
+        offs += proxied_list.pack_into(obj.values(), buf, offs, idmap, implicit_offs)
+
+        # Pack the header
+        buf[header_offs:header_offs + cls._Header.size] = cls._Header.pack(ktype, value_offs)
+
+        return offs
+
+    @classmethod
+    def unpack_from(cls, buf, offs, idmap = None):
+
+        index_offs = offs + cls._Header.size
+        ktype, value_offs = cls._Header.unpack(buf[offs:index_offs])
+
+        if ktype == 's':
+            mapper_class = StringId32Mapper
+        elif ktype == 'S':
+            mapper_class = StringIdMapper
+        elif ktype == 'i':
+            mapper_class = NumericId32Mapper
+        elif ktype == 'I':
+            mapper_class = NumericIdMapper
+        else:
+            raise TypeError("Invalid key type %s" % ktype)
+
+        id_mapper = mapper_class.map_buffer(buf, index_offs)
+        value_array = proxied_list.unpack_from(buf, value_offs, idmap)
+
+        return cls(value_array, id_mapper)
+
+    def __str__(self):
+        return "proxied_dict({%s})" % ", ".join(["%s: %s" % (k, v) for k, v in self.iteritems()])
+
 def proxied_list_cmp(a, b):
 
     alen = len(a)
@@ -480,10 +644,10 @@ class proxied_list(object):
                 pindex = cython.cast(cython.p_ulong, cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
                 obj_offs = self.offs + pindex[index]
             else:
-                index_offs = dataoffs + itemsize * index
+                index_offs = dataoffs + itemsize * int(index)
                 obj_offs = self.offs + _struct.unpack(self.buf[index_offs:index_offs + itemsize])[0]
         else:
-            obj_offs = dataoffs + itemsize * index
+            obj_offs = dataoffs + itemsize * int(index)
 
         if  obj_offs in self.idmap:
             return self.idmap[obj_offs]
@@ -882,6 +1046,7 @@ class mapped_object(object):
 
         proxied_list: 'E',
         proxied_tuple: 'V',
+        proxied_dict: 'M',
 
         int : 'q',
         float : 'd',
@@ -916,6 +1081,7 @@ class mapped_object(object):
 
         'V' : (proxied_tuple.pack_into, proxied_tuple.unpack_from, proxied_tuple),
         'E' : (proxied_list.pack_into, proxied_list.unpack_from, proxied_list),
+        'M' : (proxied_dict.pack_into, proxied_dict.unpack_from, proxied_dict),
     }
 
     del p
@@ -1419,6 +1585,10 @@ class ProxiedListBufferProxyProperty(GenericBufferProxyProperty):
     typ = proxied_list
 
 @cython.cclass
+class ProxiedDictBufferProxyProperty(GenericBufferProxyProperty):
+    typ = proxied_dict
+
+@cython.cclass
 class ObjectBufferProxyProperty(GenericBufferProxyProperty):
     typ = mapped_object
 
@@ -1446,6 +1616,7 @@ PROXY_TYPES = {
 
     proxied_tuple : ProxiedTupleBufferProxyProperty,
     proxied_list : ProxiedListBufferProxyProperty,
+    proxied_dict : ProxiedDictBufferProxyProperty,
 
     int : LongBufferProxyProperty,
     float : DoubleBufferProxyProperty,
@@ -3276,7 +3447,7 @@ class NumericIdMapper(object):
         stride0 = cython.size_t, stride1 = cython.size_t, blen = cython.size_t, pbkey = 'const char *',
         indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
     def get(self, key, default = None):
-        if not isinstance(key, (int, long)):
+        if not isinstance(key, (int, long, npuint32, npuint64)):
             return default
         if key < 0 or key > self.dtypemax:
             return default
@@ -3339,7 +3510,7 @@ class NumericIdMapper(object):
         basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong,
         discard_duplicates = cython.bint, discard_duplicate_keys = cython.bint)
     def build(cls, initializer, destfile = None, tempdir = None,
-            discard_duplicates = False, discard_duplicate_keys = False):
+            discard_duplicates = False, discard_duplicate_keys = False, return_map=True):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
         partsfile = partswrite = None
@@ -3463,8 +3634,12 @@ class NumericIdMapper(object):
         destfile.seek(finalpos)
         destfile.flush()
 
-        rv = cls.map_file(destfile, basepos, size = finalpos - basepos)
-        destfile.seek(finalpos)
+        if return_map:
+            rv = cls.map_file(destfile, basepos, size = finalpos - basepos)
+            destfile.seek(finalpos)
+        else:
+            rv = finalpos
+
         return rv
 
     @classmethod
@@ -3884,7 +4059,7 @@ class StringIdMapper(object):
     @cython.locals(
         basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong,
         dtypemax = cython.ulonglong)
-    def build(cls, initializer, destfile = None, tempdir = None):
+    def build(cls, initializer, destfile = None, tempdir = None, return_map=True):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
 
@@ -3966,8 +4141,12 @@ class StringIdMapper(object):
         destfile.seek(finalpos)
         destfile.flush()
 
-        rv = cls.map_file(destfile, basepos, size = finalpos - basepos)
-        destfile.seek(finalpos)
+        if return_map:
+            rv = cls.map_file(destfile, basepos, size = finalpos - basepos)
+            destfile.seek(finalpos)
+        else:
+            rv = finalpos
+
         return rv
 
     @classmethod
@@ -4513,6 +4692,12 @@ def _iter_values_dump_keys(items, keys_file, value_cache_size = 1024):
             i += 1
         dump((key, i), keys_file, 2)
     keys_file.flush()
+
+def _iter_keys(obj):
+    i = 0
+    for k in obj:
+        yield (k, i)
+        i += 1
 
 def _iter_key_dump(keys_file):
     keys_file.seek(0)
