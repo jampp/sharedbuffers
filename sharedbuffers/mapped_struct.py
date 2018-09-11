@@ -64,11 +64,13 @@ class float64(float):
     pass
 double = float64
 
+NOT_FOUND_VALUE = []
+
 @cython.cfunc
 @cython.inline
 def _likebuffer(buf):
     """
-    Takes a container as parameter and returns a writable object with buffer protocol.
+    Takes a buffer object as parameter and returns a writable object with buffer protocol.
     """
     if type(buf) is buffer or type(buf) is bytearray or type(buf) is bytes or isinstance(buf, bytes):
         return buf
@@ -79,7 +81,7 @@ def _likebuffer(buf):
 @cython.cfunc
 def _likerobuffer(buf):
     """
-    Takes a container as parameter and returns a read-only objecto with buffer protocol.
+    Takes a buffer object as parameter and returns a read-only object with buffer protocol.
     """
     if type(buf) is buffer or type(buf) is bytes or isinstance(buf, bytes):
         return buf
@@ -353,7 +355,7 @@ class proxied_dict(object):
 
     cython.declare(
         value_array = proxied_list,
-        id_mapper   = object,
+        id_mapper = object,
     )
 
     # id mapper class, values offs
@@ -404,7 +406,8 @@ class proxied_dict(object):
             return False
 
         for k in self:
-            if k not in other or other[k] != self[k]:
+            other.get(k, NOT_FOUND_VALUE)
+            if k is NOT_FOUND_VALUE or other[k] != self[k]:
                 return False
 
         return True
@@ -419,14 +422,15 @@ class proxied_dict(object):
         all_ints = True
 
         for k in obj:
-            if type(k) is not str:
+            if type(k) not in (str, unicode):
                 all_strs = False
-                break
+                if not all_ints:
+                    break
 
-        for k in obj:
             if type(k) is not int:
                 all_ints = False
-                break
+                if not all_strs:
+                    break
 
         # Check what id mapper have to use
         if all_strs:
