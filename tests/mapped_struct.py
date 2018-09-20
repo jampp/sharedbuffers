@@ -1117,3 +1117,24 @@ class FrozensetPackingTest(unittest.TestCase):
         fs = frozenset()
         mapped_struct.mapped_frozenset.pack_into(fs, a, 0)
         self.assertIs(mapped_struct.mapped_frozenset.unpack_from(a, 0), fs)
+
+class BehavioralStruct(object):
+    __slot_types__ = {
+        'a' : int,
+        'b' : float,
+    }
+    def somefunc(self):
+        return 'someresult'
+
+class CustomBasesTest(unittest.TestCase):
+    Struct = BehavioralStruct
+
+    def setUp(self):
+        self.schema = mapped_struct.Schema.from_typed_slots(self.Struct)
+        self.schema.set_proxy_bases((BehavioralStruct,))
+
+    def testBehavior(self):
+        x = self.Struct()
+        dx = self.schema.unpack(self.schema.pack(x))
+        self.assertIsInstance(dx, BehavioralStruct)
+        self.assertEqual(dx.somefunc(), 'someresult')
