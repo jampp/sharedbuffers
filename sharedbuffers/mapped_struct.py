@@ -1075,7 +1075,7 @@ PROXY_TYPES = {
     unicode : UnicodeBufferProxyProperty,
 }
 
-def GenericProxyClass(slot_keys, slot_types, present_bitmap, base_offs):
+def GenericProxyClass(slot_keys, slot_types, present_bitmap, base_offs, bases = None):
     class GenericProxyClass(BufferProxyObject):
         i = typ = slot = None
         value_offs = base_offs
@@ -1089,6 +1089,8 @@ def GenericProxyClass(slot_keys, slot_types, present_bitmap, base_offs):
             else:
                 locals()[slot] = MissingBufferProxyProperty(0, 1 << i)
         del i, value_offs, slot, typ
+    if bases is not None:
+        GenericProxyClass.__bases__ += bases
 
     return GenericProxyClass
 
@@ -1109,6 +1111,7 @@ class Schema(object):
         unpacker_cache = object,
 
         _Proxy = object,
+        _proxy_bases = tuple,
 
         _pack_buffer = object,
         _var_bitmap = cython.ulonglong,
@@ -1120,6 +1123,10 @@ class Schema(object):
     @property
     def Proxy(self):
         return functools.partial(self._Proxy, "\x00" * self.bitmap_size, 0, 0, None)
+
+    @property
+    def ProxyClass(self):
+        return self._Proxy
 
     def __init__(self, slot_types, alignment = 8, pack_buffer_size = 65536, packer_cache = None, unpacker_cache = None,
             max_pack_buffer_size = None):
@@ -1136,6 +1143,7 @@ class Schema(object):
             slot_types = self.slot_types,
             slot_keys = self.slot_keys,
             alignment = self.alignment,
+            bases = self._proxy_bases,
         )
 
     def __setstate__(self, state):
@@ -1143,9 +1151,16 @@ class Schema(object):
         # Not needed for unpacking anyway
         state.pop('pack_buffer_size', None)
         state.pop('max_pack_buffer_size', None)
+        bases = state.pop('bases', None)
         state['autoregister'] = True
 
         self.init(**state)
+
+        if bases is not None:
+            self.set_proxy_bases(bases)
+
+    def set_proxy_bases(self, bases):
+        self._proxy_bases = bases
 
     @cython.locals(other_schema = 'Schema')
     def compatible(self, other):
@@ -1184,6 +1199,7 @@ class Schema(object):
             max_pack_buffer_size = None, packer_cache = None, unpacker_cache = None,
             autoregister = False):
         # Freeze slot order, sort by descending size to optimize alignment
+        self._proxy_bases = None
         if slot_types is None:
             slot_types = self.slot_types
 
@@ -1279,7 +1295,7 @@ class Schema(object):
 
         # A proxy class for an empty object, so that users can efficiently unpack
         # into a preallocated proxy object
-        self._Proxy = GenericProxyClass(self.slot_keys, self.slot_types, 0, self.bitmap_size)
+        self._Proxy = GenericProxyClass(self.slot_keys, self.slot_types, 0, self.bitmap_size, self._proxy_bases)
 
     @cython.ccall
     @cython.locals(has_bitmap = cython.ulonglong, none_bitmap = cython.ulonglong, present_bitmap = cython.ulonglong,
@@ -1336,7 +1352,9 @@ class Schema(object):
             alignment = self.alignment
             size = unpacker.size
             padding = (size + self.bitmap_size + alignment - 1) / alignment * alignment - size
-            gfactory = GenericProxyClass(self.slot_keys, self.slot_types, present_bitmap, self.bitmap_size)
+            gfactory = GenericProxyClass(
+                self.slot_keys, self.slot_types, present_bitmap, self.bitmap_size,
+                self._proxy_bases)
             rv = (unpacker, padding, pformat, gfactory)
             self.unpacker_cache[present_bitmap] = rv
         self._last_unpacker_bitmap = present_bitmap

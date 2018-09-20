@@ -70,7 +70,7 @@ if '--xml' in sys.argv:
     unittest.runner.TextTestRunner = xmlrunner.XMLTestRunner
     del sys.argv[sys.argv.index('--xml')]
 
-setup_requires = ['Cython>=0.22,!=0.27.1,!=0.27.2,!=0.27.3,!=0.28.0,!=0.28.1,!=0.28.2,!=0.28.3,!=0.28.4']
+setup_requires = ['Cython>=0.22,!=0.27.1,!=0.27.2,!=0.27.3,!=0.28.0,!=0.28.1,!=0.28.2,!=0.28.3,!=0.28.4,!=0.28.5']
 
 if '--no-cython' in sys.argv:
     del sys.argv[sys.argv.index('--no-cython')]
