@@ -7,8 +7,14 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
-v0.4.9 - Unreleased
+v0.5.0 - Unreleased
 ===================
+
+Added
+-----
+
+- Allow specifying custom bases for proxy objects, so proxies
+  can inherit their real counterparts' behavior
 
 Changes
 -------

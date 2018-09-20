@@ -1231,3 +1231,24 @@ class MappedDecimalPackingTest(unittest.TestCase):
     def testCDecimal(self):
         for case in self.TEST_CASES:
             self.assertPackOk(cDecimal(case))
+
+class BehavioralStruct(object):
+    __slot_types__ = {
+        'a' : int,
+        'b' : float,
+    }
+    def somefunc(self):
+        return 'someresult'
+
+class CustomBasesTest(unittest.TestCase):
+    Struct = BehavioralStruct
+
+    def setUp(self):
+        self.schema = mapped_struct.Schema.from_typed_slots(self.Struct)
+        self.schema.set_proxy_bases((BehavioralStruct,))
+
+    def testBehavior(self):
+        x = self.Struct()
+        dx = self.schema.unpack(self.schema.pack(x))
+        self.assertIsInstance(dx, BehavioralStruct)
+        self.assertEqual(dx.somefunc(), 'someresult')
