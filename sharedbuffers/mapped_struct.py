@@ -16,6 +16,11 @@ import time
 from datetime import timedelta, datetime
 from decimal import Decimal
 
+try:
+    from cdecimal import Decimal as cDecimal
+except:
+    cDecimal = Decimal
+
 from chorde.clients.inproc import Cache
 
 import cython
@@ -524,27 +529,28 @@ class mapped_unicode(unicode):
 class mapped_decimal(Decimal):
     @classmethod
     @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, exponent = cython.longlong, sign = cython.uchar)
-    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, packer = struct.Struct('=Bq')):
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, packer = struct.Struct('=q')):
         if idmap is not None:
             objid = id(obj)
             idmap[objid] = offs + implicit_offs
 
         sign, digits, exponent = obj.as_tuple()
-
-        packer.pack_into(buf, offs, sign, exponent)
+        packer.pack_into(buf, offs, (exponent << 1) | sign)
         offs += packer.size
 
         return mapped_tuple.pack_into(digits, buf, offs, idmap, implicit_offs)
 
     @classmethod
     @cython.locals(offs = cython.longlong, exponent = cython.longlong, sign = cython.uchar)
-    def unpack_from(cls, buf, offs, idmap = None, packer = struct.Struct('=Bq')):
+    def unpack_from(cls, buf, offs, idmap = None, packer = struct.Struct('=q')):
         if idmap is not None and offs in idmap:
             return idmap[offs]
 
-        sign, exponent = packer.unpack_from(buf, offs)
+        exponent, = packer.unpack_from(buf, offs)
+        sign = exponent & 0x1
+
         digits = mapped_tuple.unpack_from(buf, offs + packer.size, idmap)
-        rv = Decimal((sign, digits, exponent))
+        rv = cDecimal((sign, digits, exponent >> 1))
 
         if idmap is not None:
             idmap[offs] = rv
@@ -552,8 +558,8 @@ class mapped_decimal(Decimal):
 
 class mapped_datetime(datetime):
     @classmethod
-    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.ulonglong)
-    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, packer = struct.Struct('=Q')):
+    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong)
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, packer = struct.Struct('=q')):
         if idmap is not None:
             objid = id(obj)
             idmap[objid] = offs + implicit_offs
@@ -565,7 +571,7 @@ class mapped_datetime(datetime):
 
     @classmethod
     @cython.locals(offs = cython.longlong, timestamp = cython.longlong, microseconds = cython.ulong)
-    def unpack_from(cls, buf, offs, idmap = None, packer = struct.Struct('=Q')):
+    def unpack_from(cls, buf, offs, idmap = None, packer = struct.Struct('=q')):
         if idmap is not None and offs in idmap:
             return idmap[offs]
 
@@ -607,7 +613,8 @@ class mapped_object(object):
         str : 's',
         unicode : 'u',
         datetime : 'z',
-        Decimal : 'F'
+        Decimal : 'F',
+        cDecimal : 'F',
     }
 
     def p(s):
@@ -719,7 +726,8 @@ VARIABLE_TYPES = {
     bytes : mapped_bytes,
     object : mapped_object,
     datetime : mapped_datetime,
-    Decimal : mapped_decimal
+    Decimal : mapped_decimal,
+    cDecimal : mapped_decimal,
 }
 
 FIXED_TYPES = {
@@ -1167,6 +1175,7 @@ PROXY_TYPES = {
     unicode : UnicodeBufferProxyProperty,
     datetime : DatetimeBufferProxyProperty,
     Decimal : DecimalBufferProxyProperty,
+    cDecimal : DecimalBufferProxyProperty,
 }
 
 def GenericProxyClass(slot_keys, slot_types, present_bitmap, base_offs):

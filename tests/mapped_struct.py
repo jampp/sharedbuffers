@@ -11,6 +11,11 @@ import random
 from datetime import datetime
 from decimal import Decimal
 
+try:
+    from cdecimal import Decimal as cDecimal
+except:
+    cDecimal = Decimal
+
 from sharedbuffers import mapped_struct
 
 try:
@@ -118,6 +123,7 @@ class DatetimeStruct(object):
 class DecimalStruct(object):
     __slot_types__ = {
         'd' : Decimal,
+        'D' : cDecimal,
     }
     __slots__ = __slot_types__.keys()
 
@@ -182,7 +188,8 @@ class AttributeBitmapTest(unittest.TestCase):
         self._testStruct(Attr63Struct, delattrs = [ "a%d" % i for i in range(30) ])
 
 class SchemaPicklingTest(AttributeBitmapTest):
-    def _testStruct(self, Struct, values = {}, delattrs = ()):
+
+    def _testStruct(self, Struct, values = {}, delattrs = (), cmp_func = None):
         schema = mapped_struct.Schema.from_typed_slots(Struct)
         x = Struct()
 
@@ -202,7 +209,10 @@ class SchemaPicklingTest(AttributeBitmapTest):
         dx = schema.unpack(px)
         for k in Struct.__slots__:
             if k in values or k not in delattrs:
-                self.assertEquals(getattr(dx, k, None), getattr(x, k, None))
+                if cmp_func:
+                    self.assertTrue(cmp_func(getattr(dx, k, None), getattr(x, k, None)))
+                else:
+                    self.assertTrue(getattr(dx, k, None) == getattr(x, k, None))
             else:
                 self.assertFalse(hasattr(dx, k))
 
@@ -213,7 +223,8 @@ class SchemaPicklingTest(AttributeBitmapTest):
         self._testStruct(DatetimeStruct, dict(d=datetime.now()))
 
     def testDecimalStruct(self):
-        self._testStruct(DecimalStruct, dict(d=Decimal(1.23)))
+        cmp_func = lambda a, b: str(a) == str(b)
+        self._testStruct(DecimalStruct, dict(d=Decimal(1.23), D=cDecimal(1.245)), cmp_func=cmp_func)
 
     def testContainerStruct(self):
         self._testStruct(ContainerStruct, dict(fset=frozenset([3]), t=(1,3), l=[1,2]))
@@ -396,7 +407,17 @@ class ObjectPackagingTest(SimplePackingTest):
         { 'o' : "blabla" },
         { 'o' : u"bláblá€" },
         { 'o' : datetime.now() },
+    ]
+
+class ObjectDecimalPackagingTest(SimplePackingTest):
+    Struct = ObjectStruct
+
+    def assertEqual(self, v1, v2):
+        self.assertTrue(str(v1) == str(v2))
+
+    TEST_VALUES = [
         { 'o' : Decimal(123.456) },
+        { 'o' : cDecimal(123.456) },
     ]
 
 class NestedObjectPackagingTest(SimplePackingTest):
@@ -1178,23 +1199,35 @@ class MappedDatetimePackingTest(unittest.TestCase):
         unpacked_now = mapped_datetime.unpack_from(buf, 2)
         self.assertEquals(now, unpacked_now)
 
+    def testPackOldDate(self):
+        buf = bytearray(12)
+        now = datetime(1900, 01, 01)
+
+        mapped_datetime = mapped_struct.mapped_datetime
+        size = mapped_datetime.pack_into(now, buf, 0)
+        self.assertTrue(size > 0)
+
+        unpacked_now = mapped_datetime.unpack_from(buf, 0)
+        self.assertEquals(now, unpacked_now)
+
 class MappedDecimalPackingTest(unittest.TestCase):
+
+    TEST_CASES = [0, 100, -100, 123.456, -123.456]
 
     def assertPackOk(self, num):
         buf = bytearray(128)
-        num = Decimal(num)
 
         mapped_decimal = mapped_struct.mapped_decimal
         size = mapped_decimal.pack_into(num, buf, 0)
         self.assertTrue(size > 0)
 
         unpacked_num = mapped_decimal.unpack_from(buf, 0)
-        self.assertEquals(num, unpacked_num)
+        self.assertEquals(str(num), str(unpacked_num))
 
-    def testPack(self):
+    def testDecimal(self):
+        for case in self.TEST_CASES:
+            self.assertPackOk(Decimal(case))
 
-        self.assertPackOk(0)
-        self.assertPackOk(100)
-        self.assertPackOk(-100)
-        self.assertPackOk(123.456)
-        self.assertPackOk(-123.456)
+    def testCDecimal(self):
+        for case in self.TEST_CASES:
+            self.assertPackOk(cDecimal(case))
