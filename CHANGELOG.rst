@@ -15,14 +15,14 @@ Added
 
 - Allow specifying custom bases for proxy objects, so proxies
   can inherit their real counterparts' behavior
+- Add support for datetime
+- Add support for decimal/cdecimal
 
 Changes
 -------
 
 - Allow building with Cython 0.28 and above
 - Use `v` prefix on releases to have fixed links for this document
-- Add support for datetime
-- Add support for Decimal
 
 v0.4.8 - 2018-05-28
 ===================
