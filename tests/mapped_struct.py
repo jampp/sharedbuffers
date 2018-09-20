@@ -1201,7 +1201,7 @@ class MappedDatetimePackingTest(unittest.TestCase):
 
     def testPackOldDate(self):
         buf = bytearray(12)
-        now = datetime(1900, 01, 01)
+        now = datetime(1900, 1, 1)
 
         mapped_datetime = mapped_struct.mapped_datetime
         size = mapped_datetime.pack_into(now, buf, 0)
