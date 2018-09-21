@@ -8,6 +8,13 @@ import tempfile
 import os
 import numpy
 import random
+from datetime import datetime
+from decimal import Decimal
+
+try:
+    from cdecimal import Decimal as cDecimal
+except:
+    cDecimal = Decimal
 
 from sharedbuffers import mapped_struct
 
@@ -15,6 +22,8 @@ try:
     import cPickle
 except ImportError:
     import pickle as cPickle
+
+SKIP_HUGE = os.environ.get('SKIP_HUGE', None)
 
 class SimpleStruct(object):
     __slot_types__ = {
@@ -101,6 +110,27 @@ class PrimitiveStruct(object):
         for k,v in kw.iteritems():
             setattr(self, k, v)
 
+class DatetimeStruct(object):
+    __slot_types__ = {
+        'd' : datetime,
+    }
+    __slots__ = __slot_types__.keys()
+
+    def __init__(self, **kw):
+        for k,v in kw.iteritems():
+            setattr(self, k, v)
+
+class DecimalStruct(object):
+    __slot_types__ = {
+        'd' : Decimal,
+        'D' : cDecimal,
+    }
+    __slots__ = __slot_types__.keys()
+
+    def __init__(self, **kw):
+        for k,v in kw.iteritems():
+            setattr(self, k, v)
+
 class ContainerStruct(object):
     __slot_types__ = {
         'fset' : frozenset,
@@ -158,7 +188,8 @@ class AttributeBitmapTest(unittest.TestCase):
         self._testStruct(Attr63Struct, delattrs = [ "a%d" % i for i in range(30) ])
 
 class SchemaPicklingTest(AttributeBitmapTest):
-    def _testStruct(self, Struct, values = {}, delattrs = ()):
+
+    def _testStruct(self, Struct, values = {}, delattrs = (), cmp_func = None):
         schema = mapped_struct.Schema.from_typed_slots(Struct)
         x = Struct()
 
@@ -178,12 +209,22 @@ class SchemaPicklingTest(AttributeBitmapTest):
         dx = schema.unpack(px)
         for k in Struct.__slots__:
             if k in values or k not in delattrs:
-                self.assertEquals(getattr(dx, k, None), getattr(x, k, None))
+                if cmp_func:
+                    self.assertTrue(cmp_func(getattr(dx, k, None), getattr(x, k, None)))
+                else:
+                    self.assertTrue(getattr(dx, k, None) == getattr(x, k, None))
             else:
                 self.assertFalse(hasattr(dx, k))
 
     def testPrimitiveStruct(self):
         self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s='3', u=u'A'))
+
+    def testDatetimeStruct(self):
+        self._testStruct(DatetimeStruct, dict(d=datetime.now()))
+
+    def testDecimalStruct(self):
+        cmp_func = lambda a, b: str(a) == str(b)
+        self._testStruct(DecimalStruct, dict(d=Decimal(1.23), D=cDecimal(1.245)), cmp_func=cmp_func)
 
     def testContainerStruct(self):
         self._testStruct(ContainerStruct, dict(fset=frozenset([3]), t=(1,3), l=[1,2]))
@@ -365,6 +406,18 @@ class ObjectPackagingTest(SimplePackingTest):
         { 'o' : frozenset([ 1,3,8 ]) },
         { 'o' : "blabla" },
         { 'o' : u"bláblá€" },
+        { 'o' : datetime.now() },
+    ]
+
+class ObjectDecimalPackagingTest(SimplePackingTest):
+    Struct = ObjectStruct
+
+    def assertEqual(self, v1, v2):
+        self.assertTrue(str(v1) == str(v2))
+
+    TEST_VALUES = [
+        { 'o' : Decimal(123.456) },
+        { 'o' : cDecimal(123.456) },
     ]
 
 class NestedObjectPackagingTest(SimplePackingTest):
@@ -598,28 +651,36 @@ class IdMapperTest(unittest.TestCase):
             if rvv != v:
                 self.assertEquals(rvv, v)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeInMem(self):
         self._testBuild(2010530, None)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeInMemReversed(self):
         self._testBuild(2010530, None, reversed = True)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeInMemShuffled(self):
         self._testBuild(2010530, None, shuffled = True)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeInMemDiscardDuplicates(self):
         self._testBuild(2010530, None, build_kwargs = dict(discard_duplicates = True),
             gen_dupes = True)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeOnDisk(self):
         self._testBuild(10107530, tempfile.gettempdir())
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeOnDiskReversed(self):
         self._testBuild(10107530, tempfile.gettempdir(), reversed=True)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeOnDiskShuffled(self):
         self._testBuild(10107530, tempfile.gettempdir(), shuffled=True)
 
+    @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeOnDiskDiscardDuplicates(self):
         self._testBuild(10107530, tempfile.gettempdir(), build_kwargs = dict(discard_duplicates = True),
             gen_dupes = True)
@@ -1117,6 +1178,59 @@ class FrozensetPackingTest(unittest.TestCase):
         fs = frozenset()
         mapped_struct.mapped_frozenset.pack_into(fs, a, 0)
         self.assertIs(mapped_struct.mapped_frozenset.unpack_from(a, 0), fs)
+
+class MappedDatetimePackingTest(unittest.TestCase):
+
+    def testPack(self):
+        buf = bytearray(12)
+        now = datetime.now()
+
+        mapped_datetime = mapped_struct.mapped_datetime
+        size = mapped_datetime.pack_into(now, buf, 0)
+        self.assertTrue(size > 0)
+
+        unpacked_now = mapped_datetime.unpack_from(buf, 0)
+        self.assertEquals(now, unpacked_now)
+
+        # With offset
+        mapped_datetime = mapped_struct.mapped_datetime
+        self.assertEquals(mapped_datetime.pack_into(now, buf, 2), size + 2)
+
+        unpacked_now = mapped_datetime.unpack_from(buf, 2)
+        self.assertEquals(now, unpacked_now)
+
+    def testPackOldDate(self):
+        buf = bytearray(12)
+        now = datetime(1900, 1, 1)
+
+        mapped_datetime = mapped_struct.mapped_datetime
+        size = mapped_datetime.pack_into(now, buf, 0)
+        self.assertTrue(size > 0)
+
+        unpacked_now = mapped_datetime.unpack_from(buf, 0)
+        self.assertEquals(now, unpacked_now)
+
+class MappedDecimalPackingTest(unittest.TestCase):
+
+    TEST_CASES = [0, 100, -100, 123.456, -123.456]
+
+    def assertPackOk(self, num):
+        buf = bytearray(128)
+
+        mapped_decimal = mapped_struct.mapped_decimal
+        size = mapped_decimal.pack_into(num, buf, 0)
+        self.assertTrue(size > 0)
+
+        unpacked_num = mapped_decimal.unpack_from(buf, 0)
+        self.assertEquals(str(num), str(unpacked_num))
+
+    def testDecimal(self):
+        for case in self.TEST_CASES:
+            self.assertPackOk(Decimal(case))
+
+    def testCDecimal(self):
+        for case in self.TEST_CASES:
+            self.assertPackOk(cDecimal(case))
 
 class BehavioralStruct(object):
     __slot_types__ = {

@@ -15,6 +15,8 @@ Added
 
 - Allow specifying custom bases for proxy objects, so proxies
   can inherit their real counterparts' behavior
+- Add support for datetime
+- Add support for decimal/cdecimal
 
 Changes
 -------
