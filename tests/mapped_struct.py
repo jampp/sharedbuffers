@@ -226,6 +226,14 @@ class SchemaPicklingTest(AttributeBitmapTest):
         cmp_func = lambda a, b: str(a) == str(b)
         self._testStruct(DecimalStruct, dict(d=Decimal(1.23), D=cDecimal(1.245)), cmp_func=cmp_func)
 
+    def testCastIntToDecimalStruct(self):
+        cmp_func = lambda a, b: int(a) == int(b)
+        self._testStruct(DecimalStruct, dict(d=1, D=2), cmp_func=cmp_func)
+
+    def testCastFloatToDecimalStruct(self):
+        cmp_func = lambda a, b: float(a) == float(b)
+        self._testStruct(DecimalStruct, dict(d=1.23, D=1.245), cmp_func=cmp_func)
+
     def testContainerStruct(self):
         self._testStruct(ContainerStruct, dict(fset=frozenset([3]), t=(1,3), l=[1,2]))
 

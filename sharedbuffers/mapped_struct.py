@@ -534,6 +534,9 @@ class mapped_decimal(Decimal):
             objid = id(obj)
             idmap[objid] = offs + implicit_offs
 
+        if not isinstance(obj, (Decimal, cDecimal)):
+            obj = cDecimal(obj)
+
         sign, digits, exponent = obj.as_tuple()
         packer.pack_into(buf, offs, (exponent << 1) | sign)
         offs += packer.size
