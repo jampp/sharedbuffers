@@ -17,6 +17,7 @@ Added
   can inherit their real counterparts' behavior
 - Add support for datetime
 - Add support for decimal/cdecimal
+- Add support for mapping from uncompressed zip files
 
 Changes
 -------

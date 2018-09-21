@@ -13,6 +13,7 @@ import sys
 import xxhash
 import itertools
 import time
+import zipfile
 from datetime import timedelta, datetime
 from decimal import Decimal
 
@@ -1731,7 +1732,34 @@ class mapped_object_with_schema(object):
     def unpack_from(self, buf, offs, idmap = None):
         return self.schema.unpack_from(buf, offs, idmap)
 
-class MappedArrayProxyBase(object):
+@cython.ccall
+def _map_zipfile(cls, fileobj, offset, size):
+    # Open underlying file
+    if fileobj._compress_type != zipfile.ZIP_STORED:
+        raise ValueError("Can only map uncompressed elements of a zip file")
+    if fileobj._decrypter is not None:
+        raise ValueError("Cannot map from an encrypted zip file")
+
+    if size is None:
+        size = fileobj._compress_size - offset
+    else:
+        size = min(size, fileobj._compress_size - offset)
+    offset += fileobj._fileobj.tell()
+
+    return cls.map_file(fileobj._fileobj, offset, size)
+
+class _ZipMapBase(object):
+    @classmethod
+    def map_zipfile(cls, fileobj, offset = 0, size = None):
+        return _map_zipfile(cls, fileobj, offset, size)
+
+@cython.cclass
+class _CZipMapBase(object):
+    @classmethod
+    def map_zipfile(cls, fileobj, offset = 0, size = None):
+        return _map_zipfile(cls, fileobj, offset, size)
+
+class MappedArrayProxyBase(_ZipMapBase):
     _CURRENT_VERSION = 2
     _CURRENT_MINIMUM_READER_VERSION = 2
 
@@ -1901,6 +1929,9 @@ class MappedArrayProxyBase(object):
 
     @classmethod
     def map_file(cls, fileobj, offset = 0, size = None):
+        if isinstance(fileobj, zipfile.ZipExtFile):
+            return cls.map_zipfile(fileobj, offset, size)
+
         fileobj.seek(offset)
         total_size = cls._Header.unpack(fileobj.read(cls._Header.size))[0]
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
@@ -2798,7 +2829,7 @@ def _discard_duplicates(apart, struct_dt, discard_duplicate_keys, discard_duplic
     return apart
 
 @cython.cclass
-class NumericIdMapper(object):
+class NumericIdMapper(_CZipMapBase):
     dtype = npuint64
 
     # Num-items, Index-pos
@@ -3220,6 +3251,9 @@ class NumericIdMapper(object):
     @classmethod
     @cython.locals(rv = 'NumericIdMapper')
     def map_file(cls, fileobj, offset = 0, size = None):
+        if isinstance(fileobj, zipfile.ZipExtFile):
+            return cls.map_zipfile(fileobj, offset, size)
+
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
         fileobj.seek(map_start)
         buf = mmap.mmap(fileobj.fileno(), 0, access = mmap.ACCESS_READ, offset = map_start)
@@ -3279,7 +3313,7 @@ def safe_utf8(x):
         return x
 
 @cython.cclass
-class StringIdMapper(object):
+class StringIdMapper(_CZipMapBase):
     encode = staticmethod(safe_utf8)
     dtype = npuint64
     xxh = xxhash.xxh64
@@ -3723,6 +3757,9 @@ class StringIdMapper(object):
     @classmethod
     @cython.locals(rv = 'StringIdMapper')
     def map_file(cls, fileobj, offset = 0, size = None):
+        if isinstance(fileobj, zipfile.ZipExtFile):
+            return cls.map_zipfile(fileobj, offset, size)
+
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
         fileobj.seek(map_start)
         buf = mmap.mmap(fileobj.fileno(), 0, access = mmap.ACCESS_READ, offset = map_start)
@@ -4269,7 +4306,7 @@ def _iter_key_dump(keys_file):
         except EOFError:
             break
 
-class MappedMappingProxyBase(object):
+class MappedMappingProxyBase(_ZipMapBase):
     # Must subclass to select mapping strategies
 
     # A MappedArrayProxyBase subclass for values
@@ -4369,6 +4406,9 @@ class MappedMappingProxyBase(object):
 
     @classmethod
     def map_file(cls, fileobj, offset = 0, size = None):
+        if isinstance(fileobj, zipfile.ZipExtFile):
+            return cls.map_zipfile(fileobj, offset, size)
+
         # If no size is given, it's the whole file by default
         if size is None:
             fileobj.seek(0, os.SEEK_END)
