@@ -112,28 +112,18 @@ class PrimitiveStruct(TestStruct):
         'u' : unicode,
     }
 
-class DatetimeStruct(object):
+class DatetimeStruct(TestStruct):
     __slot_types__ = {
         'd' : datetime,
     }
-    __slots__ = __slot_types__.keys()
 
-    def __init__(self, **kw):
-        for k,v in kw.iteritems():
-            setattr(self, k, v)
-
-class DecimalStruct(object):
+class DecimalStruct(TestStruct):
     __slot_types__ = {
         'd' : Decimal,
         'D' : cDecimal,
     }
-    __slots__ = __slot_types__.keys()
 
-    def __init__(self, **kw):
-        for k,v in kw.iteritems():
-            setattr(self, k, v)
-
-class ContainerStruct(object):
+class ContainerStruct(TestStruct):
     __slot_types__ = {
         'fset' : frozenset,
         't' : tuple,
@@ -141,11 +131,6 @@ class ContainerStruct(object):
         'pt': mapped_struct.proxied_tuple,
         'pl': mapped_struct.proxied_list,
     }
-    __slots__ = __slot_types__.keys()
-
-    def __init__(self, **kw):
-        for k,v in kw.iteritems():
-            setattr(self, k, v)
 
 class DictStruct(TestStruct):
     __slot_types__ = {
