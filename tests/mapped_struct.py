@@ -600,6 +600,7 @@ class MappedArrayTest(unittest.TestCase):
             with tempfile.NamedTemporaryFile() as tempzip:
                 zf = zipfile.ZipFile(tempzip, 'w')
                 zf.write(destfile.name, 'bundle', zipfile.ZIP_STORED)
+                zf.writestr('otherdata', 'blablabla')
                 zf.close()
 
                 tempzip.seek(0)
@@ -818,6 +819,7 @@ class MappedMappingTest(unittest.TestCase):
             with tempfile.NamedTemporaryFile() as tempzip:
                 zf = zipfile.ZipFile(tempzip, 'w')
                 zf.write(destfile.name, 'bundle', zipfile.ZIP_STORED)
+                zf.writestr('otherdata', 'blablabla')
                 zf.close()
 
                 tempzip.seek(0)
