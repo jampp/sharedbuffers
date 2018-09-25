@@ -8,6 +8,7 @@ import tempfile
 import os
 import numpy
 import random
+import zipfile
 from datetime import datetime
 from decimal import Decimal
 
@@ -593,6 +594,20 @@ class MappedArrayTest(unittest.TestCase):
             mapped = self.MappedArrayClass.map_file(destfile)
             self._checkValues(mapped, mapped)
 
+    def testZipMapping(self):
+        with tempfile.NamedTemporaryFile() as destfile:
+            self.MappedArrayClass.build(self.test_values, destfile = destfile, idmap = {})
+            with tempfile.NamedTemporaryFile() as tempzip:
+                zf = zipfile.ZipFile(tempzip, 'w')
+                zf.write(destfile.name, 'bundle', zipfile.ZIP_STORED)
+                zf.writestr('otherdata', 'blablabla')
+                zf.close()
+
+                tempzip.seek(0)
+                zf = zipfile.ZipFile(tempzip, 'r')
+                mapped = self.MappedArrayClass.map_file(zf.open('bundle'))
+                self._checkValues(mapped, mapped)
+
     def testBufferMapping(self):
         with tempfile.NamedTemporaryFile() as destfile:
             self.MappedArrayClass.build(self.test_values, destfile = destfile, idmap = {})
@@ -797,6 +812,20 @@ class MappedMappingTest(unittest.TestCase):
             self.MappedMappingClass.build(self.test_values, destfile = destfile, idmap = {})
             mapped = self.MappedMappingClass.map_file(destfile)
             self.assertMappingOk(mapped)
+
+    def testZipMapping(self):
+        with tempfile.NamedTemporaryFile() as destfile:
+            self.MappedMappingClass.build(self.test_values, destfile = destfile, idmap = {})
+            with tempfile.NamedTemporaryFile() as tempzip:
+                zf = zipfile.ZipFile(tempzip, 'w')
+                zf.write(destfile.name, 'bundle', zipfile.ZIP_STORED)
+                zf.writestr('otherdata', 'blablabla')
+                zf.close()
+
+                tempzip.seek(0)
+                zf = zipfile.ZipFile(tempzip, 'r')
+                mapped = self.MappedMappingClass.map_file(zf.open('bundle'))
+                self.assertMappingOk(mapped)
 
     def testOrphanMapping(self):
         with tempfile.NamedTemporaryFile() as destfile:
