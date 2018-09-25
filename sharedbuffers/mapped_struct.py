@@ -37,6 +37,13 @@ if cython.compiled:
     buffer = cython.declare(object, buffer)  # lint:ok
     from types import BufferType as buffer
 
+assert Py_LT == 0
+assert Py_LE == 1
+assert Py_EQ == 2
+assert Py_NE == 3
+assert Py_GT == 4
+assert Py_GE == 5
+
 class ubyte(int):
     pass
 uint8 = ubyte
@@ -324,13 +331,17 @@ class mapped_dict(dict):
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
-        return mapped_list.pack_into((obj.keys(), [obj[k] for k in obj]), buf, offs, idmap, implicit_offs)
+        keys = list(obj)
+        values = [obj[k] for k in keys]
+        return mapped_list.pack_into([keys, values], buf, offs, idmap, implicit_offs)
 
     @classmethod
     def unpack_from(cls, buf, offs, idmap = None):
         key, values = mapped_list.unpack_from(buf, offs, idmap)
         return cls(zip(key, values))
 
+@cython.ccall
+@cython.returns(cython.char)
 def proxied_list_cmp(a, b):
 
     alen = len(a)
@@ -352,6 +363,8 @@ def proxied_list_cmp(a, b):
 
     return 0
 
+@cython.ccall
+@cython.returns(cython.bint)
 def islist(obj):
     return isinstance(obj, (tuple, list, proxied_list, proxied_tuple))
 
@@ -359,10 +372,9 @@ def islist(obj):
 class proxied_list(object):
 
     cython.declare(
-        buf        = object,
-        pybuf      = 'Py_buffer',
-        offs       = cython.ulonglong,
-        idmap      = dict,
+        buf = object,
+        pybuf = 'Py_buffer',
+        offs = cython.ulonglong,
     )
 
     if cython.compiled:
@@ -444,7 +456,6 @@ class proxied_list(object):
     def __init__(self, buf, offs, idmap = None):
         self.offs = offs
         self.buf = buf
-        self.idmap = {} if idmap is None else idmap
         self._init()
 
     @cython.ccall
@@ -490,11 +501,8 @@ class proxied_list(object):
         else:
             obj_offs = dataoffs + itemsize * int(index)
 
-        if  obj_offs in self.idmap:
-            return self.idmap[obj_offs]
-
         if dcode == 't':
-            res = mapped_object.unpack_from(self.buf, obj_offs, self.idmap)
+            res = mapped_object.unpack_from(self.buf, obj_offs)
         elif cython.compiled:
             if dcode == 'B':
                 res = cython.cast(cython.p_uchar,
@@ -525,34 +533,36 @@ class proxied_list(object):
         else:
             res = _struct.unpack(self.buf[obj_offs:obj_offs + itemsize])[0]
 
-        self.idmap[obj_offs] = res
         return res
 
     if cython.compiled:
-        @cython.locals(index = int)
+        @cython.optimize.use_switch(True)
+        @cython.locals(_cmp = cython.char, op = cython.char)
         def  __richcmp__(self, other, op):
 
             if not islist(self) or not islist(other):
-                if op == Py_EQ:
+                if op == 2: # Py_EQ
                     return False
-                elif op == Py_NE:
+                elif op == 3: # Py_NE
                     return True
                 else:
                     raise NotImplementedError
 
             _cmp = proxied_list_cmp(self, other)
-            if op == Py_EQ:
+            if op == 2: # Py_EQ
                 return _cmp == 0
-            elif op == Py_NE:
+            elif op == 3: # Py_NE
                 return _cmp != 0
-            elif op == Py_LT:
+            elif op == 0: # Py_LT
                 return _cmp < 0
-            elif op == Py_LE:
+            elif op == 1: # Py_LE
                 return _cmp <= 0
-            elif op == Py_GT:
+            elif op == 4: # Py_GT
                 return _cmp > 0
-            else: # op == Py_GE:
+            elif op == 5: # op == Py_GE:
                 return _cmp >= 0
+            else:
+                raise NotImplementedError
     else:
         def __cmp__(self, other):
             if not islist(other):
@@ -571,48 +581,45 @@ class proxied_list(object):
 
     @cython.ccall
     @cython.locals(offs = cython.ulonglong, dcode = cython.char, pbuf = 'const char *', objlen = cython.ulonglong)
-    def _cobjlen(self):
-
-        offs = self.offs
-        pbuf = cython.cast(cython.p_char, self.pybuf.buf)
-        dcode = pbuf[offs]
-
-        if dcode in ('B','b','H','h','I','i'):
-            objlen = cython.cast(cython.p_uint, pbuf + offs)[0] >> 8
-            if objlen == 0xFFFFFF:
-                objlen = cython.cast(cython.p_longlong, pbuf + offs + 4)[0]
-
-        elif dcode in ('q', 'd', 't'):
-            objlen = cython.cast(cython.p_longlong, pbuf + offs)[0] >> 8
-
-        else:
-            raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
-
-        return objlen
-
     def _objlen(self):
-        offs = self.offs
 
-        buf = self.buf
-        dcode = buf[offs]
+        if cython.compiled:
+            offs = self.offs
+            pbuf = cython.cast(cython.p_char, self.pybuf.buf)
+            dcode = pbuf[offs]
 
-        if dcode in ('B','b','H','h','I','i'):
-            objlen, = struct.unpack('<I', buf[offs+1:offs+4] + '\x00')
-            if objlen == 0xFFFFFF:
-                objlen = struct.unpack_from('<Q', buf, offs + 4)
+            if dcode in ('B','b','H','h','I','i'):
+                objlen = cython.cast(cython.p_uint, pbuf + offs)[0] >> 8
+                if objlen == 0xFFFFFF:
+                    objlen = cython.cast(cython.p_longlong, pbuf + offs + 4)[0]
 
-        elif dcode in ('q', 'd', 't'):
-            objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
+            elif dcode in ('q', 'd', 't'):
+                objlen = cython.cast(cython.p_longlong, pbuf + offs)[0] >> 8
+
+            else:
+                raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+
+            return objlen
         else:
-            raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+            offs = self.offs
 
-        return objlen
+            buf = self.buf
+            dcode = buf[offs]
+
+            if dcode in ('B','b','H','h','I','i'):
+                objlen, = struct.unpack('<I', buf[offs+1:offs+4] + '\x00')
+                if objlen == 0xFFFFFF:
+                    objlen = struct.unpack_from('<Q', buf, offs + 4)
+
+            elif dcode in ('q', 'd', 't'):
+                objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
+            else:
+                raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+
+            return objlen
 
     def __len__(self):
-        if cython.compiled:
-            return self._cobjlen()
-        else:
-            return self._objlen()
+        return self._objlen()
 
     def __nonzero__(self):
         return len(self) > 0
@@ -631,20 +638,20 @@ class proxied_list(object):
             yield self[i]
 
     def __reversed__(self):
-        for i in reversed(xrange(len(self))):
+        for i in xrange(len(self) - 1, -1, -1):
             yield self[i]
 
     def __contains__(self, item):
         for e in self:
-            if e ==  item:
+            if e == item:
                 return True
         return False
 
     def __repr__(self):
-        return str(self)
+        return "proxied_list(%s)" % self
 
     def __str__(self):
-        return "proxied_list([%s])" % ",".join([str(x) for x in self])
+        return "[%s]" % ",".join([str(x) for x in self])
 
 if not cython.compiled:
     setattr(proxied_list, '__eq__', getattr(proxied_list, '_eq'))
@@ -653,9 +660,11 @@ if not cython.compiled:
 @cython.cclass
 class proxied_tuple(proxied_list):
 
-    def __str__(self):
-        return "proxied_tuple([%s])" % ",".join([str(x) for x in self])
+    def __repr__(self):
+        return "proxied_tuple(%s)" % self
 
+    def __str__(self):
+        return "(%s)" % ",".join([str(x) for x in self])
 try:
     import lz4.block as lz4_block
 except ImportError:

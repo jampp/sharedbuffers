@@ -1429,7 +1429,11 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
 
     def testProxiedListStr(self):
         c = self.pack([1, 2.0])
-        self.assertEquals(str(c), "proxied_list([1,2.0])")
+        self.assertEquals(str(c), "[1,2.0]")
+
+    def testProxiedListRepr(self):
+        c = self.pack([1, 2.0])
+        self.assertEquals(repr(c), "proxied_list([1,2.0])")
 
     def testProxiedListSpecificEqual(self):
         self.assertEquals(self.pack([1, 2.0]), (1, 2.0))
@@ -1479,7 +1483,11 @@ class ProxiedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest, In
 
     def testProxiedTupleStr(self):
         c = self.pack([1, 2.0])
-        self.assertEquals(str(c), "proxied_tuple([1,2.0])")
+        self.assertEquals(str(c), "(1,2.0)")
+
+    def testProxiedTupleRepr(self):
+        c = self.pack([1, 2.0])
+        self.assertEquals(repr(c), "proxied_tuple((1,2.0))")
 
 
 class DictPackingCommonTest(object):
