@@ -9,7 +9,7 @@ import os
 import numpy
 import random
 import zipfile
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 
 try:
@@ -114,6 +114,7 @@ class PrimitiveStruct(object):
 class DatetimeStruct(object):
     __slot_types__ = {
         'd' : datetime,
+        'D' : date,
     }
     __slots__ = __slot_types__.keys()
 
@@ -221,7 +222,7 @@ class SchemaPicklingTest(AttributeBitmapTest):
         self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s='3', u=u'A'))
 
     def testDatetimeStruct(self):
-        self._testStruct(DatetimeStruct, dict(d=datetime.now()))
+        self._testStruct(DatetimeStruct, dict(d=datetime.now(), D=date.today()))
 
     def testDecimalStruct(self):
         cmp_func = lambda a, b: str(a) == str(b)
@@ -1218,9 +1219,12 @@ class FrozensetPackingTest(unittest.TestCase):
 
 class MappedDatetimePackingTest(unittest.TestCase):
 
+    TEST_VALUE_NOW = datetime.now()
+    TEST_VALUE_OLD = datetime(1900, 1, 1, 1, 2, 3, 400)
+
     def testPack(self):
         buf = bytearray(12)
-        now = datetime.now()
+        now = self.TEST_VALUE_NOW
 
         mapped_datetime = mapped_struct.mapped_datetime
         size = mapped_datetime.pack_into(now, buf, 0)
@@ -1238,14 +1242,18 @@ class MappedDatetimePackingTest(unittest.TestCase):
 
     def testPackOldDate(self):
         buf = bytearray(12)
-        now = datetime(1900, 1, 1)
 
         mapped_datetime = mapped_struct.mapped_datetime
-        size = mapped_datetime.pack_into(now, buf, 0)
+        size = mapped_datetime.pack_into(self.TEST_VALUE_OLD, buf, 0)
         self.assertTrue(size > 0)
 
         unpacked_now = mapped_datetime.unpack_from(buf, 0)
-        self.assertEquals(now, unpacked_now)
+        self.assertEquals(self.TEST_VALUE_OLD, unpacked_now)
+
+class MappedDatePackingTest(unittest.TestCase):
+
+    TEST_VALUE_NOW = date.today()
+    TEST_VALUE_OLD = date(1900, 1, 1)
 
 class MappedDecimalPackingTest(unittest.TestCase):
 
