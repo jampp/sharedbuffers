@@ -1509,9 +1509,15 @@ class Schema(object):
                         try:
                             offs = slot_types[slot].pack_into(val, buf, offs, idmap, implicit_offs)
                         except Exception as e:
-                            # Add some context
-                            raise type(e)("%s packing attribute %s=%r of type %r" % (
-                                e, slot, val, type(obj).__name__))
+                            try:
+                                # Add some context. It may not work with all exception types, hence the fallback
+                                e = type(e)("%s packing attribute %s=%r of type %r" % (
+                                    e, slot, val, type(obj).__name__))
+                            except:
+                                pass
+                            else:
+                                raise e
+                            raise
                         padding = (offs + alignment - 1) / alignment * alignment - offs
                         offs += padding
                     else:
