@@ -1442,6 +1442,13 @@ class ProxiedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest, In
     PACKING_CLASS = mapped_struct.proxied_tuple
     COLLECTION_CLASS = tuple
 
+    def testProxiedTupleHash(self):
+        p = self.pack([1, 2.0])
+        t = (1, 2.0)
+
+        self.assertTrue(hash(p) == hash(t))
+        self.assertTrue(p == t)
+
     def testProxiedTupleCmp(self):
         pack = self.pack
 

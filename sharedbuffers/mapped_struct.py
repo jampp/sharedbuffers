@@ -340,8 +340,38 @@ class mapped_dict(dict):
         key, values = mapped_list.unpack_from(buf, offs, idmap)
         return cls(zip(key, values))
 
-@cython.ccall
-#@cython.returns(cython.char)
+# @cython.ccall
+# @cython.returns(cython.bint)
+@cython.locals(_cmp = int)
+@cython.optimize.use_switch(True)
+def proxied_list_richcmp(a, b, op):
+
+    if not islist(a) or not islist(b):
+        if op == 2: # Py_EQ
+            return False
+        elif op == 3: # Py_NE
+            return True
+        else:
+            raise NotImplementedError
+
+    _cmp = proxied_list_cmp(a, b)
+    if op == 2: # Py_EQ
+        return _cmp == 0
+    elif op == 3: # Py_NE
+        return _cmp != 0
+    elif op == 0: # Py_LT
+        return _cmp < 0
+    elif op == 1: # Py_LE
+        return _cmp <= 0
+    elif op == 4: # Py_GT
+        return _cmp > 0
+    elif op == 5: # op == Py_GE:
+        return _cmp >= 0
+    else:
+        raise NotImplementedError
+
+#@cython.ccall
+#@cython.returns(int)
 def proxied_list_cmp(a, b):
 
     alen = len(a)
@@ -535,35 +565,11 @@ class proxied_list(object):
 
         return res
 
-    if cython.compiled:
-        @cython.optimize.use_switch(True)
-        @cython.locals(_cmp = cython.char, op = cython.char)
-        def  __richcmp__(self, other, op):
+    @cython.locals(op = cython.char)
+    def  __richcmp__(self, other, op):
+        return proxied_list_richcmp(self, other, op)
 
-            if not islist(self) or not islist(other):
-                if op == 2: # Py_EQ
-                    return False
-                elif op == 3: # Py_NE
-                    return True
-                else:
-                    raise NotImplementedError
-
-            _cmp = proxied_list_cmp(self, other)
-            if op == 2: # Py_EQ
-                return _cmp == 0
-            elif op == 3: # Py_NE
-                return _cmp != 0
-            elif op == 0: # Py_LT
-                return _cmp < 0
-            elif op == 1: # Py_LE
-                return _cmp <= 0
-            elif op == 4: # Py_GT
-                return _cmp > 0
-            elif op == 5: # op == Py_GE:
-                return _cmp >= 0
-            else:
-                raise NotImplementedError
-    else:
+    if not cython.compiled:
         def __cmp__(self, other):
             if not islist(other):
                 raise NotImplementedError
@@ -661,6 +667,23 @@ if not cython.compiled:
 
 @cython.cclass
 class proxied_tuple(proxied_list):
+
+    cython.declare(
+        _hash = object,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(proxied_tuple, self).__init__(*args, **kwargs)
+        self._hash = None
+
+    def __hash__(self):
+        if self._hash is None:
+            self._hash = hash(tuple(iter(self)))
+        return self._hash
+
+    @cython.locals(op = cython.char)
+    def  __richcmp__(self, other, op):
+        return proxied_list_richcmp(self, other, op)
 
     def __repr__(self):
         return "proxied_tuple(%s)" % self

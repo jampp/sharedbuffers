@@ -11,7 +11,8 @@ cpdef size_t hinted_bsearch(a, hkey, size_t hint) except 0xFFFFFFFFFFFFFFFF
 cpdef size_t bsearch(a, hkey) except 0xFFFFFFFFFFFFFFFF
 cpdef bint hinted_sorted_contains(a, hkey, size_t hint) except 0xFFFFFFFFFFFFFFFF
 cpdef bint sorted_contains(a, hkey) except 0xFFFFFFFFFFFFFFFF
-cpdef char proxied_list_cmp(a, b) except 0xFF
+cpdef bint proxied_list_richcmp(a, b, char op) except 0xFFFFFFFFFFFFFFFF
+cpdef int proxied_list_cmp(a, b) except 0x02
 
 cdef size_t _c_merge_ui64(
     char* pindex1, size_t length1, char* pindex2, size_t length2,
