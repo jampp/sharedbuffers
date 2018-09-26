@@ -643,7 +643,8 @@ class mapped_object(object):
         float : 'd',
         str : 's',
         unicode : 'u',
-        datetime : 'z',
+        datetime : 'v',
+        date : 'V',
         Decimal : 'F',
         cDecimal : 'F',
     }
@@ -1213,6 +1214,7 @@ PROXY_TYPES = {
     str : BytesBufferProxyProperty,
     unicode : UnicodeBufferProxyProperty,
     datetime : DatetimeBufferProxyProperty,
+    date : DateBufferProxyProperty,
     Decimal : DecimalBufferProxyProperty,
     cDecimal : DecimalBufferProxyProperty,
 }
