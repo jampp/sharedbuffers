@@ -1506,7 +1506,12 @@ class Schema(object):
                     val_offs = idmap_get(val_id)
                     if val_offs is None:
                         idmap[val_id] = ival_offs = offs + implicit_offs
-                        offs = slot_types[slot].pack_into(val, buf, offs, idmap, implicit_offs)
+                        try:
+                            offs = slot_types[slot].pack_into(val, buf, offs, idmap, implicit_offs)
+                        except Exception as e:
+                            # Add some context
+                            raise type(e)("%s packing attribute %s=%r of type %r" % (
+                                e, slot, val, type(obj).__name__))
                         padding = (offs + alignment - 1) / alignment * alignment - offs
                         offs += padding
                     else:
@@ -1530,11 +1535,11 @@ class Schema(object):
         try:
             packer.pack_into(buf, baseoffs, *packable)
         except struct.error as e:
-            raise struct.error("%s packing %r with format %r for %r" % (
+            raise struct.error("%s packing %r with format %r for type %s" % (
                 e,
                 packable,
                 packer.format,
-                type(obj),
+                type(obj).__name__,
             ))
         if offs > len(buf):
             raise RuntimeError("Buffer overflow")
