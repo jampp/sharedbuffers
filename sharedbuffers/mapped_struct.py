@@ -341,7 +341,7 @@ class mapped_dict(dict):
         return cls(zip(key, values))
 
 @cython.ccall
-@cython.returns(cython.char)
+#@cython.returns(cython.char)
 def proxied_list_cmp(a, b):
 
     alen = len(a)
@@ -638,8 +638,10 @@ class proxied_list(object):
             yield self[i]
 
     def __reversed__(self):
-        for i in xrange(len(self) - 1, -1, -1):
-            yield self[i]
+        l = len(self)
+        if l > 0:
+            for i in xrange(l - 1, -1, -1):
+                yield self[i]
 
     def __contains__(self, item):
         for e in self:
