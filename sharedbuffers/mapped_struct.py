@@ -678,7 +678,7 @@ class proxied_tuple(proxied_list):
         super(proxied_tuple, self).__init__(*args, **kwargs)
         self._hash = -1
 
-    @cython.locals(mult = cython.long, x = cython.long, y = cython.long, len_ = cython.size_t, i = cython.size_t)
+    @cython.locals(mult = cython.long, x = cython.long, y = cython.long, len_ = cython.Py_ssize_t, i = cython.Py_ssize_t)
     def __hash__(self):
         if self._hash == -1:
             if cython.compiled and is_cpython:
