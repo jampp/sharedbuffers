@@ -14,7 +14,7 @@ import xxhash
 import itertools
 import time
 import zipfile
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, date
 from decimal import Decimal
 
 try:
@@ -587,6 +587,32 @@ class mapped_datetime(datetime):
             idmap[offs] = rv
         return rv
 
+class mapped_date(date):
+    @classmethod
+    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong)
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, packer = struct.Struct('=q')):
+        if idmap is not None:
+            objid = id(obj)
+            idmap[objid] = offs + implicit_offs
+
+        timestamp = int(time.mktime(obj.timetuple()))
+        packer.pack_into(buf, offs, timestamp)
+
+        return offs + packer.size
+
+    @classmethod
+    @cython.locals(offs = cython.longlong, timestamp = cython.longlong)
+    def unpack_from(cls, buf, offs, idmap = None, packer = struct.Struct('=q')):
+        if idmap is not None and offs in idmap:
+            return idmap[offs]
+
+        timestamp, = packer.unpack_from(buf, offs)
+        rv =  date.fromtimestamp(timestamp)
+
+        if idmap is not None:
+            idmap[offs] = rv
+        return rv
+
 class mapped_object(object):
     __slots__ = ('value', 'typecode')
 
@@ -606,10 +632,10 @@ class mapped_object(object):
         mapped_frozenset : 'Z',
         mapped_tuple : 't',
         mapped_list : 'e',
-        mapped_bytes : 's',
         mapped_unicode : 'u',
         mapped_bytes : 's',
-        mapped_datetime : 'z',
+        mapped_datetime : 'v',
+        mapped_date : 'V',
         mapped_decimal : 'F',
 
         int : 'q',
@@ -645,7 +671,8 @@ class mapped_object(object):
         'e' : (mapped_list.pack_into, mapped_list.unpack_from, mapped_list),
         's' : (mapped_bytes.pack_into, mapped_bytes.unpack_from, mapped_bytes),
         'u' : (mapped_unicode.pack_into, mapped_unicode.unpack_from, mapped_unicode),
-        'z' : (mapped_datetime.pack_into, mapped_datetime.unpack_from, mapped_datetime),
+        'v' : (mapped_datetime.pack_into, mapped_datetime.unpack_from, mapped_datetime),
+        'V' : (mapped_date.pack_into, mapped_date.unpack_from, mapped_date),
         'F' : (mapped_decimal.pack_into, mapped_decimal.unpack_from, mapped_decimal),
     }
 
@@ -731,6 +758,7 @@ VARIABLE_TYPES = {
     bytes : mapped_bytes,
     object : mapped_object,
     datetime : mapped_datetime,
+    date : mapped_date,
     Decimal : mapped_decimal,
     cDecimal : mapped_decimal,
 }
@@ -1136,6 +1164,10 @@ class DatetimeBufferProxyProperty(GenericBufferProxyProperty):
     typ = mapped_datetime
 
 @cython.cclass
+class DateBufferProxyProperty(GenericBufferProxyProperty):
+    typ = mapped_date
+
+@cython.cclass
 class DecimalBufferProxyProperty(GenericBufferProxyProperty):
     typ = mapped_decimal
 
@@ -1172,6 +1204,7 @@ PROXY_TYPES = {
     mapped_bytes : BytesBufferProxyProperty,
     mapped_object : ObjectBufferProxyProperty,
     mapped_datetime : DatetimeBufferProxyProperty,
+    mapped_date : DateBufferProxyProperty,
     mapped_decimal : DecimalBufferProxyProperty,
 
     int : LongBufferProxyProperty,
