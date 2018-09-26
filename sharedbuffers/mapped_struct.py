@@ -613,6 +613,7 @@ class mapped_object(object):
         mapped_decimal : 'F',
 
         int : 'q',
+        long : 'q',
         float : 'd',
         str : 's',
         unicode : 'u',
@@ -1174,6 +1175,7 @@ PROXY_TYPES = {
     mapped_decimal : DecimalBufferProxyProperty,
 
     int : LongBufferProxyProperty,
+    long : LongBufferProxyProperty,
     float : DoubleBufferProxyProperty,
     str : BytesBufferProxyProperty,
     unicode : UnicodeBufferProxyProperty,
@@ -1504,7 +1506,18 @@ class Schema(object):
                     val_offs = idmap_get(val_id)
                     if val_offs is None:
                         idmap[val_id] = ival_offs = offs + implicit_offs
-                        offs = slot_types[slot].pack_into(val, buf, offs, idmap, implicit_offs)
+                        try:
+                            offs = slot_types[slot].pack_into(val, buf, offs, idmap, implicit_offs)
+                        except Exception as e:
+                            try:
+                                # Add some context. It may not work with all exception types, hence the fallback
+                                e = type(e)("%s packing attribute %s=%r of type %r" % (
+                                    e, slot, val, type(obj).__name__))
+                            except:
+                                pass
+                            else:
+                                raise e
+                            raise
                         padding = (offs + alignment - 1) / alignment * alignment - offs
                         offs += padding
                     else:
@@ -1525,7 +1538,15 @@ class Schema(object):
             packer, padding = self.get_packer(obj)
         baseoffs = offs
         packable, offs = self.get_packable(packer, padding, obj, offs, buf, idmap, implicit_offs)
-        packer.pack_into(buf, baseoffs, *packable)
+        try:
+            packer.pack_into(buf, baseoffs, *packable)
+        except struct.error as e:
+            raise struct.error("%s packing %r with format %r for type %s" % (
+                e,
+                packable,
+                packer.format,
+                type(obj).__name__,
+            ))
         if offs > len(buf):
             raise RuntimeError("Buffer overflow")
         return offs
