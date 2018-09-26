@@ -1530,7 +1530,8 @@ class Schema(object):
         try:
             packer.pack_into(buf, baseoffs, *packable)
         except struct.error as e:
-            raise struct.error("%s packing %r with format %r for %r" % (e,
+            raise struct.error("%s packing %r with format %r for %r" % (
+                e,
                 packable,
                 packer.format,
                 type(obj),
