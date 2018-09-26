@@ -417,6 +417,7 @@ class ObjectPackagingTest(SimplePackingTest):
         { 'o' : "blabla" },
         { 'o' : u"bláblá€" },
         { 'o' : datetime.now() },
+        { 'o' : date.today() },
     ]
 
 class ObjectDecimalPackagingTest(SimplePackingTest):
