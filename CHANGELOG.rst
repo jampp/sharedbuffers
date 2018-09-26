@@ -17,8 +17,11 @@ Added
 - Add support for mapped dict
 - Allow specifying custom bases for proxy objects, so proxies
   can inherit their real counterparts' behavior
-- Add support for datetime
+- Add support for datetime/date
 - Add support for decimal/cdecimal
+- Add support for mapping from uncompressed zip files
+- Treat long as int
+- More informative packing error messages
 
 Changes
 -------

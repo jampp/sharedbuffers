@@ -8,7 +8,8 @@ import tempfile
 import os
 import numpy
 import random
-from datetime import datetime
+import zipfile
+from datetime import datetime, date
 from decimal import Decimal
 
 try:
@@ -115,6 +116,7 @@ class PrimitiveStruct(TestStruct):
 class DatetimeStruct(TestStruct):
     __slot_types__ = {
         'd' : datetime,
+        'D' : date,
     }
 
 class DecimalStruct(TestStruct):
@@ -212,7 +214,7 @@ class SchemaPicklingTest(AttributeBitmapTest):
         self._testStruct(DictStruct, dict(d={"a":1, "b":2}))
 
     def testDatetimeStruct(self):
-        self._testStruct(DatetimeStruct, dict(d=datetime.now()))
+        self._testStruct(DatetimeStruct, dict(d=datetime.now(), D=date.today()))
 
     def testDecimalStruct(self):
         cmp_func = lambda a, b: str(a) == str(b)
@@ -421,6 +423,7 @@ class ObjectPackagingTest(SimplePackingTest):
         { 'o' : "blabla" },
         { 'o' : u"bláblá€" },
         { 'o' : datetime.now() },
+        { 'o' : date.today() },
     ]
 
 class ObjectDecimalPackagingTest(SimplePackingTest):
@@ -620,6 +623,20 @@ class MappedArrayTest(unittest.TestCase):
             self.MappedArrayClass.build(self.test_values, destfile = destfile, idmap = {})
             mapped = self.MappedArrayClass.map_file(destfile)
             self._checkValues(mapped, mapped)
+
+    def testZipMapping(self):
+        with tempfile.NamedTemporaryFile() as destfile:
+            self.MappedArrayClass.build(self.test_values, destfile = destfile, idmap = {})
+            with tempfile.NamedTemporaryFile() as tempzip:
+                zf = zipfile.ZipFile(tempzip, 'w')
+                zf.write(destfile.name, 'bundle', zipfile.ZIP_STORED)
+                zf.writestr('otherdata', 'blablabla')
+                zf.close()
+
+                tempzip.seek(0)
+                zf = zipfile.ZipFile(tempzip, 'r')
+                mapped = self.MappedArrayClass.map_file(zf.open('bundle'))
+                self._checkValues(mapped, mapped)
 
     def testBufferMapping(self):
         with tempfile.NamedTemporaryFile() as destfile:
@@ -825,6 +842,20 @@ class MappedMappingTest(unittest.TestCase):
             self.MappedMappingClass.build(self.test_values, destfile = destfile, idmap = {})
             mapped = self.MappedMappingClass.map_file(destfile)
             self.assertMappingOk(mapped)
+
+    def testZipMapping(self):
+        with tempfile.NamedTemporaryFile() as destfile:
+            self.MappedMappingClass.build(self.test_values, destfile = destfile, idmap = {})
+            with tempfile.NamedTemporaryFile() as tempzip:
+                zf = zipfile.ZipFile(tempzip, 'w')
+                zf.write(destfile.name, 'bundle', zipfile.ZIP_STORED)
+                zf.writestr('otherdata', 'blablabla')
+                zf.close()
+
+                tempzip.seek(0)
+                zf = zipfile.ZipFile(tempzip, 'r')
+                mapped = self.MappedMappingClass.map_file(zf.open('bundle'))
+                self.assertMappingOk(mapped)
 
     def testOrphanMapping(self):
         with tempfile.NamedTemporaryFile() as destfile:
@@ -1560,9 +1591,12 @@ class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Dic
 
 class MappedDatetimePackingTest(unittest.TestCase):
 
+    TEST_VALUE_NOW = datetime.now()
+    TEST_VALUE_OLD = datetime(1900, 1, 1, 1, 2, 3, 400)
+
     def testPack(self):
         buf = bytearray(12)
-        now = datetime.now()
+        now = self.TEST_VALUE_NOW
 
         mapped_datetime = mapped_struct.mapped_datetime
         size = mapped_datetime.pack_into(now, buf, 0)
@@ -1580,14 +1614,18 @@ class MappedDatetimePackingTest(unittest.TestCase):
 
     def testPackOldDate(self):
         buf = bytearray(12)
-        now = datetime(1900, 1, 1)
 
         mapped_datetime = mapped_struct.mapped_datetime
-        size = mapped_datetime.pack_into(now, buf, 0)
+        size = mapped_datetime.pack_into(self.TEST_VALUE_OLD, buf, 0)
         self.assertTrue(size > 0)
 
         unpacked_now = mapped_datetime.unpack_from(buf, 0)
-        self.assertEquals(now, unpacked_now)
+        self.assertEquals(self.TEST_VALUE_OLD, unpacked_now)
+
+class MappedDatePackingTest(unittest.TestCase):
+
+    TEST_VALUE_NOW = date.today()
+    TEST_VALUE_OLD = date(1900, 1, 1)
 
 class MappedDecimalPackingTest(unittest.TestCase):
 
