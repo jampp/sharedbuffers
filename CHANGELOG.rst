@@ -18,6 +18,8 @@ Added
 - Add support for datetime
 - Add support for decimal/cdecimal
 - Add support for mapping from uncompressed zip files
+- Treat long as int
+- More informative packing error messages
 
 Changes
 -------

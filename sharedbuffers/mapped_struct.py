@@ -613,6 +613,7 @@ class mapped_object(object):
         mapped_decimal : 'F',
 
         int : 'q',
+        long : 'q',
         float : 'd',
         str : 's',
         unicode : 'u',
@@ -1174,6 +1175,7 @@ PROXY_TYPES = {
     mapped_decimal : DecimalBufferProxyProperty,
 
     int : LongBufferProxyProperty,
+    long : LongBufferProxyProperty,
     float : DoubleBufferProxyProperty,
     str : BytesBufferProxyProperty,
     unicode : UnicodeBufferProxyProperty,
@@ -1525,7 +1527,14 @@ class Schema(object):
             packer, padding = self.get_packer(obj)
         baseoffs = offs
         packable, offs = self.get_packable(packer, padding, obj, offs, buf, idmap, implicit_offs)
-        packer.pack_into(buf, baseoffs, *packable)
+        try:
+            packer.pack_into(buf, baseoffs, *packable)
+        except struct.error as e:
+            raise struct.error("%s packing %r with format %r for %r" % (e,
+                packable,
+                packer.format,
+                type(obj),
+            ))
         if offs > len(buf):
             raise RuntimeError("Buffer overflow")
         return offs
