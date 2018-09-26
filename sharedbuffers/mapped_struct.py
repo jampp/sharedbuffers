@@ -665,20 +665,39 @@ if not cython.compiled:
     setattr(proxied_list, '__eq__', getattr(proxied_list, '_eq'))
     setattr(proxied_list, '__ne__', getattr(proxied_list, '_ne'))
 
+is_cpython = cython.declare(cython.bint, sys.subversion[0] == 'CPython')
+
 @cython.cclass
 class proxied_tuple(proxied_list):
 
     cython.declare(
-        _hash = object,
+        _hash = cython.long,
     )
 
     def __init__(self, *args, **kwargs):
         super(proxied_tuple, self).__init__(*args, **kwargs)
-        self._hash = None
+        self._hash = -1
 
+    @cython.locals(mult = cython.long, x = cython.long, y = cython.long, len_ = cython.size_t, i = cython.size_t)
     def __hash__(self):
-        if self._hash is None:
-            self._hash = hash(tuple(iter(self)))
+        if self._hash == -1:
+            if cython.compiled and is_cpython:
+                # From Python 2.7 source code
+                mult = 1000003
+                x = 0x345678
+                len_ = len(self)
+                for i in xrange(len_):
+                    len_ -= 1
+                    y = hash(self[i])
+                    x = (x ^ y) * mult;
+                    mult += 82520 + len_ + len_;
+
+                x += 97531
+                if x == -1:
+                    x = -2
+                self._hash = x
+            else:
+                self._hash = hash(tuple(iter(self)))
         return self._hash
 
     @cython.locals(op = cython.char)
