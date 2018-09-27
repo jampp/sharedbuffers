@@ -1422,6 +1422,7 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         c2 = pack([1, 2.0])
         c3 = pack([1, 2.0, 3])
         c4 = pack([2, 2.0])
+        c5 = pack([1, 0.5, 2])
 
         self.assertTrue(c1 < c2)
         self.assertTrue(c1 <= c2)
@@ -1437,6 +1438,8 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         self.assertTrue(c2 <= c4)
         self.assertFalse(c2 > c4)
         self.assertFalse(c2 >= c4)
+        self.assertFalse(c2 < c5)
+
 
         self.assertRaises(NotImplementedError, lambda: c1 < None)
         self.assertRaises(NotImplementedError, lambda: c1 < 1)

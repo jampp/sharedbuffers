@@ -378,12 +378,7 @@ def proxied_list_cmp(a, b):
     alen = len(a)
     blen = len(b)
 
-    if alen < blen:
-        return -1
-    elif alen > blen:
-        return 1
-
-    for i in xrange(alen):
+    for i in xrange(min(alen, blen)):
         selfe = a[i]
         othere = b[i]
 
@@ -391,6 +386,11 @@ def proxied_list_cmp(a, b):
             return -1
         elif selfe > othere:
             return 1
+
+    if alen < blen:
+        return -1
+    elif alen > blen:
+        return 1
 
     return 0
 
