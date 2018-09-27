@@ -346,7 +346,6 @@ class proxied_buffer(object):
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, header_packer=struct.Struct('L')):
-
         header_packer.pack_into(buf, offs, len(obj))
         offs += header_packer.size
 
