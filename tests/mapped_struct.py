@@ -125,6 +125,11 @@ class DecimalStruct(TestStruct):
         'D' : cDecimal,
     }
 
+class BufferStruct(TestStruct):
+    __slot_types__ = {
+        'b' : buffer,
+    }
+
 class ContainerStruct(TestStruct):
     __slot_types__ = {
         'fset' : frozenset,
@@ -215,6 +220,9 @@ class SchemaPicklingTest(AttributeBitmapTest):
 
     def testDatetimeStruct(self):
         self._testStruct(DatetimeStruct, dict(d=datetime.now(), D=date.today()))
+
+    def testBufferStruct(self):
+        self._testStruct(BufferStruct, dict(b=buffer(bytearray(xrange(100)))))
 
     def testDecimalStruct(self):
         cmp_func = lambda a, b: str(a) == str(b)
@@ -424,6 +432,7 @@ class ObjectPackagingTest(SimplePackingTest):
         { 'o' : u"bláblá€" },
         { 'o' : datetime.now() },
         { 'o' : date.today() },
+        { 'o' : buffer(bytearray(xrange(100)))}
     ]
 
 class ObjectDecimalPackagingTest(SimplePackingTest):
@@ -1648,6 +1657,25 @@ class MappedDecimalPackingTest(unittest.TestCase):
     def testCDecimal(self):
         for case in self.TEST_CASES:
             self.assertPackOk(cDecimal(case))
+
+class ProxiedBufferPackingTest(unittest.TestCase):
+
+    def assertPackUnpackOk(self, offs):
+        proxied_buffer = mapped_struct.proxied_buffer
+        buf = bytearray(64)
+
+        obj = buffer(bytearray(xrange(100)))
+        new_offs = proxied_buffer.pack_into(obj, buf, offs)
+        self.assertEquals(new_offs, offs + len(obj) + 8) # obj.size + ulong.size
+
+        unpacked_obj = proxied_buffer.unpack_from(buf, offs)
+        self.assertEquals(obj, unpacked_obj)
+
+    def testPackUnpack(self):
+        self.assertPackUnpackOk(0)
+
+    def testPackUnpackWithOffset(self):
+        self.assertPackUnpackOk(10)
 
 class BehavioralStruct(object):
     __slot_types__ = {
