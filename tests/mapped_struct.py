@@ -1440,7 +1440,6 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         self.assertFalse(c2 >= c4)
         self.assertFalse(c2 < c5)
 
-
         self.assertRaises(NotImplementedError, lambda: c1 < None)
         self.assertRaises(NotImplementedError, lambda: c1 < 1)
 
