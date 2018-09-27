@@ -150,7 +150,6 @@ class NDArrayStruct(TestStruct):
         'a' : np.ndarray,
     }
 
-
 class ObjectStruct(TestStruct):
     __slot_types__ = {
         'o' : object,
