@@ -13,6 +13,8 @@ v0.5.0 - Unreleased
 Added
 -----
 
+- Add support for proxied buffers
+- Add support for proxied numpy arrays
 - Add support for proxied list/tuple
 - Add support for mapped dict
 - Allow specifying custom bases for proxy objects, so proxies

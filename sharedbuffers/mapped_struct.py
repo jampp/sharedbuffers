@@ -16,6 +16,7 @@ import time
 import zipfile
 from datetime import timedelta, datetime, date
 from decimal import Decimal
+import numpy as np
 
 try:
     from cdecimal import Decimal as cDecimal
@@ -340,6 +341,83 @@ class mapped_dict(dict):
     def unpack_from(cls, buf, offs, idmap = None):
         key, values = mapped_list.unpack_from(buf, offs, idmap)
         return cls(zip(key, values))
+
+class proxied_buffer(object):
+
+    HEADER_PACKER = struct.Struct('=Q')
+
+    @classmethod
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+        packer = cls.HEADER_PACKER
+        packer.pack_into(buf, offs, len(obj))
+        offs += packer.size
+
+        end_offs = offs + len(obj)
+        buf[offs:end_offs] = obj
+
+        return end_offs
+
+    @classmethod
+    def unpack_from(cls, buf, offs, idmap = None):
+        packer = cls.HEADER_PACKER
+        size, = packer.unpack_from(buf, offs)
+        offs += packer.size
+
+        return buffer(buf, offs, size)
+
+class proxied_ndarray(object):
+
+    HEADER_PACKER = struct.Struct('=QQ')
+
+    @classmethod
+    def _make_dtype_params(cls, dtype):
+        names = dtype.names
+        if names:
+            # It is a Structured array
+            fields = dtype.fields
+            return [
+                (k, cls._make_dtype_params(fields[k][0]))
+                for k in names
+            ]
+        else:
+            return dtype.str
+
+    @classmethod
+    @cython.locals(offs = cython.ulonglong, implicit_offs = cython.ulonglong, header_offs = cython.ulonglong)
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+        header_offs = offs
+        packer = cls.HEADER_PACKER
+        offs += packer.size
+
+        offs = mapped_tuple.pack_into(obj.shape, buf, offs)
+        dtype_offs = offs - header_offs
+
+        dtype_params = cls._make_dtype_params(obj.dtype)
+        if isinstance(dtype_params, str):
+            dtype_params = [dtype_params]
+
+        offs = mapped_list.pack_into(dtype_params, buf, offs)
+        data_offs = offs - header_offs
+
+        packer.pack_into(buf, header_offs, dtype_offs, data_offs)
+        return proxied_buffer.pack_into(buffer(obj), buf, offs)
+
+
+    @classmethod
+    @cython.locals(offs = cython.ulonglong, dtype_offs = cython.ulonglong, data_offs = cython.ulonglong)
+    def unpack_from(cls, buf, offs, idmap = None):
+        packer = cls.HEADER_PACKER
+        dtype_offs, data_offs = packer.unpack_from(buf, offs)
+
+        shape = mapped_tuple.unpack_from(buf, offs + packer.size)
+        dtype_params = mapped_list.unpack_from(buf, offs + dtype_offs)
+        if isinstance(dtype_params[0], str):
+            dtype_params = dtype_params[0]
+
+        data = proxied_buffer.unpack_from(buf, offs + data_offs)
+
+        ndarray = np.frombuffer(data, np.dtype(dtype_params))
+        return ndarray.reshape(shape)
 
 # @cython.ccall
 # @cython.returns(cython.bint)
@@ -1030,6 +1108,8 @@ class mapped_object(object):
 
         proxied_list: 'E',
         proxied_tuple: 'W',
+        proxied_ndarray: 'n',
+        proxied_buffer: 'r',
 
         int : 'q',
         long : 'q',
@@ -1040,6 +1120,8 @@ class mapped_object(object):
         date : 'V',
         Decimal : 'F',
         cDecimal : 'F',
+        np.ndarray : 'n',
+        buffer : 'r'
     }
 
     def p(s):
@@ -1066,6 +1148,8 @@ class mapped_object(object):
         's' : (mapped_bytes.pack_into, mapped_bytes.unpack_from, mapped_bytes),
         'u' : (mapped_unicode.pack_into, mapped_unicode.unpack_from, mapped_unicode),
         'm' : (mapped_dict.pack_into, mapped_dict.unpack_from, mapped_dict),
+        'n' : (proxied_ndarray.pack_into, proxied_ndarray.unpack_from, proxied_ndarray),
+        'r' : (proxied_buffer.pack_into, proxied_buffer.unpack_from, proxied_buffer),
         'W' : (proxied_tuple.pack_into, proxied_tuple.unpack_from, proxied_tuple),
         'E' : (proxied_list.pack_into, proxied_list.unpack_from, proxied_list),
         'v' : (mapped_datetime.pack_into, mapped_datetime.unpack_from, mapped_datetime),
@@ -1159,6 +1243,8 @@ VARIABLE_TYPES = {
     date : mapped_date,
     Decimal : mapped_decimal,
     cDecimal : mapped_decimal,
+    np.ndarray : proxied_ndarray,
+    buffer : proxied_buffer,
 }
 
 FIXED_TYPES = {
@@ -1562,6 +1648,14 @@ class DictBufferProxyProperty(GenericBufferProxyProperty):
     typ = mapped_dict
 
 @cython.cclass
+class ProxiedNDArrayBufferProxyProperty(GenericBufferProxyProperty):
+    typ = proxied_ndarray
+
+@cython.cclass
+class ProxiedBufferBufferProxyProperty(GenericBufferProxyProperty):
+    typ = proxied_buffer
+
+@cython.cclass
 class DatetimeBufferProxyProperty(GenericBufferProxyProperty):
     typ = mapped_datetime
 
@@ -1620,6 +1714,8 @@ PROXY_TYPES = {
 
     proxied_tuple : ProxiedTupleBufferProxyProperty,
     proxied_list : ProxiedListBufferProxyProperty,
+    proxied_ndarray : ProxiedNDArrayBufferProxyProperty,
+    proxied_buffer : ProxiedBufferBufferProxyProperty,
 
     int : LongBufferProxyProperty,
     long : LongBufferProxyProperty,
@@ -1630,6 +1726,8 @@ PROXY_TYPES = {
     date : DateBufferProxyProperty,
     Decimal : DecimalBufferProxyProperty,
     cDecimal : DecimalBufferProxyProperty,
+    np.ndarray : ProxiedNDArrayBufferProxyProperty,
+    buffer : ProxiedBufferBufferProxyProperty,
 }
 
 def GenericProxyClass(slot_keys, slot_types, present_bitmap, base_offs, bases = None):

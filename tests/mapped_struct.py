@@ -11,6 +11,7 @@ import random
 import zipfile
 from datetime import datetime, date
 from decimal import Decimal
+import numpy as np
 
 try:
     from cdecimal import Decimal as cDecimal
@@ -125,6 +126,11 @@ class DecimalStruct(TestStruct):
         'D' : cDecimal,
     }
 
+class BufferStruct(TestStruct):
+    __slot_types__ = {
+        'b' : buffer,
+    }
+
 class ContainerStruct(TestStruct):
     __slot_types__ = {
         'fset' : frozenset,
@@ -137,6 +143,11 @@ class ContainerStruct(TestStruct):
 class DictStruct(TestStruct):
     __slot_types__ = {
         'd' : dict,
+    }
+
+class NDArrayStruct(TestStruct):
+    __slot_types__ = {
+        'a' : np.ndarray,
     }
 
 class ObjectStruct(TestStruct):
@@ -215,6 +226,12 @@ class SchemaPicklingTest(AttributeBitmapTest):
 
     def testDatetimeStruct(self):
         self._testStruct(DatetimeStruct, dict(d=datetime.now(), D=date.today()))
+
+    def testBufferStruct(self):
+        self._testStruct(BufferStruct, dict(b=buffer(bytearray(xrange(100)))))
+
+    def testNDArrayStruct(self):
+        self._testStruct(DecimalStruct, dict(a=np.array([-1.0, 2.5, 3])), cmp_func=np.array_equal)
 
     def testDecimalStruct(self):
         cmp_func = lambda a, b: str(a) == str(b)
@@ -424,6 +441,17 @@ class ObjectPackagingTest(SimplePackingTest):
         { 'o' : u"bláblá€" },
         { 'o' : datetime.now() },
         { 'o' : date.today() },
+        { 'o' : buffer(bytearray(xrange(100)))}
+    ]
+
+class ObjectNDArrayPackagingTest(SimplePackingTest):
+    Struct = ObjectStruct
+
+    def assertEqual(self, v1, v2):
+        self.assertTrue(np.array_equal(v1, v2))
+
+    TEST_VALUES = [
+        { 'o' : np.array([-1.0, 2.5, 3]) },
     ]
 
 class ObjectDecimalPackagingTest(SimplePackingTest):
@@ -1650,6 +1678,67 @@ class MappedDecimalPackingTest(unittest.TestCase):
     def testCDecimal(self):
         for case in self.TEST_CASES:
             self.assertPackOk(cDecimal(case))
+
+class ProxiedBufferPackingTest(unittest.TestCase):
+
+    def assertPackUnpackOk(self, offs):
+        proxied_buffer = mapped_struct.proxied_buffer
+        buf = bytearray(64)
+
+        obj = buffer(bytearray(xrange(100)))
+        new_offs = proxied_buffer.pack_into(obj, buf, offs)
+        self.assertEquals(new_offs, offs + len(obj) + 8) # obj.size + ulong.size
+
+        unpacked_obj = proxied_buffer.unpack_from(buf, offs)
+        self.assertEquals(obj, unpacked_obj)
+
+    def testPackUnpack(self):
+        self.assertPackUnpackOk(0)
+
+    def testPackUnpackWithOffset(self):
+        self.assertPackUnpackOk(10)
+
+class ProxiedNDArrayPackingTest(unittest.TestCase):
+
+    def assertPackUnpackOk(self, value, dtype = None, offs = 0):
+        proxied_ndarray = mapped_struct.proxied_ndarray
+        buf = bytearray(1024)
+
+        obj = np.array(value, dtype)
+        proxied_ndarray.pack_into(obj, buf, offs)
+
+        unpacked_obj = proxied_ndarray.unpack_from(buf, offs)
+
+        self.assertTrue(np.array_equal(obj, unpacked_obj))
+
+    def testPackUnpackOk(self):
+
+        self.assertPackUnpackOk([])
+        self.assertPackUnpackOk([1])
+        self.assertPackUnpackOk([1,2,3])
+        self.assertPackUnpackOk(["a", "", "abc"])
+        self.assertPackUnpackOk([("a", 1), ("b", 2)])
+        self.assertPackUnpackOk([("a", 1), ("b", "2")])
+
+    def testPackUnpackStructsOk(self):
+        self.assertPackUnpackOk(
+            [('Rex', 9, 81.0), ('Fido', 3, 27.5)],
+            dtype=[('name', 'U10'), ('age', 'i4'), ('weight', 'f4')]
+        )
+
+    def testMakeDtypeParams(self):
+
+        TEST_VALUES = [
+            'i',
+            [('a', 'l'), ('b', 'i')],
+            [('a', 'l'), ('b', [('c', 'i')])]
+        ]
+        make_dtype_params = mapped_struct.proxied_ndarray._make_dtype_params
+
+        for value in TEST_VALUES:
+            dtype = np.dtype(value)
+            dtype_list = make_dtype_params(dtype)
+            self.assertEquals(dtype, np.dtype(dtype_list))
 
 class BehavioralStruct(object):
     __slot_types__ = {
