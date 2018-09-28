@@ -344,10 +344,12 @@ class mapped_dict(dict):
 
 class proxied_buffer(object):
 
+    HEADER_PACKER = struct.Struct('Q')
+
     @classmethod
-    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, header_packer=struct.Struct('L')):
-        header_packer.pack_into(buf, offs, len(obj))
-        offs += header_packer.size
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+        cls.HEADER_PACKER.pack_into(buf, offs, len(obj))
+        offs += cls.HEADER_PACKER.size
 
         end_offs = offs + len(obj)
         buf[offs:end_offs] = obj
@@ -355,22 +357,24 @@ class proxied_buffer(object):
         return end_offs
 
     @classmethod
-    def unpack_from(cls, buf, offs, idmap = None, header_packer=struct.Struct('L')):
-        size, = header_packer.unpack_from(buf, offs)
-        offs += header_packer.size
+    def unpack_from(cls, buf, offs, idmap = None):
+        size, = cls.HEADER_PACKER.unpack_from(buf, offs)
+        offs += cls.HEADER_PACKER.size
 
         return buffer(buf, offs, size)
 
 class proxied_ndarray(object):
 
-    @staticmethod
-    def _make_dtype_params(dtype):
+    HEADER_PACKER = struct.Struct('QQ')
+
+    @classmethod
+    def _make_dtype_params(cls, dtype):
         names = dtype.names
         if names:
             # It is a Structured array
             fields = dtype.fields
             return [
-                (k, proxied_ndarray._make_dtype_params(fields[k][0]))
+                (k, cls._make_dtype_params(fields[k][0]))
                 for k in names
             ]
         else:
@@ -378,35 +382,35 @@ class proxied_ndarray(object):
 
     @classmethod
     @cython.locals(offs = cython.ulonglong, implicit_offs = cython.ulonglong, header_offs = cython.ulonglong)
-    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, header_packer=struct.Struct('LL')):
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         header_offs = offs
-        offs += header_packer.size
+        offs += cls.HEADER_PACKER.size
 
         offs = mapped_tuple.pack_into(obj.shape, buf, offs)
-        dtype_offs = offs
+        dtype_offs = offs - header_offs
 
-        dtype_params = proxied_ndarray._make_dtype_params(obj.dtype)
+        dtype_params = cls._make_dtype_params(obj.dtype)
         if isinstance(dtype_params, str):
             dtype_params = [dtype_params]
 
         offs = mapped_list.pack_into(dtype_params, buf, offs)
-        data_offs = offs
+        data_offs = offs - header_offs
 
-        header_packer.pack_into(buf, header_offs, dtype_offs, data_offs)
+        cls.HEADER_PACKER.pack_into(buf, header_offs, dtype_offs, data_offs)
         return proxied_buffer.pack_into(buffer(obj), buf, offs)
 
 
     @classmethod
     @cython.locals(offs = cython.ulonglong, dtype_offs = cython.ulonglong, data_offs = cython.ulonglong)
-    def unpack_from(cls, buf, offs, idmap = None, header_packer=struct.Struct('LL')):
-        dtype_offs, data_offs = header_packer.unpack_from(buf, offs)
+    def unpack_from(cls, buf, offs, idmap = None):
+        dtype_offs, data_offs = cls.HEADER_PACKER.unpack_from(buf, offs)
 
-        shape = mapped_tuple.unpack_from(buf, offs + header_packer.size)
-        dtype_params = mapped_list.unpack_from(buf, dtype_offs)
+        shape = mapped_tuple.unpack_from(buf, offs + cls.HEADER_PACKER.size)
+        dtype_params = mapped_list.unpack_from(buf, offs + dtype_offs)
         if isinstance(dtype_params[0], str):
             dtype_params = dtype_params[0]
 
-        data = proxied_buffer.unpack_from(buf, data_offs)
+        data = proxied_buffer.unpack_from(buf, offs + data_offs)
 
         ndarray = np.frombuffer(data, np.dtype(dtype_params))
         return ndarray.reshape(shape)
