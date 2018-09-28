@@ -344,12 +344,13 @@ class mapped_dict(dict):
 
 class proxied_buffer(object):
 
-    HEADER_PACKER = struct.Struct('Q')
+    HEADER_PACKER = struct.Struct('=Q')
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
-        cls.HEADER_PACKER.pack_into(buf, offs, len(obj))
-        offs += cls.HEADER_PACKER.size
+        packer = cls.HEADER_PACKER
+        packer.pack_into(buf, offs, len(obj))
+        offs += packer.size
 
         end_offs = offs + len(obj)
         buf[offs:end_offs] = obj
@@ -358,14 +359,15 @@ class proxied_buffer(object):
 
     @classmethod
     def unpack_from(cls, buf, offs, idmap = None):
-        size, = cls.HEADER_PACKER.unpack_from(buf, offs)
-        offs += cls.HEADER_PACKER.size
+        packer = cls.HEADER_PACKER
+        size, = packer.unpack_from(buf, offs)
+        offs += packer.size
 
         return buffer(buf, offs, size)
 
 class proxied_ndarray(object):
 
-    HEADER_PACKER = struct.Struct('QQ')
+    HEADER_PACKER = struct.Struct('=QQ')
 
     @classmethod
     def _make_dtype_params(cls, dtype):
@@ -384,7 +386,8 @@ class proxied_ndarray(object):
     @cython.locals(offs = cython.ulonglong, implicit_offs = cython.ulonglong, header_offs = cython.ulonglong)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         header_offs = offs
-        offs += cls.HEADER_PACKER.size
+        packer = cls.HEADER_PACKER
+        offs += packer.size
 
         offs = mapped_tuple.pack_into(obj.shape, buf, offs)
         dtype_offs = offs - header_offs
@@ -396,16 +399,17 @@ class proxied_ndarray(object):
         offs = mapped_list.pack_into(dtype_params, buf, offs)
         data_offs = offs - header_offs
 
-        cls.HEADER_PACKER.pack_into(buf, header_offs, dtype_offs, data_offs)
+        packer.pack_into(buf, header_offs, dtype_offs, data_offs)
         return proxied_buffer.pack_into(buffer(obj), buf, offs)
 
 
     @classmethod
     @cython.locals(offs = cython.ulonglong, dtype_offs = cython.ulonglong, data_offs = cython.ulonglong)
     def unpack_from(cls, buf, offs, idmap = None):
-        dtype_offs, data_offs = cls.HEADER_PACKER.unpack_from(buf, offs)
+        packer = cls.HEADER_PACKER
+        dtype_offs, data_offs = packer.unpack_from(buf, offs)
 
-        shape = mapped_tuple.unpack_from(buf, offs + cls.HEADER_PACKER.size)
+        shape = mapped_tuple.unpack_from(buf, offs + packer.size)
         dtype_params = mapped_list.unpack_from(buf, offs + dtype_offs)
         if isinstance(dtype_params[0], str):
             dtype_params = dtype_params[0]
