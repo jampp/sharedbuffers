@@ -39,12 +39,12 @@ if cython.compiled:
     buffer = cython.declare(object, buffer)  # lint:ok
     from types import BufferType as buffer
 
-assert Py_LT == 0
-assert Py_LE == 1
-assert Py_EQ == 2
-assert Py_NE == 3
-assert Py_GT == 4
-assert Py_GE == 5
+    assert Py_LT == 0
+    assert Py_LE == 1
+    assert Py_EQ == 2
+    assert Py_NE == 3
+    assert Py_GT == 4
+    assert Py_GE == 5
 
 class ubyte(int):
     pass
@@ -136,8 +136,8 @@ class mapped_frozenset(frozenset):
         i=int, j=int, offs=cython.longlong,
         pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar)
     def unpack_from(cls, buf, offs, idmap = None):
+        buf = _likerobuffer(buf)
         if cython.compiled:
-            buf = _likebuffer(buf)
             PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
             pbuf = cython.cast(cython.p_uchar, pybuf.buf)  # lint:ok
             if offs >= pybuf.len:
@@ -422,7 +422,6 @@ class proxied_ndarray(object):
 # @cython.ccall
 # @cython.returns(cython.bint)
 @cython.locals(_cmp = int)
-@cython.optimize.use_switch(True)
 def proxied_list_richcmp(a, b, op):
 
     if not islist(a) or not islist(b):
