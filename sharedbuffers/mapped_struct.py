@@ -342,6 +342,194 @@ class mapped_dict(dict):
         key, values = mapped_list.unpack_from(buf, offs, idmap)
         return cls(zip(key, values))
 
+
+def _upsize(x):
+    "Round up X to the next power of 2"
+    for p2 in (1, 2, 4, 8, 16, 32, 64):
+        x |= x >> 1
+    return x + 1
+
+def _add_kv(indexes, kvpairs, key, val):
+    l2 = len(indexes) / 2
+    hval = hash(key)
+    index = hval % l2
+    nprobe = 1
+
+    while True:
+        i2 = index + index
+        if indexes[i2] == -1:
+            indexes[i2] = len(kvpairs)
+            indexes[i2 + 1] = hval
+            kvpairs.extend((key, val))
+            return
+
+        index = (index + nprobe) % l2
+        nprobe += 1
+
+
+@cython.cclass
+class proxied_dict(object):
+
+    cython.declare(
+        index_table=tuple,
+        kvpairs=proxied_list,
+        mask=int,
+        nelems=int)
+
+    def __init__(self, mask, nelems, index_table, kvpairs):
+        self.mask = mask
+        self.nelems = nelems
+        self.index_table = index_table
+        self.kvpairs = kvpairs
+
+    @classmethod
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+        """
+        The binary format of a proxied dictionary is as follows:
+        | size           | type            | attribute name
+        |  8             | long            | mask
+        |  8             | long            | nelems
+        | $mask + 1 * 16 | array of long's | index_table
+        | $nelems        | proxied_list    | kvpairs
+
+        In other words, there are 2 tables: an index vector and a key/value
+        array. The index vector contains the positions in the second array,
+        and their hash values, to speed up comparisons. Unused buckets have
+        a position of -1. The key/value array is packed into a proxied list.
+        """
+
+        xlen = len(obj)
+        size = _upsize(xlen + xlen / 2)   # Aim for a load factor of ~50%
+        indexes = [-1, 0] * size
+        kvpairs = []
+        nelem = 0
+
+        for key, val in obj.iteritems():
+            _add_kv(indexes, kvpairs, key, val)
+            nelem += 1
+
+        len_m1 = len(indexes) / 2 - 1
+        struct.pack_into("=QQ", buf, offs, len_m1, nelem)
+        offs += 16
+        abuf = buffer(array.array('l', indexes))
+        buf[offs:offs + len(abuf)] = abuf
+        offs += len(abuf)
+
+        return mapped_tuple.pack_into(kvpairs, buf, offs, idmap, implicit_offs)
+
+    @classmethod
+    def unpack_from(cls, buf, offs, idmap = None):
+        mask, nelems = struct.unpack_from("=QQ", buf, offs)
+        offs += 16
+        idx_size = (mask + 1) * 16
+        index_table = array.array('l')
+        index_table.fromstring(buffer(buf[offs:offs + idx_size]))
+        index_table = tuple(index_table)
+        offs += idx_size
+        kvpairs = proxied_list.unpack_from(buf, offs, idmap)
+        return proxied_dict(mask, nelems, index_table, kvpairs)
+
+    @cython.locals(hval=cython.long, index=cython.long, nprobe=cython.long,
+        i2=cython.long, pos=cython.long)
+    def get_aux(self, key, default_val, out):
+        """
+        The lookup algorithm computes a position by doing hash(key) modulo len(index_vector).
+        Since the index vector is always rounded to a power of 2, this is a
+        very fast operation.
+
+        In addition, before comparing keys, we do a quick check against the
+        saved hash value. Because the same restrictions as with Python apply,
+        said operation is stable, and must match if the keys compare equal.
+
+        Collisions are resolved with a combination of open addressing and
+        linear probing.
+        """
+        hval = hash(key)
+        index = hval & self.mask
+        nprobe = 1
+
+        while True:
+            i2 = index + index
+            pos = self.index_table[i2]
+            if pos < 0:
+                if out is not None:
+                    # Signal the caller that the key is not present.
+                    out[0] = False
+                    return
+                else:
+                    return default_val
+            elif self.index_table[i2 + 1] == hval and self.kvpairs[pos] == key:
+                return self.kvpairs[pos + 1]
+
+            index = (index + nprobe) & self.mask
+            nprobe += 1
+
+    def get(self, key, default_val = None):
+        return self.get_aux(key, default_val, None)
+
+    def __getitem__(self, key):
+        out = [True]
+        rv = self.get_aux(key, None, out)
+        if rv is None and out[0] is False:
+            raise KeyError(str(key))
+        return rv
+
+    def __contains__(self, key):
+        out = [True]
+        rv = self.get_aux(key, None, out)
+        return rv is not None or out[0] is True
+
+    def has_key(self, key):
+        return key in self
+
+    def iterkeys(self):
+        for i in xrange(0, len(self.kvpairs), 2):
+            yield self.kvpairs[i]
+
+    def keys(self):
+        return list(self.iterkeys())
+
+    def itervalues(self):
+        for i in xrange(1, len(self.kvpairs), 2):
+            yield self.kvpairs[i]
+
+    def values(self):
+        return list(self.itervalues())
+
+    def iteritems(self):
+        for i in xrange(0, len(self.kvpairs), 2):
+            yield (self.kvpairs[i], self.kvpairs[i + 1])
+
+    def items(self):
+        return list(self.iteritems())
+
+    def __iter__(self):
+        return self.iterkeys()
+
+    def __len__(self):
+        return self.nelems
+
+    def _is_eq(self, other):
+        if len(self) != len(other):
+            return False
+
+        for key, val in self.iteritems():
+            if key not in other or other[key] != val:
+                return False
+
+        return True
+
+    def __richcmp__(self, other, op):
+        if op != Py_EQ and op != Py_NE:
+            return False   # No comparison possible
+
+        rv = self._is_eq(other)
+        return rv if op == Py_EQ else not rv
+
+    def __str__(self):
+        return "proxied_dict({%s})" % ", ".join(["%s: %s" % (k, v) for k, v in self.iteritems()])
+
+
 class proxied_buffer(object):
 
     HEADER_PACKER = struct.Struct('=Q')
@@ -1109,6 +1297,7 @@ class mapped_object(object):
         proxied_tuple: 'W',
         proxied_ndarray: 'n',
         proxied_buffer: 'r',
+        proxied_dict: 'M',
 
         int : 'q',
         long : 'q',
@@ -1154,6 +1343,7 @@ class mapped_object(object):
         'v' : (mapped_datetime.pack_into, mapped_datetime.unpack_from, mapped_datetime),
         'V' : (mapped_date.pack_into, mapped_date.unpack_from, mapped_date),
         'F' : (mapped_decimal.pack_into, mapped_decimal.unpack_from, mapped_decimal),
+        'M' : (proxied_dict.pack_into, proxied_dict.unpack_from, proxied_dict)
     }
 
     del p
@@ -1686,6 +1876,10 @@ class ProxiedListBufferProxyProperty(GenericBufferProxyProperty):
 class ObjectBufferProxyProperty(GenericBufferProxyProperty):
     typ = mapped_object
 
+@cython.cclass
+class ProxiedDictBufferProxyProperty(GenericBufferProxyProperty):
+    typ = proxied_dict
+
 PROXY_TYPES = {
     uint8 : UByteBufferProxyProperty,
     int8 : ByteBufferProxyProperty,
@@ -1715,6 +1909,7 @@ PROXY_TYPES = {
     proxied_list : ProxiedListBufferProxyProperty,
     proxied_ndarray : ProxiedNDArrayBufferProxyProperty,
     proxied_buffer : ProxiedBufferBufferProxyProperty,
+    proxied_dict : ProxiedDictBufferProxyProperty,
 
     int : LongBufferProxyProperty,
     long : LongBufferProxyProperty,

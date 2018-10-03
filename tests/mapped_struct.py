@@ -143,6 +143,7 @@ class ContainerStruct(TestStruct):
 class DictStruct(TestStruct):
     __slot_types__ = {
         'd' : dict,
+        'D' : mapped_struct.proxied_dict
     }
 
 class NDArrayStruct(TestStruct):
@@ -1617,6 +1618,18 @@ class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Dic
         {1.0: 10.0, 2.0: 2.2, 3.0: 3.3},
         {frozenset([1]): frozenset(['a']), frozenset([2]): frozenset(['b'])},
         {'a': 1, 1: 'a', frozenset(): 1.0, (1, 2): 80000 },
+    ]
+
+
+class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, DictPackingCommonTest):
+    PACKING_CLASS = mapped_struct.proxied_dict
+    COLLECTION_CLASS = dict
+
+    TEST_DICTS = [
+        {},
+        {'a': 'a2', 'b': 'b2', 'c': 'c2'},
+        {1: 10, 2: 20, 3: 30},
+        {'a': frozenset(), 'b': (1, 2), 'c': 1.0, 'd': [1, 2], 'e': dict(a=1)},
     ]
 
 class MappedDatetimePackingTest(unittest.TestCase):
