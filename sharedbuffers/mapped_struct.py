@@ -1074,13 +1074,16 @@ class mapped_datetime(datetime):
         return rv
 
 class mapped_date(date):
+    PACKER = struct.Struct('=q')
+
     @classmethod
     @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong)
-    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, packer = struct.Struct('=q')):
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
             objid = id(obj)
             idmap[objid] = offs + implicit_offs
 
+        packer = cls.PACKER
         timestamp = int(time.mktime(obj.timetuple()))
         packer.pack_into(buf, offs, timestamp)
 
@@ -1088,10 +1091,11 @@ class mapped_date(date):
 
     @classmethod
     @cython.locals(offs = cython.longlong, timestamp = cython.longlong)
-    def unpack_from(cls, buf, offs, idmap = None, packer = struct.Struct('=q')):
+    def unpack_from(cls, buf, offs, idmap = None):
         if idmap is not None and offs in idmap:
             return idmap[offs]
 
+        packer = cls.PACKER
         timestamp, = packer.unpack_from(buf, offs)
         rv =  date.fromtimestamp(timestamp)
 
