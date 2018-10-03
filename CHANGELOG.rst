@@ -30,6 +30,7 @@ Changes
 
 - Allow building with Cython 0.28 and above
 - Use `v` prefix on releases to have fixed links for this document
+- mapped_list now returns actual lists and not a subclass
 
 v0.4.8 - 2018-05-28
 ===================

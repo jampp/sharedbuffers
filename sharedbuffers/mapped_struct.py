@@ -281,6 +281,7 @@ class mapped_list(list):
         return mapped_tuple.pack_into(obj, buf, offs, idmap, implicit_offs)
 
     @classmethod
+    @cython.locals(rv = list)
     def unpack_from(cls, buf, offs, idmap = None, array = array.array, itemsizes = {
                 dtype : array.array(dtype, []).itemsize
                 for dtype in ('B','b','H','h','I','i','l','d')
@@ -300,17 +301,17 @@ class mapped_list(list):
             if objlen == 0xFFFFFF:
                 objlen = struct.unpack_from('<Q', buf, offs)
                 offs += 8
-            rv = cls(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
+            rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
         elif dcode == 'q':
             dtype = 'l'
             objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
             offs += 8
-            rv = cls(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
+            rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
         elif dcode == 'd':
             dtype = 'd'
             objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
             offs += 8
-            rv = cls(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
+            rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
         elif dcode == 't':
             dtype = 'l'
             objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
@@ -318,7 +319,7 @@ class mapped_list(list):
 
             index = array(dtype, buf[offs:offs+itemsizes[dtype]*objlen])
 
-            rv = idmap[baseoffs] = cls([None] * objlen)
+            idmap[baseoffs] = rv = ([None] * objlen)
             for i,ix in enumerate(index):
                 if ix != 1:
                     absix = ix + baseoffs
@@ -345,9 +346,13 @@ class mapped_dict(dict):
         return rv
 
     @classmethod
+    @cython.locals(keys = list, values = list, i = int)
     def unpack_from(cls, buf, offs, idmap = None):
-        key, values = mapped_list.unpack_from(buf, offs, idmap)
-        return cls(zip(key, values))
+        keys, values = mapped_list.unpack_from(buf, offs, idmap)
+        rv = {}
+        for i in xrange(len(keys)):
+            rv[keys[i]] = values[i]
+        return rv
 
 class proxied_buffer(object):
 
