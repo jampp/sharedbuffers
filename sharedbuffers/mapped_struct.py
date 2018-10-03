@@ -415,7 +415,7 @@ class proxied_dict(object):
         buf[offs:offs + len(abuf)] = abuf
         offs += len(abuf)
 
-        return mapped_tuple.pack_into(kvpairs, buf, offs, idmap, implicit_offs)
+        return offs + mapped_tuple.pack_into(kvpairs, buf, offs, idmap, implicit_offs)
 
     @classmethod
     def unpack_from(cls, buf, offs, idmap = None):
