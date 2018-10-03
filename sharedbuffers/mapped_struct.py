@@ -346,7 +346,7 @@ class mapped_dict(dict):
 def _upsize(x):
     "Round up X to the next power of 2"
     for p2 in (1, 2, 4, 8, 16, 32, 64):
-        x |= x >> 1
+        x |= x >> p2
     return x + 1
 
 def _add_kv(indexes, kvpairs, key, val):
