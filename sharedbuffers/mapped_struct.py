@@ -253,10 +253,11 @@ class mapped_tuple(tuple):
                     # these are wrapped objects, not plain objects, so make sure they have distinct xid
                     xid = id(x) | (0xFL << 64)
                     if xid not in idmap:
-                        idmap[xid] = offs + implicit_offs
+                        idmap[xid] = val_offs = offs + implicit_offs
                         mx = mapped_object(x)
                         offs = mx.pack_into(mx, buf, offs, idmap, implicit_offs)
-                    val_offs = idmap[xid]
+                    else:
+                        val_offs = idmap[xid]
                     index[i] = val_offs - baseoffs - implicit_offs
 
             # write index
@@ -280,6 +281,7 @@ class mapped_list(list):
         return mapped_tuple.pack_into(obj, buf, offs, idmap, implicit_offs)
 
     @classmethod
+    @cython.locals(rv = list)
     def unpack_from(cls, buf, offs, idmap = None, array = array.array, itemsizes = {
                 dtype : array.array(dtype, []).itemsize
                 for dtype in ('B','b','H','h','I','i','l','d')
@@ -299,17 +301,17 @@ class mapped_list(list):
             if objlen == 0xFFFFFF:
                 objlen = struct.unpack_from('<Q', buf, offs)
                 offs += 8
-            rv = cls(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
+            rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
         elif dcode == 'q':
             dtype = 'l'
             objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
             offs += 8
-            rv = cls(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
+            rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
         elif dcode == 'd':
             dtype = 'd'
             objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
             offs += 8
-            rv = cls(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
+            rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
         elif dcode == 't':
             dtype = 'l'
             objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
@@ -317,7 +319,7 @@ class mapped_list(list):
 
             index = array(dtype, buf[offs:offs+itemsizes[dtype]*objlen])
 
-            rv = idmap[baseoffs] = cls([None] * objlen)
+            idmap[baseoffs] = rv = ([None] * objlen)
             for i,ix in enumerate(index):
                 if ix != 1:
                     absix = ix + baseoffs
@@ -335,12 +337,22 @@ class mapped_dict(dict):
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         keys = list(obj)
         values = [obj[k] for k in keys]
-        return mapped_list.pack_into([keys, values], buf, offs, idmap, implicit_offs)
+        rv = mapped_list.pack_into([keys, values], buf, offs, idmap, implicit_offs)
+        if idmap is not None:
+            # These are ephemeral objects, we don't want them to stay around in the idmap
+            # or baaaaaad things will happen
+            idmap.pop(id(keys) | (0xFL << 64), None)
+            idmap.pop(id(values) | (0xFL << 64), None)
+        return rv
 
     @classmethod
+    @cython.locals(keys = list, values = list, i = int)
     def unpack_from(cls, buf, offs, idmap = None):
-        key, values = mapped_list.unpack_from(buf, offs, idmap)
-        return cls(zip(key, values))
+        keys, values = mapped_list.unpack_from(buf, offs, idmap)
+        rv = {}
+        for i in xrange(len(keys)):
+            rv[keys[i]] = values[i]
+        return rv
 
 class proxied_buffer(object):
 
@@ -994,9 +1006,11 @@ class mapped_unicode(unicode):
         return rv
 
 class mapped_decimal(Decimal):
+    PACKER = struct.Struct('=q')
+
     @classmethod
     @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, exponent = cython.longlong, sign = cython.uchar)
-    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, packer = struct.Struct('=q')):
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
             objid = id(obj)
             idmap[objid] = offs + implicit_offs
@@ -1004,18 +1018,20 @@ class mapped_decimal(Decimal):
         if not isinstance(obj, (Decimal, cDecimal)):
             obj = cDecimal(obj)
 
+        packer = cls.PACKER
         sign, digits, exponent = obj.as_tuple()
         packer.pack_into(buf, offs, (exponent << 1) | sign)
         offs += packer.size
 
-        return mapped_tuple.pack_into(digits, buf, offs, idmap, implicit_offs)
+        return mapped_tuple.pack_into(digits, buf, offs, None, implicit_offs)
 
     @classmethod
     @cython.locals(offs = cython.longlong, exponent = cython.longlong, sign = cython.uchar)
-    def unpack_from(cls, buf, offs, idmap = None, packer = struct.Struct('=q')):
+    def unpack_from(cls, buf, offs, idmap = None):
         if idmap is not None and offs in idmap:
             return idmap[offs]
 
+        packer = cls.PACKER
         exponent, = packer.unpack_from(buf, offs)
         sign = exponent & 0x1
 
@@ -1027,13 +1043,16 @@ class mapped_decimal(Decimal):
         return rv
 
 class mapped_datetime(datetime):
+    PACKER = struct.Struct('=q')
+
     @classmethod
     @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong)
-    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, packer = struct.Struct('=q')):
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
             objid = id(obj)
             idmap[objid] = offs + implicit_offs
 
+        packer = cls.PACKER
         timestamp = int(time.mktime(obj.timetuple()))
         packer.pack_into(buf, offs, (timestamp << 20) + obj.microsecond)
 
@@ -1041,10 +1060,11 @@ class mapped_datetime(datetime):
 
     @classmethod
     @cython.locals(offs = cython.longlong, timestamp = cython.longlong, microseconds = cython.ulong)
-    def unpack_from(cls, buf, offs, idmap = None, packer = struct.Struct('=q')):
+    def unpack_from(cls, buf, offs, idmap = None):
         if idmap is not None and offs in idmap:
             return idmap[offs]
 
+        packer = cls.PACKER
         timestamp, = packer.unpack_from(buf, offs)
         microseconds = timestamp & 0xFFFFF
         rv =  datetime.fromtimestamp(timestamp >> 20) + timedelta(microseconds=microseconds)
@@ -1054,13 +1074,16 @@ class mapped_datetime(datetime):
         return rv
 
 class mapped_date(date):
+    PACKER = struct.Struct('=q')
+
     @classmethod
     @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong)
-    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, packer = struct.Struct('=q')):
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
             objid = id(obj)
             idmap[objid] = offs + implicit_offs
 
+        packer = cls.PACKER
         timestamp = int(time.mktime(obj.timetuple()))
         packer.pack_into(buf, offs, timestamp)
 
@@ -1068,10 +1091,11 @@ class mapped_date(date):
 
     @classmethod
     @cython.locals(offs = cython.longlong, timestamp = cython.longlong)
-    def unpack_from(cls, buf, offs, idmap = None, packer = struct.Struct('=q')):
+    def unpack_from(cls, buf, offs, idmap = None):
         if idmap is not None and offs in idmap:
             return idmap[offs]
 
+        packer = cls.PACKER
         timestamp, = packer.unpack_from(buf, offs)
         rv =  date.fromtimestamp(timestamp)
 

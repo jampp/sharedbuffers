@@ -1619,6 +1619,12 @@ class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Dic
         {'a': 1, 1: 'a', frozenset(): 1.0, (1, 2): 80000 },
     ]
 
+    def testMappedDictIdmapHandling(self):
+        buf = bytearray(1024)
+        mapped_struct.mapped_list.pack_into(self.TEST_DICTS, buf, 0)
+        unpacked = mapped_struct.mapped_list.unpack_from(buf, 0)
+        self.assertEqual(unpacked, self.TEST_DICTS)
+
 class MappedDatetimePackingTest(unittest.TestCase):
 
     TEST_VALUE_NOW = datetime.now()
