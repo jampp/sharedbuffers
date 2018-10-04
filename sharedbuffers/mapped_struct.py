@@ -14,6 +14,7 @@ import xxhash
 import itertools
 import time
 import zipfile
+import collections
 from datetime import timedelta, datetime, date
 from decimal import Decimal
 import numpy as np
@@ -1144,7 +1145,11 @@ class mapped_object(object):
         Decimal : 'F',
         cDecimal : 'F',
         np.ndarray : 'n',
-        buffer : 'r'
+        buffer : 'r',
+
+        dict : 'm',
+        collections.defaultdict : 'm',
+        set : 'Z',
     }
 
     def p(s):
@@ -1255,9 +1260,11 @@ mapped_object.OBJ_PACKERS['o'] = (mapped_object.pack_into, mapped_object.unpack_
 
 VARIABLE_TYPES = {
     frozenset : mapped_frozenset,
+    set : mapped_frozenset,
     tuple : mapped_tuple,
     list : mapped_list,
     dict : mapped_dict,
+    collections.defaultdict : mapped_dict,
     str : mapped_bytes,
     unicode : mapped_unicode,
     bytes : mapped_bytes,
