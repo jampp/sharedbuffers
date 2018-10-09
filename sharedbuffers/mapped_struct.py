@@ -494,12 +494,19 @@ class proxied_dict(object):
 
         return True
 
-    def __richcmp__(self, other, op):
-        if op != Py_EQ and op != Py_NE:
-            return False   # No comparison possible
+    if cython.compiled:
+        def __richcmp__(self, other, op):
+            if op != Py_EQ and op != Py_NE:
+                return False   # No comparison possible
 
-        rv = self._is_eq(other)
-        return rv if op == Py_EQ else not rv
+            rv = self._is_eq(other)
+            return rv if op == Py_EQ else not rv
+    else:
+        def __eq__(self, other):
+            return self._is_eq(other)
+
+        def __ne__(self, other):
+            return not self._is_eq(other)
 
     def __str__(self):
         return "proxied_dict({%s})" % ", ".join(["%s: %s" % (k, v) for k, v in self.iteritems()])
