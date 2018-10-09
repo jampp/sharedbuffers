@@ -335,14 +335,12 @@ class mapped_dict(dict):
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
-        keys = list(obj)
-        values = [obj[k] for k in keys]
-        return mapped_list.pack_into([keys, values], buf, offs, idmap, implicit_offs)
+        return proxied_dict.pack_into(obj, buf, offs, idmap, implicit_offs)
 
     @classmethod
     def unpack_from(cls, buf, offs, idmap = None):
-        key, values = mapped_list.unpack_from(buf, offs, idmap)
-        return cls(zip(key, values))
+        proxy = proxied_dict.unpack_from(buf, offs, idmap)
+        return {k: v for k, v in proxy.iteritems()}
 
 
 def _upsize(x):
