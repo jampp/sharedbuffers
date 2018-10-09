@@ -502,14 +502,19 @@ class proxied_dict(object):
             rv = self._is_eq(other)
             return rv if op == Py_EQ else not rv
     else:
-        def __eq__(self, other):
+        def _eq(self, other):
             return self._is_eq(other)
 
-        def __ne__(self, other):
+        def _ne(self, other):
             return not self._is_eq(other)
 
     def __str__(self):
         return "proxied_dict({%s})" % ", ".join(["%s: %s" % (k, v) for k, v in self.iteritems()])
+
+
+if not cython.compiled:
+    setattr(proxied_dict, '__eq__', getattr(proxied_dict, '_eq'))
+    setattr(proxied_dict, '__ne__', getattr(proxied_dict, '_ne'))
 
 
 class proxied_buffer(object):

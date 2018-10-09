@@ -223,7 +223,7 @@ class SchemaPicklingTest(AttributeBitmapTest):
         self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s='3', u=u'A'))
 
     def testDictStruct(self):
-        self._testStruct(DictStruct, dict(d={"a":1, "b":2}))
+        self._testStruct(DictStruct, dict(d={"a":1, "b":2}, D={"a": 1, "b": 2}))
 
     def testDatetimeStruct(self):
         self._testStruct(DatetimeStruct, dict(d=datetime.now(), D=date.today()))
