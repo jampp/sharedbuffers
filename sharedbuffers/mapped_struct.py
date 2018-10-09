@@ -14,6 +14,8 @@ import xxhash
 import itertools
 import time
 import zipfile
+import math
+import sys
 from datetime import timedelta, datetime, date
 from decimal import Decimal
 import numpy as np
@@ -349,165 +351,138 @@ def _upsize(x):
         x |= x >> p2
     return x + 1
 
-def _add_kv(indexes, kvpairs, key, val):
-    l2 = len(indexes) / 2
-    hval = hash(key)
-    index = hval % l2
-    nprobe = 1
 
-    while True:
-        i2 = index + index
-        if indexes[i2] == -1:
-            indexes[i2] = len(kvpairs)
-            indexes[i2 + 1] = hval
-            kvpairs.extend((key, val))
-            return
+def _hash_rotl(code, nbits):
+    return (code << nbits) | (code >> (32 - nbits))
 
-        index = (index + nprobe) % l2
-        nprobe += 1
+
+def _mix_hash(code1, code2):
+    return _hash_rotl(code1, 5) ^ code2
+
+
+def _stable_hash(key):
+    if isinstance(key, basestring):
+        hval = xxhash.xxh64(key).intdigest()
+    elif isinstance(key, int):
+        hval = key
+    elif isinstance(key, float):
+        mant, expo = math.frexp(key)
+        hval = _mix_hash(expo, int(mant * 0xffffffffffff))
+    elif isinstance(key, (tuple, proxied_tuple, frozenset)):
+        hval = xxhash.xxh64(str(type(key))).intdigest()
+        for value in key:
+            hval = _mix_hash(hval, _stable_hash(value))
+    else:
+        raise TypeError("don't know how to hash key of type %s" % type(key))
+
+    # Truncating the hash value to 48 bits should have no practical impact
+    # on keys' destribution, and it helps us catch subtle overflow bugs
+    return hval & 0xffffffffffff
+
+
+def _enum_keys(obj):
+    idx = 0
+    for key in obj.iterkeys():
+        yield key, idx
+        idx += 1
+
+
+class BufferIO(object):
+    """
+    Gimmick object. Its whole purpose is to implement
+    the protocol expected by the IdMapper classes.
+    """
+
+    def __init__(self, buf, offs):
+        self.buf = buf
+        self.offs = offs
+        self.pos = 0
+
+    def write(self, value):
+        size = len(value)
+        offs = self.offs + self.pos
+        self.buf[offs:offs + size] = value
+        self.pos += size
+        return size
+
+    def tell(self):
+        return self.pos
+
+    def flush(self):
+        pass
+
+    def seek(self, pos):
+        self.pos = pos
 
 
 @cython.cclass
 class proxied_dict(object):
 
-    cython.declare(
-        index_table=tuple,
-        kvpairs=proxied_list,
-        mask=int,
-        nelems=int)
+    cython.declare(objmapper=object, vlist=proxied_list)
 
-    def __init__(self, mask, nelems, index_table, kvpairs):
-        self.mask = mask
-        self.nelems = nelems
-        self.index_table = index_table
-        self.kvpairs = kvpairs
+    def __init__(self, objmapper, vlist):
+        self.objmapper = objmapper
+        self.vlist = vlist
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
-        """
-        The binary format of a proxied dictionary is as follows:
-        | size           | type            | attribute name
-        |  8             | long            | mask
-        |  8             | long            | nelems
-        | $mask + 1 * 16 | array of long's | index_table
-        | $nelems        | proxied_list    | kvpairs
-
-        In other words, there are 2 tables: an index vector and a key/value
-        array. The index vector contains the positions in the second array,
-        and their hash values, to speed up comparisons. Unused buckets have
-        a position of -1. The key/value array is packed into a proxied list.
-        """
-
-        xlen = len(obj)
-        size = _upsize(xlen + xlen / 2)   # Aim for a load factor of ~50%
-        indexes = [-1, 0] * size
-        kvpairs = []
-        nelem = 0
-
-        for key, val in obj.iteritems():
-            _add_kv(indexes, kvpairs, key, val)
-            nelem += 1
-
-        len_m1 = len(indexes) / 2 - 1
-        struct.pack_into("=QQ", buf, offs, len_m1, nelem)
-        offs += 16
-        abuf = buffer(array.array('l', indexes))
-        buf[offs:offs + len(abuf)] = abuf
-        offs += len(abuf)
-
-        return offs + mapped_tuple.pack_into(kvpairs, buf, offs, idmap, implicit_offs)
+        ipos = offs
+        offs += 8   # Reserve space for value-list offset.
+        iobuf = BufferIO(buf, offs)
+        mapper_size = ObjectIdMapper.build(_enum_keys(obj), iobuf, map_file=False)
+        offs += mapper_size
+        struct.pack_into("=Q", buf, ipos, mapper_size)
+        return offs + proxied_list.pack_into(obj.values(), buf, offs, idmap, implicit_offs)
 
     @classmethod
     def unpack_from(cls, buf, offs, idmap = None):
-        mask, nelems = struct.unpack_from("=QQ", buf, offs)
-        offs += 16
-        idx_size = (mask + 1) * 16
-        index_table = array.array('l')
-        index_table.fromstring(buffer(buf[offs:offs + idx_size]))
-        index_table = tuple(index_table)
-        offs += idx_size
-        kvpairs = proxied_list.unpack_from(buf, offs, idmap)
-        return proxied_dict(mask, nelems, index_table, kvpairs)
-
-    @cython.locals(hval=cython.long, index=cython.long, nprobe=cython.long,
-        i2=cython.long, pos=cython.long)
-    def get_aux(self, key, default_val, out):
-        """
-        The lookup algorithm computes a position by doing hash(key) modulo len(index_vector).
-        Since the index vector is always rounded to a power of 2, this is a
-        very fast operation.
-
-        In addition, before comparing keys, we do a quick check against the
-        saved hash value. Because the same restrictions as with Python apply,
-        said operation is stable, and must match if the keys compare equal.
-
-        Collisions are resolved with a combination of open addressing and
-        linear probing.
-        """
-        hval = hash(key)
-        index = hval & self.mask
-        nprobe = 1
-
-        while True:
-            i2 = index + index
-            pos = self.index_table[i2]
-            if pos < 0:
-                if out is not None:
-                    # Signal the caller that the key is not present.
-                    out[0] = False
-                    return
-                else:
-                    return default_val
-            elif self.index_table[i2 + 1] == hval and self.kvpairs[pos] == key:
-                return self.kvpairs[pos + 1]
-
-            index = (index + nprobe) & self.mask
-            nprobe += 1
+        mapper_size, = struct.unpack_from("=Q", buf, offs)
+        offs += 8
+        objmapper = ObjectIdMapper.map_buffer(buf, offs)
+        offs += mapper_size
+        vlist = proxied_list.unpack_from(buf, offs, idmap)
+        return proxied_dict(objmapper, vlist)
 
     def get(self, key, default_val = None):
-        return self.get_aux(key, default_val, None)
+        idx = self.objmapper.get(key)
+        return self.vlist[idx] if idx is not None else default_val
 
     def __getitem__(self, key):
-        out = [True]
-        rv = self.get_aux(key, None, out)
-        if rv is None and out[0] is False:
-            raise KeyError(str(key))
-        return rv
+        idx = self.objmapper.get(key)
+        if idx is None:
+            raise KeyError(key)
+        return self.vlist[idx]
 
     def __contains__(self, key):
-        out = [True]
-        rv = self.get_aux(key, None, out)
-        return rv is not None or out[0] is True
+        return self.objmapper.get(key) is not None
 
     def has_key(self, key):
         return key in self
 
+    def iteritems(self):
+        for key, idx in self.objmapper.iteritems():
+            yield key, self.vlist[idx]
+
+    def items(self):
+        return list(self.iteritems())
+
     def iterkeys(self):
-        for i in xrange(0, len(self.kvpairs), 2):
-            yield self.kvpairs[i]
+        return iter(self.objmapper)
 
     def keys(self):
         return list(self.iterkeys())
 
     def itervalues(self):
-        for i in xrange(1, len(self.kvpairs), 2):
-            yield self.kvpairs[i]
+        return iter(self.vlist)
 
     def values(self):
         return list(self.itervalues())
-
-    def iteritems(self):
-        for i in xrange(0, len(self.kvpairs), 2):
-            yield (self.kvpairs[i], self.kvpairs[i + 1])
-
-    def items(self):
-        return list(self.iteritems())
 
     def __iter__(self):
         return self.iterkeys()
 
     def __len__(self):
-        return self.nelems
+        return len(self.vlist)
 
     def _is_eq(self, other):
         if len(self) != len(other):
@@ -4063,6 +4038,447 @@ class NumericIdMapper(_CZipMapBase):
 
 class NumericId32Mapper(NumericIdMapper):
     dtype = npuint32
+
+@cython.cclass
+class ObjectIdMapper(_CZipMapBase):
+    dtype = npuint64
+
+    # Num-items, Index-pos
+    _Header = struct.Struct('=QQ')
+
+    cython.declare(
+        _buf = object,
+        _likebuf = object,
+        _file = object,
+        _dtype = object,
+        index_elements = cython.ulonglong,
+        index_offset = cython.ulonglong,
+        index = object,
+    )
+
+    @property
+    def buf(self):
+        return self._buf
+
+    @property
+    def fileobj(self):
+        return self._file
+
+    @property
+    def fileno(self):
+        return self._file.fileno()
+
+    @property
+    def name(self):
+        return self._file.name
+
+    def __init__(self, buf, offset = 0):
+        # Accelerate class attributes
+        self._dtype = self.dtype
+
+        # Initialize buffer
+        if offset:
+            self._buf = self._likebuf = buffer(buf, offset)
+        else:
+            self._buf = buf
+            self._likebuf = _likebuffer(buf)
+
+        # Parse header and map index
+        self.index_elements, self.index_offset = self._Header.unpack_from(self._buf, 0)
+
+        self.index = numpy.ndarray(buffer = self._buf,
+            offset = self.index_offset,
+            dtype = self.dtype,
+            shape = (self.index_elements, 3))
+
+    def __getitem__(self, key):
+        rv = self.get(key)
+        if rv is None:
+            raise KeyError(key)
+        else:
+            return rv
+
+    def __len__(self):
+        return self.index_elements
+
+    def __contains__(self, key):
+        return self.get(key) is not None
+
+    def preload(self):
+        # Just touch everything in sequential order
+        self.index.max()
+
+    def _unpack(self, buf, index):
+        return mapped_object.unpack_from(buf, index)
+
+    @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer', pybuf = 'Py_buffer')
+    def iterkeys(self, make_sequential = True):
+        buf = self._buf
+        dtype = self.dtype
+        if make_sequential:
+            # Big collections don't fit in RAM, so it helps if they're accessed sequentially
+            # We'll just have to copy and sort the index, no big deal though
+            index = numpy.sort(self.index[:,1])
+            stride = 1
+            offs = 0
+        else:
+            index = self.index
+            stride = 3
+            offs = 1
+        if cython.compiled:
+            #lint:disable
+            buf = self._likebuf
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+            try:
+                if dtype is npuint64:
+                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
+                    try:
+                        if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
+                            raise ValueError("Invalid buffer state")
+                        for i in xrange(self.index_elements):
+                            yield self._unpack(self._buf,
+                                cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs])
+                    finally:
+                        PyBuffer_Release(cython.address(indexbuf))
+                elif dtype is npuint32:
+                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
+                    try:
+                        if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
+                            raise ValueError("Invalid buffer state")
+                        for i in xrange(self.index_elements):
+                            yield self._unpack(self._buf,
+                                cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs],
+                                pybuf.len)
+                    finally:
+                        PyBuffer_Release(cython.address(indexbuf))
+                else:
+                    for i in xrange(self.index_elements):
+                        yield self._unpack(self._buf,
+                            index[i],
+                            pybuf.len)
+            finally:
+                PyBuffer_Release(cython.address(pybuf))
+            #lint:enable
+        else:
+            for i in xrange(self.index_elements):
+                yield self._unpack(buf, index[i])
+
+    def __iter__(self):
+        return self.iterkeys()
+
+    def itervalues(self):
+        return iter(self.index[:,2])
+
+    def values(self):
+        return self.index[:,2]
+
+    def keys(self):
+        # Baaad idea
+        return list(self.iterkeys())
+
+    @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer', pybuf = 'Py_buffer',
+        stride0 = cython.size_t, stride1 = cython.size_t, pindex = cython.p_char)
+    def iteritems(self, make_sequential = True):
+        buf = self._buf
+        dtype = self.dtype
+        if make_sequential:
+            # Big collections don't fit in RAM, so it helps if they're accessed sequentially
+            # We'll just have to copy and sort the index, no big deal though
+            index = self.index[numpy.argsort(self.index[:,1])]
+        else:
+            index = self.index
+        if cython.compiled:
+            #lint:disable
+            buf = self._likebuf
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+            try:
+                if dtype is npuint64:
+                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    try:
+                        if ( indexbuf.strides == cython.NULL
+                                or indexbuf.ndim < 2
+                                or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
+                            raise ValueError("Invalid buffer state")
+                        stride0 = indexbuf.strides[0]
+                        stride1 = indexbuf.strides[1]
+                        pindex = cython.cast(cython.p_char, indexbuf.buf)
+                        for i in xrange(self.index_elements):
+                            yield (
+                                self._unpack(self._buf,
+                                    cython.cast(cython.p_ulonglong, pindex + stride1)[0]),
+                                cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
+                            )
+                            pindex += stride0
+                    finally:
+                        PyBuffer_Release(cython.address(indexbuf))
+                elif dtype is npuint32:
+                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    try:
+                        if ( indexbuf.strides == cython.NULL
+                                or indexbuf.ndim < 2
+                                or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
+                            raise ValueError("Invalid buffer state")
+                        stride0 = indexbuf.strides[0]
+                        stride1 = indexbuf.strides[1]
+                        pindex = cython.cast(cython.p_char, indexbuf.buf)
+                        for i in xrange(self.index_elements):
+                            yield (
+                                self._unpack(self._buf,
+                                    cython.cast(cython.p_uint, pindex + stride1)[0],
+                                    pybuf.len),
+                                cython.cast(cython.p_uint, pindex + 2*stride1)[0]
+                            )
+                            pindex += stride0
+                    finally:
+                        PyBuffer_Release(cython.address(indexbuf))
+                else:
+                    for i in xrange(self.index_elements):
+                        yield (
+                            self._unpack(self._buf,
+                                index[i,1],
+                                pybuf.len, None),
+                            index[i,2]
+                        )
+            finally:
+                PyBuffer_Release(cython.address(pybuf))
+            #lint:enable
+        else:
+            for i in xrange(self.index_elements):
+                yield (self._unpack(buf, index[i,1], None), index[i,2])
+
+    def items(self):
+        # Bad idea, but hey, if they do this, it means the caller expects the collection to fit in RAM
+        return list(self.iteritems(make_sequential = False))
+
+    @cython.ccall
+    @cython.locals(
+        hkey = cython.ulonglong,
+        lo = cython.size_t, hi = cython.size_t, hint = cython.size_t, stride0 = cython.size_t,
+        indexbuf = 'Py_buffer', pindex = cython.p_char)
+    @cython.returns(cython.size_t)
+    def _search_hkey(self, hkey):
+        hi = self.index_elements
+        lo = 0
+        if cython.compiled:
+            dtype = self._dtype
+            if dtype is npuint64 or dtype is npuint32:
+                #lint:disable
+                PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                try:
+                    if ( indexbuf.strides == cython.NULL
+                            or indexbuf.len < hi * indexbuf.strides[0] ):
+                        raise ValueError("Invalid buffer state")
+                    pindex = cython.cast(cython.p_char, indexbuf.buf)
+                    stride0 = indexbuf.strides[0]
+
+                    if dtype is npuint64:
+                        # A quick guess assuming uniform distribution of keys over the 64-bit value range
+                        hint = (((hkey >> 32) * (hi-lo)) >> 32) + lo
+                        return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint)
+                    elif dtype is npuint32:
+                        # A quick guess assuming uniform distribution of keys over the 64-bit value range
+                        hint = ((hkey * (hi-lo)) >> 32) + lo
+                        return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint)
+                    else:
+                        raise AssertionError("Internal error")
+                finally:
+                    PyBuffer_Release(cython.address(indexbuf))
+                #lint:enable
+        else:
+            dtype = self.dtype
+            struct_dt = numpy.dtype([
+                ('key_hash', dtype),
+                ('key_offset', dtype),
+                ('value', dtype),
+            ])
+            return self.index.view(struct_dt).reshape(self.index.shape[0]).searchsorted(
+                numpy.array([(hkey,0,0)],dtype=struct_dt))[0]
+
+    def _compare_keys(self, buf, offs, key):
+        return self._unpack(buf, offs) == key
+
+    @cython.ccall
+    @cython.locals(
+        hkey = cython.ulonglong, startpos = int, nitems = int,
+        stride0 = cython.size_t, stride1 = cython.size_t,
+        indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
+    def get(self, key, default = None):
+        if not isinstance(key, basestring):
+            return default
+        hkey = _stable_hash(key)
+        startpos = self._search_hkey(hkey)
+        nitems = self.index_elements
+        if 0 <= startpos < nitems:
+            buf = self._buf
+            dtype = self._dtype
+            if cython.compiled:
+                #lint:disable
+                buf = self._likebuf
+                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+                try:
+                    if dtype is npuint64:
+                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                        try:
+                            if ( indexbuf.strides == cython.NULL
+                                    or indexbuf.ndim < 2
+                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
+                                raise ValueError("Invalid buffer state")
+                            stride0 = indexbuf.strides[0]
+                            stride1 = indexbuf.strides[1]
+                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                            while pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
+                                if self._compare_keys(self._buf,
+                                      cython.cast(cython.p_ulonglong, pindex + stride1)[0],
+                                      key):
+                                    return cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
+                                pindex += stride0
+                        finally:
+                            PyBuffer_Release(cython.address(indexbuf))
+                    elif dtype is npuint32:
+                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                        try:
+                            if ( indexbuf.strides == cython.NULL
+                                    or indexbuf.ndim < 2
+                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
+                                raise ValueError("Invalid buffer state")
+                            stride0 = indexbuf.strides[0]
+                            stride1 = indexbuf.strides[1]
+                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                            while pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
+                                if self._compare_keys(self._buf,
+                                         cython.cast(cython.p_uint, pindex + stride1)[0],
+                                         key):
+                                    return cython.cast(cython.p_uint, pindex + 2*stride1)[0]
+                                pindex += stride0
+                        finally:
+                            PyBuffer_Release(cython.address(indexbuf))
+                    else:
+                        index = self.index
+                        while startpos < nitems and index[startpos,0] == hkey:
+                            if self._compare_keys(self._buf, self.index[startpos,1], key):
+                                return index[startpos,2]
+                            startpos += 1
+                finally:
+                    PyBuffer_Release(cython.address(pybuf))
+                #lint:enable
+            else:
+                index = self.index
+                while startpos < nitems and index[startpos,0] == hkey:
+                    if self._compare_keys(buf, index[startpos, 1], key):
+                        return index[startpos,2]
+                    startpos += 1
+        return default
+
+    @classmethod
+    @cython.locals(
+        basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong,
+        dtypemax = cython.ulonglong)
+    def build(cls, initializer, destfile = None, tempdir = None, map_file=True):
+        if destfile is None:
+            destfile = tempfile.NamedTemporaryFile(dir = tempdir)
+
+        dtype = cls.dtype
+        try:
+            dtypemax = ~dtype(0)
+        except:
+            try:
+                dtypemax = ~dtype.type(0)
+            except:
+                dtypemax = ~0
+
+        basepos = destfile.tell()
+
+        # Reserve space for the header
+        write = destfile.write
+        write(cls._Header.pack(0, 0))
+
+        # Build the index - the index is a matrix of the form:
+        # [ [ hash, key offset, value id ], ... ]
+        #
+        # With the rows ordered by hash
+        if isinstance(initializer, dict):
+            initializer = initializer.iteritems()
+        else:
+            initializer = iter(initializer)
+        parts = []
+        islice = itertools.islice
+        array = numpy.array
+        curpos = basepos + cls._Header.size
+        pack_into = mapped_object.pack_into
+        valbuf = bytearray(65536)
+        valbuflen = 65536
+        n = 0
+        part = []
+        while 1:
+            del part[:]
+            for k,i in islice(initializer, 1000):
+                # Add the index item
+                n += 1
+                # Not *quite* as correct as computing the actual length in
+                # bytes, but since this is only an upper bound, we should be fine.
+                klen = sys.getsizeof(k)
+                if curpos > dtypemax:
+                    raise ValueError("Cannot represent offset with requested precision")
+                part.append((_stable_hash(k), curpos, i))
+                if klen + 16 > valbuflen:
+                    valbuflen = (klen + 16) * 2
+                    valbuf = bytearray(valbuflen)
+                endpos = pack_into(k, valbuf, 0)
+                if valbuflen < endpos:
+                    raise RuntimeError("Buffer overflow")
+                write(valbuf[:endpos])
+                curpos += endpos
+            if part:
+                parts.append(array(part, dtype))
+            else:
+                break
+        if parts:
+            index = numpy.concatenate(parts)
+        else:
+            index = numpy.empty(shape=(0,3), dtype=dtype)
+        del parts, part
+        shuffle = numpy.argsort(index[:,0])
+        index = index[shuffle]
+
+        indexpos = curpos
+        write(buffer(index))
+        nitems = len(index)
+
+        finalpos = destfile.tell()
+        if finalpos & 31:
+            write("\x00" * (32 - (finalpos & 31)))
+            finalpos = destfile.tell()
+
+        destfile.seek(basepos)
+        write(cls._Header.pack(nitems, indexpos - basepos))
+        destfile.seek(finalpos)
+        destfile.flush()
+
+        if map_file:
+            rv = cls.map_file(destfile, basepos, size = finalpos - basepos)
+            destfile.seek(finalpos)
+        else:
+            rv = finalpos
+        return rv
+
+    @classmethod
+    def map_buffer(cls, buf, offset = 0):
+        return cls(buf, offset)
+
+    @classmethod
+    @cython.locals(rv = 'ObjectIdMapper')
+    def map_file(cls, fileobj, offset = 0, size = None):
+        if isinstance(fileobj, zipfile.ZipExtFile):
+            return cls.map_zipfile(fileobj, offset, size)
+
+        map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
+        fileobj.seek(map_start)
+        buf = mmap.mmap(fileobj.fileno(), 0, access = mmap.ACCESS_READ, offset = map_start)
+        rv = cls(buf, offset - map_start)
+        rv._file = fileobj
+        return rv
 
 @cython.locals(ux = unicode)
 def safe_utf8(x):
