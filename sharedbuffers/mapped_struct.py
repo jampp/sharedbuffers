@@ -340,7 +340,7 @@ class mapped_dict(dict):
     @classmethod
     def unpack_from(cls, buf, offs, idmap = None):
         proxy = proxied_dict.unpack_from(buf, offs, idmap)
-        return {k: v for k, v in proxy.iteritems()}
+        return proxy.copy()
 
 
 def _upsize(x):
@@ -350,17 +350,25 @@ def _upsize(x):
     return x + 1
 
 
+@cython.ccall
+@cython.locals(code=cython.ulong, nbits=cython.ulong)
 def _hash_rotl(code, nbits):
     return (code << nbits) | (code >> (32 - nbits))
 
 
+@cython.ccall
+@cython.locals(code1=cython.ulong, code2=cython.ulong)
 def _mix_hash(code1, code2):
     return _hash_rotl(code1, 5) ^ code2
 
 
+_TYPE_SEEDS = {tuple: 4110121799, frozenset: 3377403095}
+
+@cython.ccall
+@cython.locals(hval=cython.ulong)
 def _stable_hash(key):
     if isinstance(key, basestring):
-        hval = xxhash.xxh64(key).intdigest()
+        hval = xxhash.xxh64(safe_utf8(key)).intdigest()
     elif isinstance(key, int):
         hval = key
     elif isinstance(key, float):
@@ -370,16 +378,14 @@ def _stable_hash(key):
         else:
             mant, expo = math.frexp(key)
             hval = _mix_hash(expo, int(mant * 0xffffffffffff))
-    elif isinstance(key, (tuple, proxied_tuple, frozenset)):
-        hval = xxhash.xxh64(str(type(key))).intdigest()
+    elif type(key) in _TYPE_SEEDS:
+        hval = _TYPE_SEEDS[type(key)]
         for value in key:
             hval = _mix_hash(hval, _stable_hash(value))
     else:
-        raise TypeError("don't know how to hash key of type %s" % type(key))
+        raise TypeError("unhashable type: %s" % type(key).__name__)
 
-    # Truncating the hash value to 48 bits should have no practical impact
-    # on keys' destribution, and it helps us catch subtle overflow bugs
-    return hval & 0xffffffffffff
+    return hval
 
 
 def _enum_keys(obj):
@@ -420,6 +426,8 @@ class BufferIO(object):
 @cython.cclass
 class proxied_dict(object):
 
+    HEADER_PACKER = struct.Struct('=Q')   # Offset into value list.
+
     cython.declare(objmapper=object, vlist=proxied_list)
 
     def __init__(self, objmapper, vlist):
@@ -428,18 +436,20 @@ class proxied_dict(object):
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+        packer = cls.HEADER_PACKER
         ipos = offs
-        offs += 8   # Reserve space for value-list offset.
+        offs += packer.size
         iobuf = BufferIO(buf, offs)
         mapper_size = ObjectIdMapper.build(_enum_keys(obj), iobuf, map_file=False)
         offs += mapper_size
-        struct.pack_into("=Q", buf, ipos, mapper_size)
+        packer.pack_into(buf, ipos, mapper_size)
         return offs + proxied_list.pack_into(obj.values(), buf, offs, idmap, implicit_offs)
 
     @classmethod
     def unpack_from(cls, buf, offs, idmap = None):
-        mapper_size, = struct.unpack_from("=Q", buf, offs)
-        offs += 8
+        packer = cls.HEADER_PACKER
+        mapper_size, = packer.unpack_from(buf, offs)
+        offs += packer.size
         objmapper = ObjectIdMapper.map_buffer(buf, offs)
         offs += mapper_size
         vlist = proxied_list.unpack_from(buf, offs, idmap)
@@ -456,7 +466,7 @@ class proxied_dict(object):
         return self.vlist[idx]
 
     def __contains__(self, key):
-        return self.objmapper.get(key) is not None
+        return key in self.objmapper
 
     def has_key(self, key):
         return key in self
@@ -472,19 +482,31 @@ class proxied_dict(object):
         return iter(self.objmapper)
 
     def keys(self):
-        return list(self.iterkeys())
+        return self.objmapper.keys()
 
     def itervalues(self):
         return iter(self.vlist)
 
     def values(self):
-        return list(self.itervalues())
+        return self.vlist
 
     def __iter__(self):
         return self.iterkeys()
 
     def __len__(self):
         return len(self.vlist)
+
+    def copy(self):
+        return dict(self.iteritems())
+
+    def viewkeys(self):
+        return self.keys()
+
+    def viewvalues(self):
+        return self.values()
+
+    def viewitems(self):
+        return self.items()
 
     def _is_eq(self, other):
         if len(self) != len(other):
@@ -4126,7 +4148,7 @@ class ObjectIdMapper(_CZipMapBase):
         return mapped_object.unpack_from(buf, index)
 
     @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer', pybuf = 'Py_buffer')
-    def iterkeys(self, make_sequential = True):
+    def iterkeys(self, make_sequential = False):
         buf = self._buf
         dtype = self.dtype
         if make_sequential:
@@ -4192,7 +4214,7 @@ class ObjectIdMapper(_CZipMapBase):
 
     @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer', pybuf = 'Py_buffer',
         stride0 = cython.size_t, stride1 = cython.size_t, pindex = cython.p_char)
-    def iteritems(self, make_sequential = True):
+    def iteritems(self, make_sequential = False):
         buf = self._buf
         dtype = self.dtype
         if make_sequential:
