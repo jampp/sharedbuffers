@@ -521,11 +521,24 @@ class proxied_dict(object):
     if cython.compiled:
         def __richcmp__(self, other, op):
             if op != Py_EQ and op != Py_NE:
-                return False   # No comparison possible
+                diff = id(self) - id(other)
+                if op == Py_LT:
+                    return diff < 0
+                elif op == Py_LE:
+                    return diff <= 0
+                elif op == Py_GT:
+                    return diff > 0
+                elif op == Py_GE:
+                    return diff >= 0
+
+                return False   # Shouldn't happen
 
             rv = self._is_eq(other)
             return rv if op == Py_EQ else not rv
     else:
+        def _cmp(self, other):
+            return cmp(id(self), id(other))
+
         def _eq(self, other):
             return self._is_eq(other)
 
@@ -537,8 +550,9 @@ class proxied_dict(object):
 
 
 if not cython.compiled:
-    setattr(proxied_dict, '__eq__', getattr(proxied_dict, '_eq'))
-    setattr(proxied_dict, '__ne__', getattr(proxied_dict, '_ne'))
+    setattr(proxied_dict, '__cmp__', getattr(proxied_dict, '_cmp'))
+    setattr(proxied_dict, '__eq__',  getattr(proxied_dict, '_eq'))
+    setattr(proxied_dict, '__ne__',  getattr(proxied_dict, '_ne'))
 
 
 class proxied_buffer(object):
