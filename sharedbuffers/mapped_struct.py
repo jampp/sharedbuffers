@@ -343,13 +343,6 @@ class mapped_dict(dict):
         return proxy.copy()
 
 
-def _upsize(x):
-    "Round up X to the next power of 2"
-    for p2 in (1, 2, 4, 8, 16, 32, 64):
-        x |= x >> p2
-    return x + 1
-
-
 @cython.ccall
 @cython.locals(code=cython.ulong, nbits=cython.ulong)
 def _hash_rotl(code, nbits):
@@ -362,7 +355,8 @@ def _mix_hash(code1, code2):
     return _hash_rotl(code1, 5) ^ code2
 
 
-_TYPE_SEEDS = {tuple: 4110121799, frozenset: 3377403095}
+_TUPLE_SEED = 4110121799
+_FSET_SEED  = 3377403095
 
 @cython.ccall
 @cython.locals(hval=cython.ulong)
@@ -378,8 +372,12 @@ def _stable_hash(key):
         else:
             mant, expo = math.frexp(key)
             hval = _mix_hash(expo, int(mant * 0xffffffffffff))
-    elif type(key) in _TYPE_SEEDS:
-        hval = _TYPE_SEEDS[type(key)]
+    elif isinstance(key, (tuple, frozenset)):
+        if isinstance(key, tuple):
+            hval = _TUPLE_SEED
+        else:
+            hval = _FSET_SEED
+
         for value in key:
             hval = _mix_hash(hval, _stable_hash(value))
     else:
@@ -4480,7 +4478,7 @@ class ObjectIdMapper(_CZipMapBase):
                             valbuf = bytearray(valbuflen)
                         endpos = pack_into(k, valbuf, 0)
                         break
-                    except OverflowError:
+                    except (struct.error, IndexError):
                         klen += klen
 
                 if valbuflen < endpos:
