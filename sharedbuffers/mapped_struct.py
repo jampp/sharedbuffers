@@ -4411,7 +4411,7 @@ class ObjectIdMapper(_CZipMapBase):
     @cython.locals(
         basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong,
         dtypemax = cython.ulonglong)
-    def build(cls, initializer, destfile = None, tempdir = None, map_file=True):
+    def build(cls, initializer, destfile = None, tempdir = None, map_file=True, min_buf_size=128):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
 
@@ -4453,15 +4453,22 @@ class ObjectIdMapper(_CZipMapBase):
                 # Add the index item
                 n += 1
                 # Not *quite* as correct as computing the actual length in
-                # bytes, but since this is only an upper bound, we should be fine.
-                klen = sys.getsizeof(k)
+                # bytes, but this is only used as a first (optimistic) estimation.
+                klen = max(min_buf_size, sys.getsizeof(k))
                 if curpos > dtypemax:
                     raise ValueError("Cannot represent offset with requested precision")
                 part.append((_stable_hash(k), curpos, i))
-                if klen + 16 > valbuflen:
-                    valbuflen = (klen + 16) * 2
-                    valbuf = bytearray(valbuflen)
-                endpos = pack_into(k, valbuf, 0)
+
+                while True:
+                    try:
+                        if klen + 16 > valbuflen:
+                            valbuflen = (klen + 16) * 2
+                            valbuf = bytearray(valbuflen)
+                        endpos = pack_into(k, valbuf, 0)
+                        break
+                    except OverflowError:
+                        klen += klen
+
                 if valbuflen < endpos:
                     raise RuntimeError("Buffer overflow")
                 write(valbuf[:endpos])
