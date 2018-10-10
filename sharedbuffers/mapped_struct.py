@@ -372,11 +372,11 @@ def _stable_hash(key):
         else:
             mant, expo = math.frexp(key)
             hval = _mix_hash(expo, int(mant * 0xffffffffffff))
-    elif isinstance(key, (tuple, frozenset)):
-        if isinstance(key, tuple):
-            hval = _TUPLE_SEED
-        else:
+    elif isinstance(key, (tuple, frozenset, proxied_tuple)):
+        if isinstance(key, frozenset):
             hval = _FSET_SEED
+        else:
+            hval = _TUPLE_SEED
 
         for value in key:
             hval = _mix_hash(hval, _stable_hash(value))
@@ -548,9 +548,8 @@ class proxied_dict(object):
 
 
 if not cython.compiled:
-    setattr(proxied_dict, '__cmp__', getattr(proxied_dict, '_cmp'))
-    setattr(proxied_dict, '__eq__',  getattr(proxied_dict, '_eq'))
-    setattr(proxied_dict, '__ne__',  getattr(proxied_dict, '_ne'))
+    for orig, new in (('_cmp', '__cmp__'), ('_eq', '__eq__'), ('_ne', '__ne__')):
+        setattr(proxied_dict, new, getattr(proxied_dict, orig))
 
 
 class proxied_buffer(object):
@@ -694,6 +693,7 @@ class proxied_list(object):
         buf = object,
         pybuf = 'Py_buffer',
         offs = cython.ulonglong,
+        metadata = tuple
     )
 
     if cython.compiled:
@@ -784,7 +784,7 @@ class proxied_list(object):
             PyObject_GetBuffer(self.buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
 
         # Call metadata to check the object
-        self._metadata()
+        self.metadata = self._metadata()
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
@@ -805,7 +805,7 @@ class proxied_list(object):
     @cython.locals(obj_offs = cython.ulonglong, dcode = cython.char, index = cython.ulonglong, pindex = "unsigned long *", dataoffs = cython.ulonglong)
     def __getitem__(self, index):
 
-        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+        dcode, objlen, itemsize, dataoffs, _struct = self.metadata
 
         if index >= objlen:
             raise IndexError
@@ -874,47 +874,9 @@ class proxied_list(object):
                 return False
             return proxied_list_cmp(self, other) == 0
 
-    @cython.ccall
-    @cython.locals(offs = cython.ulonglong, dcode = cython.char, pbuf = 'const char *', objlen = cython.ulonglong)
-    def _objlen(self):
-
-        if cython.compiled:
-            offs = self.offs
-            pbuf = cython.cast(cython.p_char, self.pybuf.buf)
-            dcode = pbuf[offs]
-
-            if dcode in ('B','b','H','h','I','i'):
-                objlen = cython.cast(cython.p_uint, pbuf + offs)[0] >> 8
-                if objlen == 0xFFFFFF:
-                    objlen = cython.cast(cython.p_longlong, pbuf + offs + 4)[0]
-
-            elif dcode in ('q', 'd', 't'):
-                objlen = cython.cast(cython.p_longlong, pbuf + offs)[0] >> 8
-
-            else:
-                raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
-
-            return objlen
-        else:
-            offs = self.offs
-
-            buf = self.buf
-            dcode = buf[offs]
-
-            if dcode in ('B','b','H','h','I','i'):
-                objlen, = struct.unpack('<I', buf[offs+1:offs+4] + '\x00')
-                if objlen == 0xFFFFFF:
-                    objlen = struct.unpack_from('<Q', buf, offs + 4)
-
-            elif dcode in ('q', 'd', 't'):
-                objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
-            else:
-                raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
-
-            return objlen
-
     def __len__(self):
-        return self._objlen()
+        _, objlen, _, _, _ = self.metadata
+        return objlen
 
     def __nonzero__(self):
         return len(self) > 0
