@@ -1631,7 +1631,8 @@ class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Di
         {1: 10, 2: 20, 3: 30},
         {'a': frozenset(), 'b': (1, 2), 'c': 1.0, 'd': [1, 2], 'e': dict(a=1) },
         {1: 42, 'a1_@!': 69, 3.5: 'uhhhh', (1, 2, 3): "four-five-six"},
-        {frozenset([1, 2]) : 97.9}
+        {frozenset([1, 2]) : 97.9},
+        {1.0: "test floats equivalent to integers"}
     ]
 
 class MappedDatetimePackingTest(unittest.TestCase):

@@ -364,8 +364,12 @@ def _stable_hash(key):
     elif isinstance(key, int):
         hval = key
     elif isinstance(key, float):
-        mant, expo = math.frexp(key)
-        hval = _mix_hash(expo, int(mant * 0xffffffffffff))
+        trunc_key = int(key)
+        if trunc_key == key:
+            hval = trunc_key
+        else:
+            mant, expo = math.frexp(key)
+            hval = _mix_hash(expo, int(mant * 0xffffffffffff))
     elif isinstance(key, (tuple, proxied_tuple, frozenset)):
         hval = xxhash.xxh64(str(type(key))).intdigest()
         for value in key:
