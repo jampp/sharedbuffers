@@ -692,8 +692,7 @@ class proxied_list(object):
     cython.declare(
         buf = object,
         pybuf = 'Py_buffer',
-        offs = cython.ulonglong,
-        metadata = tuple
+        offs = cython.ulonglong
     )
 
     if cython.compiled:
@@ -784,7 +783,7 @@ class proxied_list(object):
             PyObject_GetBuffer(self.buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
 
         # Call metadata to check the object
-        self.metadata = self._metadata()
+        self._metadata()
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
@@ -805,7 +804,7 @@ class proxied_list(object):
     @cython.locals(obj_offs = cython.ulonglong, dcode = cython.char, index = cython.ulonglong, pindex = "unsigned long *", dataoffs = cython.ulonglong)
     def __getitem__(self, index):
 
-        dcode, objlen, itemsize, dataoffs, _struct = self.metadata
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
 
         if index >= objlen:
             raise IndexError
@@ -875,8 +874,7 @@ class proxied_list(object):
             return proxied_list_cmp(self, other) == 0
 
     def __len__(self):
-        _, objlen, _, _, _ = self.metadata
-        return objlen
+        return self._metadata()[1]
 
     def __nonzero__(self):
         return len(self) > 0
