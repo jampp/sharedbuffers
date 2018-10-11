@@ -1620,7 +1620,6 @@ class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Dic
         {'a': 1, 1: 'a', frozenset(): 1.0, (1, 2): 80000 },
     ]
 
-
 class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, DictPackingCommonTest):
     PACKING_CLASS = mapped_struct.proxied_dict
     COLLECTION_CLASS = dict
