@@ -346,7 +346,7 @@ class mapped_dict(dict):
 @cython.ccall
 @cython.locals(code=cython.ulong, nbits=cython.ulong)
 def _hash_rotl(code, nbits):
-    return (code << nbits) | (code >> (32 - nbits))
+    return (code << nbits) | (code >> (64 - nbits))
 
 
 @cython.ccall
@@ -355,15 +355,15 @@ def _mix_hash(code1, code2):
     return _hash_rotl(code1, 5) ^ code2
 
 
-_TUPLE_SEED = 4110121799
-_FSET_SEED  = 3377403095
+_TUPLE_SEED = 1626619511096549620
+_FSET_SEED  = 8212431769940327799
 
 @cython.ccall
 @cython.locals(hval=cython.ulong)
 def _stable_hash(key):
     if isinstance(key, basestring):
         hval = xxhash.xxh64(safe_utf8(key)).intdigest()
-    elif isinstance(key, int):
+    elif isinstance(key, (int, long)):
         hval = key
     elif isinstance(key, float):
         trunc_key = int(key)
@@ -387,10 +387,8 @@ def _stable_hash(key):
 
 
 def _enum_keys(obj):
-    idx = 0
-    for key in obj.iterkeys():
+    for idx, key in enumerate(obj.iterkeys()):
         yield key, idx
-        idx += 1
 
 
 class BufferIO(object):
@@ -438,9 +436,8 @@ class proxied_dict(object):
         ipos = offs
         offs += packer.size
         iobuf = BufferIO(buf, offs)
-        mapper_size = ObjectIdMapper.build(_enum_keys(obj), iobuf, map_file=False)
-        offs += mapper_size
-        packer.pack_into(buf, ipos, mapper_size)
+        offs += ObjectIdMapper.build(_enum_keys(obj), iobuf, return_mapper=False)
+        packer.pack_into(buf, ipos, iobuf.tell())
         return offs + proxied_list.pack_into(obj.values(), buf, offs, idmap, implicit_offs)
 
     @classmethod
@@ -507,10 +504,10 @@ class proxied_dict(object):
         return self.items()
 
     def __setitem__(self, index, value):
-        raise AttributeError("Proxy objects are read-only")
+        raise TypeError("Proxy objects are read-only")
 
     def __delitem__(self, index):
-        raise AttributeError("Proxy objects are read-only")
+        raise TypeError("Proxy objects are read-only")
 
     def _is_eq(self, other):
         if len(self) != len(other):
@@ -521,25 +518,25 @@ class proxied_dict(object):
                 return False
 
         return True
+    
+    def __richcmp__(self, other, op):
+        if op != 2 and op != 3:   # != Py_EQ && != Py_NE
+            diff = id(self) - id(other)
+            if op == 0:     # Py_LT
+                return diff < 0
+            elif op == 1:   # Py_LE
+                return diff <= 0
+            elif op == 4:   # Py_GT
+                return diff > 0
+            elif op == 5:   # Py_GE
+                return diff >= 0
 
-    if cython.compiled:
-        def __richcmp__(self, other, op):
-            if op != Py_EQ and op != Py_NE:
-                diff = id(self) - id(other)
-                if op == Py_LT:
-                    return diff < 0
-                elif op == Py_LE:
-                    return diff <= 0
-                elif op == Py_GT:
-                    return diff > 0
-                elif op == Py_GE:
-                    return diff >= 0
+            return False   # Shouldn't happen
 
-                return False   # Shouldn't happen
+        rv = self._is_eq(other)
+        return rv if op == 2 else not rv
 
-            rv = self._is_eq(other)
-            return rv if op == Py_EQ else not rv
-    else:
+    if not cython.compiled:
         def _cmp(self, other):
             return cmp(id(self), id(other))
 
@@ -553,7 +550,7 @@ class proxied_dict(object):
         return "proxied_dict(%s)" % self
 
     def __str__(self):
-        return "{%s}" % ", ".join(["%s: %s" % (k, v) for k, v in self.iteritems()])
+        return "{%s}" % ", ".join(["%r: %r" % (k, v) for k, v in self.iteritems()])
 
 
 if not cython.compiled:
@@ -892,10 +889,10 @@ class proxied_list(object):
         return len(self) > 0
 
     def __setitem__(self, index, value):
-        raise AttributeError("Proxy objects are read-only")
+        raise TypeError("Proxy objects are read-only")
 
     def __delitem__(self, index):
-        raise AttributeError("Proxy objects are read-only")
+        raise TypeError("Proxy objects are read-only")
 
     def __iter__(self):
         for i in xrange(len(self)):
@@ -1514,10 +1511,10 @@ class BaseBufferProxyProperty(object):
         self.mask = mask
 
     def __set__(self, obj, value):
-        raise AttributeError("Proxy objects are read-only")
+        raise TypeError("Proxy objects are read-only")
 
     def __delete__(self, obj):
-        raise AttributeError("Proxy objects are read-only")
+        raise TypeError("Proxy objects are read-only")
 
 @cython.cclass
 class BoolBufferProxyProperty(BaseBufferProxyProperty):
@@ -2625,7 +2622,7 @@ class MappedArrayProxyBase(_ZipMapBase):
     @classmethod
     @cython.locals(schema = Schema, data_pos = cython.size_t, initial_pos = cython.size_t, current_pos = object,
         schema_pos = cython.size_t, schema_end = cython.size_t)
-    def build(cls, initializer, destfile = None, tempdir = None, idmap = None):
+    def build(cls, initializer, destfile = None, tempdir = None, idmap = None, return_mapper=True):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
 
@@ -2674,7 +2671,11 @@ class MappedArrayProxyBase(_ZipMapBase):
             schema_pos - initial_pos, final_pos - schema_pos))
         destfile.flush()
         destfile.seek(final_pos)
-        return cls.map_file(destfile, initial_pos)
+
+        if return_mapper:
+            return cls.map_file(destfile, initial_pos)
+        else:
+            return final_pos
 
     @classmethod
     def map_buffer(cls, buf, offset = 0):
@@ -3869,7 +3870,7 @@ class NumericIdMapper(_CZipMapBase):
         basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong,
         discard_duplicates = cython.bint, discard_duplicate_keys = cython.bint)
     def build(cls, initializer, destfile = None, tempdir = None,
-            discard_duplicates = False, discard_duplicate_keys = False):
+            discard_duplicates = False, discard_duplicate_keys = False, return_mapper=True):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
         partsfile = partswrite = None
@@ -3993,8 +3994,11 @@ class NumericIdMapper(_CZipMapBase):
         destfile.seek(finalpos)
         destfile.flush()
 
-        rv = cls.map_file(destfile, basepos, size = finalpos - basepos)
-        destfile.seek(finalpos)
+        if return_mapper:
+            rv = cls.map_file(destfile, basepos, size = finalpos - basepos)
+            destfile.seek(finalpos)
+        else:
+            rv = finalpos
         return rv
 
     @classmethod
@@ -4103,7 +4107,8 @@ class ObjectIdMapper(_CZipMapBase):
         # Parse header and map index
         self.index_elements, self.index_offset = self._Header.unpack_from(self._buf, 0)
 
-        self.index = numpy.ndarray(buffer = self._buf,
+        self.index = numpy.ndarray(
+            buffer = self._buf,
             offset = self.index_offset,
             dtype = self.dtype,
             shape = (self.index_elements, 3))
@@ -4125,6 +4130,7 @@ class ObjectIdMapper(_CZipMapBase):
         # Just touch everything in sequential order
         self.index.max()
 
+    @cython.ccall
     def _unpack(self, buf, index):
         return mapped_object.unpack_from(buf, index)
 
@@ -4164,15 +4170,12 @@ class ObjectIdMapper(_CZipMapBase):
                             raise ValueError("Invalid buffer state")
                         for i in xrange(self.index_elements):
                             yield self._unpack(self._buf,
-                                cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs],
-                                pybuf.len)
+                                cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs])
                     finally:
                         PyBuffer_Release(cython.address(indexbuf))
                 else:
                     for i in xrange(self.index_elements):
-                        yield self._unpack(self._buf,
-                            index[i],
-                            pybuf.len)
+                        yield self._unpack(self._buf, index[i])
             finally:
                 PyBuffer_Release(cython.address(pybuf))
             #lint:enable
@@ -4241,8 +4244,7 @@ class ObjectIdMapper(_CZipMapBase):
                         for i in xrange(self.index_elements):
                             yield (
                                 self._unpack(self._buf,
-                                    cython.cast(cython.p_uint, pindex + stride1)[0],
-                                    pybuf.len),
+                                    cython.cast(cython.p_uint, pindex + stride1)[0]),
                                 cython.cast(cython.p_uint, pindex + 2*stride1)[0]
                             )
                             pindex += stride0
@@ -4251,9 +4253,7 @@ class ObjectIdMapper(_CZipMapBase):
                 else:
                     for i in xrange(self.index_elements):
                         yield (
-                            self._unpack(self._buf,
-                                index[i,1],
-                                pybuf.len, None),
+                            self._unpack(self._buf, index[i,1]),
                             index[i,2]
                         )
             finally:
@@ -4261,7 +4261,7 @@ class ObjectIdMapper(_CZipMapBase):
             #lint:enable
         else:
             for i in xrange(self.index_elements):
-                yield (self._unpack(buf, index[i,1], None), index[i,2])
+                yield (self._unpack(buf, index[i,1]), index[i,2])
 
     def items(self):
         # Bad idea, but hey, if they do this, it means the caller expects the collection to fit in RAM
@@ -4311,6 +4311,7 @@ class ObjectIdMapper(_CZipMapBase):
             return self.index.view(struct_dt).reshape(self.index.shape[0]).searchsorted(
                 numpy.array([(hkey,0,0)],dtype=struct_dt))[0]
 
+    @cython.ccall
     def _compare_keys(self, buf, offs, key):
         return self._unpack(buf, offs) == key
 
@@ -4392,7 +4393,7 @@ class ObjectIdMapper(_CZipMapBase):
     @cython.locals(
         basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong,
         dtypemax = cython.ulonglong)
-    def build(cls, initializer, destfile = None, tempdir = None, map_file=True, min_buf_size=128):
+    def build(cls, initializer, destfile = None, tempdir = None, return_mapper=True, min_buf_size=128):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
 
@@ -4480,7 +4481,7 @@ class ObjectIdMapper(_CZipMapBase):
         destfile.seek(finalpos)
         destfile.flush()
 
-        if map_file:
+        if return_mapper:
             rv = cls.map_file(destfile, basepos, size = finalpos - basepos)
             destfile.seek(finalpos)
         else:
@@ -4865,7 +4866,7 @@ class StringIdMapper(_CZipMapBase):
     @cython.locals(
         basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong,
         dtypemax = cython.ulonglong)
-    def build(cls, initializer, destfile = None, tempdir = None):
+    def build(cls, initializer, destfile = None, tempdir = None, return_mapper=True):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
 
@@ -4947,8 +4948,11 @@ class StringIdMapper(_CZipMapBase):
         destfile.seek(finalpos)
         destfile.flush()
 
-        rv = cls.map_file(destfile, basepos, size = finalpos - basepos)
-        destfile.seek(finalpos)
+        if return_mapper:
+            rv = cls.map_file(destfile, basepos, size = finalpos - basepos)
+            destfile.seek(finalpos)
+        else:
+            rv = finalpos
         return rv
 
     @classmethod
