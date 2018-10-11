@@ -34,4 +34,4 @@ cdef size_t _c_merge_f32(
     char* pdest, size_t destlength, size_t stride0) nogil except 0xFFFFFFFFFFFFFFFF
 
 cpdef size_t index_merge(index1, index2, dest) except 0xFFFFFFFFFFFFFFFF
-cpdef unsigned long long _stable_hash(key) except 0?
+cpdef unsigned long long _stable_hash(key) except? 0

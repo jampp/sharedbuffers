@@ -387,7 +387,7 @@ def _stable_hash(key):
     else:
         raise TypeError("unhashable type: %s" % type(key).__name__)
 
-    return hval
+    return hval if hval != 0 else 1
 
 
 @cython.locals(idx=int)
