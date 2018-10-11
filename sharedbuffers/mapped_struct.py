@@ -344,13 +344,13 @@ class mapped_dict(dict):
 
 
 @cython.ccall
-@cython.locals(code=cython.ulong, nbits=cython.ulong)
+@cython.locals(code=cython.ulonglong, nbits=cython.ulonglong)
 def _hash_rotl(code, nbits):
     return (code << nbits) | (code >> (64 - nbits))
 
 
 @cython.ccall
-@cython.locals(code1=cython.ulong, code2=cython.ulong)
+@cython.locals(code1=cython.ulonglong, code2=cython.ulonglong)
 def _mix_hash(code1, code2):
     return _hash_rotl(code1, 5) ^ code2
 
@@ -359,7 +359,7 @@ _TUPLE_SEED = 1626619511096549620
 _FSET_SEED  = 8212431769940327799
 
 @cython.ccall
-@cython.locals(hval=cython.ulong)
+@cython.locals(hval=cython.ulonglong)
 def _stable_hash(key):
     if isinstance(key, basestring):
         hval = xxhash.xxh64(safe_utf8(key)).intdigest()
@@ -386,6 +386,7 @@ def _stable_hash(key):
     return hval
 
 
+@cython.locals(idx=int)
 def _enum_keys(obj):
     for idx, key in enumerate(obj.iterkeys()):
         yield key, idx
