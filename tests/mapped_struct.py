@@ -143,6 +143,7 @@ class ContainerStruct(TestStruct):
 class DictStruct(TestStruct):
     __slot_types__ = {
         'd' : dict,
+        'D' : mapped_struct.proxied_dict
     }
 
 class NDArrayStruct(TestStruct):
@@ -222,7 +223,7 @@ class SchemaPicklingTest(AttributeBitmapTest):
         self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s='3', u=u'A'))
 
     def testDictStruct(self):
-        self._testStruct(DictStruct, dict(d={"a":1, "b":2}))
+        self._testStruct(DictStruct, dict(d={"a":1, "b":2}, D={"a": 1, "b": 2}))
 
     def testDatetimeStruct(self):
         self._testStruct(DatetimeStruct, dict(d=datetime.now(), D=date.today()))
@@ -1619,11 +1620,19 @@ class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Dic
         {'a': 1, 1: 'a', frozenset(): 1.0, (1, 2): 80000 },
     ]
 
-    def testMappedDictIdmapHandling(self):
-        buf = bytearray(1024)
-        mapped_struct.mapped_list.pack_into(self.TEST_DICTS, buf, 0)
-        unpacked = mapped_struct.mapped_list.unpack_from(buf, 0)
-        self.assertEqual(unpacked, self.TEST_DICTS)
+class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, DictPackingCommonTest):
+    PACKING_CLASS = mapped_struct.proxied_dict
+    COLLECTION_CLASS = dict
+
+    TEST_DICTS = [
+        {},
+        {'a': 'a2', 'b': 'b2', 'c': 'c2'},
+        {1: 10, 2: 20, 3: 30},
+        {'a': frozenset(), 'b': (1, 2), 'c': 1.0, 'd': [1, 2], 'e': dict(a=1) },
+        {0: 42, 'a1_@!': 69, 3.5: 'uhhhh', (1, 2, 3): "four-five-six"},
+        {frozenset([1, 2]) : 97.9},
+        {1.0: "test floats equivalent to integers"}
+    ]
 
 class MappedDatetimePackingTest(unittest.TestCase):
 
