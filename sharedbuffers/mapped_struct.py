@@ -518,7 +518,7 @@ class proxied_dict(object):
                 return False
 
         return True
-    
+
     def __richcmp__(self, other, op):
         if op != 2 and op != 3:   # != Py_EQ && != Py_NE
             diff = id(self) - id(other)
@@ -556,6 +556,7 @@ class proxied_dict(object):
 if not cython.compiled:
     for orig, new in (('_cmp', '__cmp__'), ('_eq', '__eq__'), ('_ne', '__ne__')):
         setattr(proxied_dict, new, getattr(proxied_dict, orig))
+    delattr(proxied_dict, '__richcmp__')
 
 
 class proxied_buffer(object):
