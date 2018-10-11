@@ -506,6 +506,12 @@ class proxied_dict(object):
     def viewitems(self):
         return self.items()
 
+    def __setitem__(self, index, value):
+        raise AttributeError("Proxy objects are read-only")
+
+    def __delitem__(self, index):
+        raise AttributeError("Proxy objects are read-only")
+
     def _is_eq(self, other):
         if len(self) != len(other):
             return False
@@ -543,8 +549,11 @@ class proxied_dict(object):
         def _ne(self, other):
             return not self._is_eq(other)
 
+    def __repr__(self):
+        return "proxied_dict(%s)" % self
+
     def __str__(self):
-        return "proxied_dict({%s})" % ", ".join(["%s: %s" % (k, v) for k, v in self.iteritems()])
+        return "{%s}" % ", ".join(["%s: %s" % (k, v) for k, v in self.iteritems()])
 
 
 if not cython.compiled:
