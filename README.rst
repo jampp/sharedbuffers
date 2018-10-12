@@ -7,8 +7,6 @@ support writes too) efficiently without serialization or deserialization.
 The main supported implementation of obtaining shared memory is by memory-mapping files, but the library also supports
 mapping buffers (anonymous mmap objects) as well, albeit they're harder to share among processes.
 
-Currently, most primitive types and collections are supported, except `dicts`.
-
 Supported primivite types:
 
     * int (up to 64 bit precision)
@@ -16,6 +14,7 @@ Supported primivite types:
     * unicode
     * frozenset
     * tuple / list
+    * dict
 
 Primitive types are cloned into their actual builtin objects when accessed. Although fast, it does imply that contianers
 will take up a lot of process-local memory when accessed. Support for collection proxies that take the place of
@@ -88,8 +87,9 @@ identify the custom types:
 
 From then on, `SomeStruct` can be used as any other type when declaring field types.
 
-High-level typed container classes can be created by inheriting the proper base class. Currently, there are only
-arrays and mappings of two kinds: string-to-object, and uint-to-object
+High-level typed container classes can be created by inheriting the proper base class. Currently, there are
+three kind of mappings supported: string-to-object, uint-to-object and a generic object-to-object. The first
+two are provided for efficiency's sake; use the generic one when the others won't do.
 
 .. code:: python
 
@@ -100,6 +100,9 @@ arrays and mappings of two kinds: string-to-object, and uint-to-object
         ValueArray = StructArray
     class StructIdMapping(mapped_struct.MappedMappingProxyBase):
         IdMapper = mapped_struct.NumericIdMapper
+        ValueArray = StructArray
+    class StructObjectMapping(mapped_struct.MappedMappingProxyBase):
+        IdMapper = mapped_struct.ObjectIdMapper
         ValueArray = StructArray
 
 The API for these high-level container objects is aimed at collections that don't really fit in RAM in their
