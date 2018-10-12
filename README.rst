@@ -15,10 +15,15 @@ Supported primivite types:
     * frozenset
     * tuple / list
     * dict
+    * buffer
+    * date
+    * datetime
+    * numpy arrays
 
-Primitive types are cloned into their actual builtin objects when accessed. Although fast, it does imply that contianers
-will take up a lot of process-local memory when accessed. Support for collection proxies that take the place of
-builtin containers is planned for a future release.
+Primitive types can be cloned into their actual builtin objects (As specified by the mapped types), which is fast,
+but potentially memory-intensive. In addition, they can be proxied, in which case they will be built directly
+on top of the memory mapping, without the need for constructing the actual object. Proxied objects aim at supporting
+the same interface as the builtin containers.
 
 Objects can be registered with schema serializers and thus composite types can be mapped as well. For this to function
 properly, objects need a class attribute specifying the attributes it holds and the type of the attributes. When an
