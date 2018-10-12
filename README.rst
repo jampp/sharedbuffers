@@ -19,6 +19,7 @@ Supported primivite types:
     * date
     * datetime
     * numpy arrays
+    * decimal
 
 Primitive types can be cloned into their actual builtin objects (As specified by the mapped types), which is fast,
 but potentially memory-intensive. In addition, they can be proxied, in which case they will be built directly
