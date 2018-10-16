@@ -703,7 +703,9 @@ class proxied_list(object):
     cython.declare(
         buf = object,
         pybuf = 'Py_buffer',
-        offs = cython.ulonglong
+        offs = cython.ulonglong,
+        elem_start = cython.ulonglong,
+        elem_end = cython.longlong
     )
 
     if cython.compiled:
@@ -781,10 +783,13 @@ class proxied_list(object):
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
 
-    @cython.locals(offs = cython.ulonglong, idmap = dict)
-    def __init__(self, buf, offs, idmap = None):
+    @cython.locals(offs = cython.ulonglong, idmap = dict, elem_start = cython.ulonglong,
+        elem_end = cython.longlong)
+    def __init__(self, buf, offs, idmap = None, elem_start = 0, elem_end = -1):
         self.offs = offs
         self.buf = buf
+        self.elem_start = elem_start
+        self.elem_end = elem_end
         self._init()
 
     @cython.ccall
@@ -812,13 +817,36 @@ class proxied_list(object):
         buf = _likerobuffer(buf)
         return cls(buf, offs, idmap)
 
-    @cython.locals(obj_offs = cython.ulonglong, dcode = cython.char, index = cython.ulonglong, pindex = "unsigned long *", dataoffs = cython.ulonglong)
-    def __getitem__(self, index):
+    def _getslice(self, start, end, step):
+        if step < 0:
+            while end >= start:
+                yield self[end + step]
+                end += step
+        else:
+            while start < end:
+                yield self[start]
+                start += step
+
+
+    @cython.locals(obj_offs = cython.ulonglong, dcode = cython.char, index = cython.longlong, pindex = "unsigned long *",
+        dataoffs = cython.ulonglong, xlen = cython.ulonglong)
+    def _getitem(self, index):
 
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+        xlen = objlen
 
-        if index >= objlen:
+        if self.elem_end >= 0:
+            xlen = self.elem_end - self.elem_start
+        else:
+            xlen = objlen
+
+        if index < 0:
+            index += xlen
+
+        if index >= xlen:
             raise IndexError
+
+        index += self.elem_start
 
         if dcode == 't':
             if cython.compiled:
@@ -864,6 +892,37 @@ class proxied_list(object):
 
         return res
 
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            start, end, step = index.start, index.stop, index.step
+            xlen = len(self)
+
+            if start is None:
+                start = 0
+            elif start < 0:
+                start = xlen + start
+
+            start += self.elem_start
+
+            if end is None:
+                end = xlen
+            elif end < 0:
+                end = xlen + end
+
+            if step is not None and step != 1:
+                return self._getslice(start, end, step)
+            elif start >= xlen:
+                return []
+            else:
+                return proxied_tuple(
+                    buf = self.buf,
+                    offs = self.offs,
+                    idmap = None,
+                    elem_start = start,
+                    elem_end = min(end, xlen))
+
+        return self._getitem(index)
+
     @cython.locals(op = cython.char)
     def  __richcmp__(self, other, op):
         return proxied_list_richcmp(self, other, op)
@@ -885,6 +944,8 @@ class proxied_list(object):
             return proxied_list_cmp(self, other) == 0
 
     def __len__(self):
+        if self.elem_end >= 0:
+            return self.elem_end - self.elem_start
         return self._metadata()[1]
 
     def __nonzero__(self):

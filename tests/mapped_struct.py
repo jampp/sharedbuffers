@@ -1483,11 +1483,11 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
 
     def testProxiedListSetItem(self):
         c = self.pack([1, 2, 3])
-        self.assertRaises(AttributeError, c.__setitem__, 0, 1)
+        self.assertRaises(TypeError, c.__setitem__, 0, 1)
 
     def testProxiedListDelItem(self):
         c = self.pack([1, 2, 3])
-        self.assertRaises(AttributeError, c.__delitem__, 0)
+        self.assertRaises(TypeError, c.__delitem__, 0)
 
     def testProxiedListStr(self):
         c = self.pack([1, 2.0])
@@ -1499,6 +1499,14 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
 
     def testProxiedListSpecificEqual(self):
         self.assertEquals(self.pack([1, 2.0]), (1, 2.0))
+
+    def testProxiedListSlice(self):
+        obj = self.pack([0, 1, 2, 3, 4, 5])
+        x = obj[1:]
+        self.assertEquals(obj[1:], (1, 2, 3, 4, 5))
+        self.assertEquals(obj[:-1], (0, 1, 2, 3, 4))
+        self.assertEquals(obj[2:4], (2, 3))
+        self.assertEquals(tuple(obj[1:-1:2]), (1, 3))
 
 class ProxiedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest, IndexedCollectionPackingTest):
     PACKING_CLASS = mapped_struct.proxied_tuple
