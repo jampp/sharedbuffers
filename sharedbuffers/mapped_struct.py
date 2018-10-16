@@ -704,8 +704,8 @@ class proxied_list(object):
         buf = object,
         pybuf = 'Py_buffer',
         offs = cython.ulonglong,
-        elem_start = cython.ulonglong,
-        elem_end = cython.ulonglong,
+        elem_start = cython.longlong,
+        elem_end = cython.longlong,
         elem_step = cython.longlong
     )
 
@@ -784,8 +784,8 @@ class proxied_list(object):
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
 
-    @cython.locals(offs = cython.ulonglong, idmap = dict, elem_start = cython.ulonglong,
-        elem_end = cython.ulonglong, elem_step = cython.longlong)
+    @cython.locals(offs = cython.ulonglong, idmap = dict, elem_start = cython.longlong,
+        elem_end = cython.longlong, elem_step = cython.longlong)
     def __init__(self, buf, offs, idmap = None, elem_start = 0, elem_end = 0, elem_step = 0):
         self.offs = offs
         self.buf = buf
@@ -821,23 +821,26 @@ class proxied_list(object):
 
 
     @cython.locals(obj_offs = cython.ulonglong, dcode = cython.char, index = cython.longlong, pindex = "unsigned long *",
-        dataoffs = cython.ulonglong, xlen = cython.ulonglong)
+        dataoffs = cython.ulonglong, objlen = cython.longlong, xlen = cython.longlong, step = cython.longlong)
     def _getitem(self, index):
 
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         xlen = objlen
+        step = 1
 
         if self.elem_step != 0:
-            xlen = self.elem_end - self.elem_start
-            index *= self.elem_step
+            step = abs(self.elem_step)
+            if self.elem_step > 0:
+                xlen = (self.elem_end - self.elem_start - 1) / step + 1
+            else:
+                xlen = (self.elem_start - self.elem_end - 1) / step + 1
+            index = self.elem_start + index * self.elem_step
 
         if index < 0:
             index += xlen
 
-        if index >= xlen or index < 0 or index >= objlen:
+        if (index / step) >= max(xlen, objlen) or index < 0:
             raise IndexError
-
-        index += self.elem_start
 
         if dcode == 't':
             if cython.compiled:
@@ -883,36 +886,69 @@ class proxied_list(object):
 
         return res
 
+    @staticmethod
+    def _adjust_min(val, nmax, step):
+        val = min(val, nmax)
+        if step < 0 and val == nmax:
+            val -= 1
+        return val
+
+
     def __getitem__(self, index):
         if isinstance(index, slice):
             start, end, step = index.start, index.stop, index.step
             xlen = len(self)
 
-            if start is None:
-                start = 0
-            elif start < 0:
-                start = xlen + start
-
-            start += self.elem_start
-
-            if end is None:
-                end = xlen
-            elif end < 0:
-                end = xlen + end
+            # Lots of adjustments going on here in order to correctly
+            # set the start and end indexes.
 
             if step is None:
                 step = 1
+            elif step == 0:
+                raise ValueError("slice step cannot be zero")
 
-            if start >= xlen:
-                return []
+            if start is None:
+                start = self.elem_start if step > 0 else xlen - 1
             else:
-                return proxied_tuple(
-                    buf = self.buf,
-                    offs = self.offs,
-                    idmap = None,
-                    elem_start = start,
-                    elem_end = min(end, xlen),
-                    elem_step = step)
+                start += self.elem_start
+                if start < 0:
+                    start = xlen + start
+                    if start < 0:
+                        start = -1 if step < 0 else 0
+                elif start >= xlen:
+                    start = xlen if step > 0 else xlen - 1
+
+            if end is None:
+                end = xlen if step > 0 else -1
+            elif end < 0:
+                end = xlen + end
+                if end < 0:
+                    end = 0 if step > 0 else -1
+
+            end = self._adjust_min(end, xlen, step)
+            start = self._adjust_min(start, xlen, step)
+
+            if step < 0:
+                if end >= start:
+                    return []
+                r_len = (start - end - 1) / (-step) + 1
+                end = (r_len - 1) * step + start - 1
+            elif start >= end:
+                return ()
+            else:
+                r_len = (end - start - 1) / step + 1
+                end = (r_len - 1) * step + start + 1
+
+            if r_len == 0:
+                return ()
+
+            return proxied_tuple(
+                buf = self.buf,
+                offs = self.offs,
+                idmap = None,
+                elem_start = start,
+                elem_end = end,
+                elem_step = step)
 
         return self._getitem(index)
 
@@ -937,9 +973,12 @@ class proxied_list(object):
             return proxied_list_cmp(self, other) == 0
 
     def __len__(self):
-        if self.elem_step != 0:
-            return (self.elem_end - self.elem_start) / abs(self.elem_step)
-        return self._metadata()[1]
+        if self.elem_step == 0:
+            return self._metadata()[1]
+        elif self.elem_step < 0:
+            return (self.elem_start - self.elem_end - 1) / (-self.elem_step) + 1
+        else:
+            return (self.elem_end - self.elem_start - 1) / self.elem_step + 1
 
     def __nonzero__(self):
         return len(self) > 0
