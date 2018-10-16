@@ -834,7 +834,7 @@ class proxied_list(object):
         if index < 0:
             index += xlen
 
-        if index >= xlen:
+        if index >= xlen or index < 0 or index >= objlen:
             raise IndexError
 
         index += self.elem_start
