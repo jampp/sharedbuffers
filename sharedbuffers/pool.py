@@ -98,7 +98,7 @@ class BaseObjectPool(object):
         else:
             section = self.add_section()
             pos = self._pack_into(schema, obj, section)
-        return schema.unpack_from(section.real_buf, pos)
+        return pos, schema.unpack_from(section.real_buf, pos)
 
     def clear_idmaps(self):
         for section in self.sections:

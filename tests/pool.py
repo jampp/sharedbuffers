@@ -38,7 +38,7 @@ class SmallIntContainerPackingTest(unittest.TestCase):
         p = pool.TemporaryObjectPool()
         for TEST_VALUES in self.TEST_VALUES:
             x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
-            dx = p.pack(self.schema, x)
+            dx = p.pack(self.schema, x)[1]
             for k,v in TEST_VALUES.iteritems():
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
@@ -51,7 +51,7 @@ class SmallIntContainerPackingTest(unittest.TestCase):
         for i in xrange(300):
             for TEST_VALUES in self.TEST_VALUES:
                 x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
-                dx = p.pack(self.schema, x)
+                dx = p.pack(self.schema, x)[1]
                 for k,v in TEST_VALUES.iteritems():
                     self.assertTrue(hasattr(dx, k))
                     self.assertEqual(getattr(dx, k), v)
