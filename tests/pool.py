@@ -45,3 +45,17 @@ class SmallIntContainerPackingTest(unittest.TestCase):
             for k in self.Struct.__slots__:
                 if k not in TEST_VALUES:
                     self.assertFalse(hasattr(dx, k))
+
+    def testOverflow(self):
+        p = pool.TemporaryObjectPool(section_size=4096)
+        for i in xrange(300):
+            for TEST_VALUES in self.TEST_VALUES:
+                x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+                dx = p.pack(self.schema, x)
+                for k,v in TEST_VALUES.iteritems():
+                    self.assertTrue(hasattr(dx, k))
+                    self.assertEqual(getattr(dx, k), v)
+                for k in self.Struct.__slots__:
+                    if k not in TEST_VALUES:
+                        self.assertFalse(hasattr(dx, k))
+        self.assertGreater(len(p.sections), 1)
