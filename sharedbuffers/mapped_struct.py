@@ -108,6 +108,7 @@ def _likerobuffer(buf):
 
 class mapped_frozenset(frozenset):
     @classmethod
+    @cython.locals(cbuf = 'unsigned char[:]', i=int, ix=int, offs=cython.longlong)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         all_int = 1
         for x in obj:
@@ -119,10 +120,22 @@ class mapped_frozenset(frozenset):
             minval = min(obj) if obj else 0
             if 0 <= minval and maxval < 120:
                 # inline bitmap
-                buf[offs] = 'm'
-                buf[offs+1:offs+8] = '\x00\x00\x00\x00\x00\x00\x00\x00'
-                for x in obj:
-                    buf[offs+1+x/8] |= 1 << (x & 7)
+                try:
+                    cbuf = buf
+                    isbuffer = True
+                except:
+                    isbuffer = False
+                if cython.compiled and isbuffer:
+                    cbuf[offs] = 'm'
+                    for i in xrange(1, 8):
+                        cbuf[offs+i] = 0
+                    for ix in obj:
+                        cbuf[offs+1+ix/8] |= 1 << (ix & 7)
+                else:
+                    buf[offs:offs+1] = 'm'
+                    buf[offs+1:offs+8] = '\x00\x00\x00\x00\x00\x00\x00'
+                    for x in obj:
+                        buf[offs+1+x/8] |= 1 << (x & 7)
                 offs += 8
                 return offs
             else:
@@ -1416,6 +1429,16 @@ class mapped_object(object):
         PROXY_TYPES[packable] = SchemaBufferProxyProperty
         return packable
 
+    @classmethod
+    def register_subclass(cls, typ, supertyp):
+        if supertyp not in cls.TYPE_CODES:
+            raise ValueError("Superclass not registered: %r" % (supertyp,))
+
+        typecode = cls.TYPE_CODES[supertyp]
+        cls.TYPE_CODES[typ] = typecode
+        PROXY_TYPES[typ] = PROXY_TYPES[supertyp]
+        return cls.OBJ_PACKERS[typecode][2]
+
     def __init__(self, value = None, typ = None, TYPE_CODES = TYPE_CODES):
         if value is None:
             self.typecode = None
@@ -1971,6 +1994,9 @@ class Schema(object):
         packer_cache = object,
         unpacker_cache = object,
 
+        prewrite_hook = object,
+        postwrite_hook = object,
+
         _Proxy = object,
         _proxy_bases = tuple,
 
@@ -2022,6 +2048,20 @@ class Schema(object):
 
     def set_proxy_bases(self, bases):
         self._proxy_bases = bases
+
+    def set_prewrite_hook(self, hook):
+        """
+        A callable that will be invoked with arguments (obj, buf, baseoffs)
+        each time an object is about to be packed into a buffer.
+        """
+        self.prewrite_hook = hook
+
+    def set_postwrite_hook(self, hook):
+        """
+        A callable that will be invoked with arguments (obj, buf, baseoffs, offs)
+        each time after an object has been packed into a buffer.
+        """
+        self.postwrite_hook = hook
 
     @cython.locals(other_schema = 'Schema')
     def compatible(self, other):
@@ -2268,7 +2308,7 @@ class Schema(object):
                             except:
                                 pass
                             else:
-                                raise e
+                                raise type(e), e, sys.exc_info()[2]
                             raise
                         padding = (offs + alignment - 1) / alignment * alignment - offs
                         offs += padding
@@ -2290,6 +2330,8 @@ class Schema(object):
             packer, padding = self.get_packer(obj)
         baseoffs = offs
         packable, offs = self.get_packable(packer, padding, obj, offs, buf, idmap, implicit_offs)
+        if self.prewrite_hook is not None:
+            self.prewrite_hook(obj, buf, offs)
         try:
             packer.pack_into(buf, baseoffs, *packable)
         except struct.error as e:
@@ -2301,6 +2343,8 @@ class Schema(object):
             ))
         if offs > len(buf):
             raise RuntimeError("Buffer overflow")
+        if self.postwrite_hook is not None:
+            self.postwrite_hook(obj, buf, baseoffs, offs)
         return offs
 
     @cython.ccall
