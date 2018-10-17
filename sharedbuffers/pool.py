@@ -100,6 +100,17 @@ class BaseObjectPool(object):
             pos = self._pack_into(schema, obj, section)
         return pos + section.implicit_offs, schema.unpack_from(section.real_buf, pos)
 
+    def find_section(self, pos):
+        for section in self.sections:
+            if section.implicit_offs <= pos < section.implicit_offs + len(section.buf):
+                return section
+
+    def unpack(self, schema, pos):
+        section = self.find_section(pos)
+        if section is None:
+            raise IndexError("Position %d out of bounds for object pool" % pos)
+        return schema.unpack_from(section.real_buf, pos - section.implicit_offs)
+
     def clear_idmaps(self):
         for section in self.sections:
             self.idmap.clear()

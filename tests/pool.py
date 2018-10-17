@@ -59,3 +59,16 @@ class SmallIntContainerPackingTest(unittest.TestCase):
                     if k not in TEST_VALUES:
                         self.assertFalse(hasattr(dx, k))
         self.assertGreater(len(p.sections), 1)
+
+    def testUnpack(self):
+        p = pool.TemporaryObjectPool()
+        for TEST_VALUES in self.TEST_VALUES:
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            pos = p.pack(self.schema, x)[0]
+            dx = p.unpack(self.schema, pos)
+            for k,v in TEST_VALUES.iteritems():
+                self.assertTrue(hasattr(dx, k))
+                self.assertEqual(getattr(dx, k), v)
+            for k in self.Struct.__slots__:
+                if k not in TEST_VALUES:
+                    self.assertFalse(hasattr(dx, k))
