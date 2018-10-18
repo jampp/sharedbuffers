@@ -535,7 +535,7 @@ class proxied_dict(object):
         iobuf = BufferIO(buf, offs)
         offs += ObjectIdMapper.build(_enum_keys(obj), iobuf, return_mapper=False)
         packer.pack_into(buf, ipos, iobuf.tell())
-        return offs + proxied_list.pack_into(obj.values(), buf, offs, idmap, implicit_offs)
+        return proxied_list.pack_into(obj.values(), buf, offs, idmap, implicit_offs)
 
     @classmethod
     def unpack_from(cls, buf, offs, idmap = None):

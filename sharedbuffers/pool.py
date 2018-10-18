@@ -5,6 +5,8 @@ import tempfile
 import mmap
 import struct
 
+from .mapped_struct import StrongIdMap
+
 # Default section size is set to 128MB which is a size at which most
 # malloc implementations turn to mmap
 DEFAULT_SECTION_SIZE = 128<<20
@@ -18,7 +20,7 @@ class Section(object):
         self.real_buf = buffer(buf)
         self.implicit_offs = implicit_offs
         self.write_pos = 0
-        self.idmap = {}
+        self.idmap = StrongIdMap()
 
     def allocate(self, size=None):
         write_pos = self.write_pos
