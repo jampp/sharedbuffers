@@ -17,6 +17,7 @@ import zipfile
 import math
 import sys
 import collections
+import weakref
 from datetime import timedelta, datetime, date
 from decimal import Decimal
 import numpy as np
@@ -106,6 +107,77 @@ def _likerobuffer(buf):
     else:
         return buffer(buf)
 
+class NONE:
+    pass
+
+@cython.cclass
+class StrongIdMap(object):
+    cython.declare(
+        idmap = dict,
+        objmap = object,
+        strong_refs = dict,
+    )
+
+    def __init__(self):
+        self.idmap = {}
+        self.strong_refs = {}
+        self.objmap = weakref.WeakValueDictionary()
+
+    def __setitem__(self, key, value):
+        self.idmap[key] = value
+        self.objmap[key] = NONE
+
+    def __getitem__(self, key):
+        if key not in self.objmap:
+            self.idmap.pop(key, None)
+            raise KeyError(key)
+        return self.idmap[key]
+
+    def __delitem__(self, key):
+        self.objmap.pop(key, None)
+        self.strong_refs.pop(key, None)
+        del self.idmap[key]
+
+    def __contains__(self, key):
+        return key in self.idmap and key in self.objmap
+
+    def clear(self):
+        self.objmap.clear()
+        self.idmap.clear()
+        self.strong_refs.clear()
+
+    def get(self, key, default=None):
+        if key not in self.objmap:
+            self.idmap.pop(key, None)
+            return default
+        return self.idmap.get(key, default)
+
+    def pop(self, key, default=NONE):
+        orv = self.objmap.pop(key, NONE)
+        rv = self.idmap.pop(key, NONE)
+        self.strong_refs.pop(key, None)
+        if orv is NONE:
+            rv = NONE
+        if rv is not NONE:
+            return rv
+        elif default is NONE:
+            raise KeyError(key)
+        else:
+            return default
+
+    @cython.ccall
+    @cython.returns(cython.bint)
+    def link(self, key, obj):
+        try:
+            self.objmap[key] = obj
+            return True
+        except TypeError:
+            # Not weakly referenceable, try to hold a strong reference then to stop
+            # its id from being reused while we hold its idmap entry
+            self.strong_refs[key] = obj
+            return False
+
+
 class mapped_frozenset(frozenset):
     @classmethod
     @cython.locals(cbuf = 'unsigned char[:]', i=int, ix=int, offs=cython.longlong)
@@ -184,8 +256,9 @@ class mapped_frozenset(frozenset):
 
 class mapped_tuple(tuple):
     @classmethod
+    @cython.locals(strong_refs = list, widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
-            int = int, type = type, min = min, max = max, array = array.array, id = id):
+            array = array.array):
         all_int = 1
         all_float = 1
         baseoffs = offs
@@ -262,7 +335,11 @@ class mapped_tuple(tuple):
             offs += len(buffer(index))
 
             if idmap is None:
-                idmap = {}
+                idmap = StrongIdMap()
+            if isinstance(idmap, StrongIdMap):
+                widmap = idmap
+            else:
+                widmap = None
 
             for i,x in enumerate(obj):
                 if x is not None:
@@ -270,6 +347,8 @@ class mapped_tuple(tuple):
                     xid = id(x) | (0xFL << 64)
                     if xid not in idmap:
                         idmap[xid] = val_offs = offs + implicit_offs
+                        if widmap is not None:
+                            widmap.link(xid, x)
                         mx = mapped_object(x)
                         offs = mx.pack_into(mx, buf, offs, idmap, implicit_offs)
                     else:
@@ -1107,11 +1186,15 @@ class mapped_bytes(bytes):
     @cython.locals(
         offs = cython.longlong, implicit_offs = cython.longlong,
         objlen = cython.size_t, objcomplen = cython.size_t, obj = bytes, objcomp = bytes,
-        pbuf = 'char *', pybuf='Py_buffer', compressed = cython.ushort)
+        pbuf = 'char *', pybuf='Py_buffer', compressed = cython.ushort,
+        widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
             objid = id(obj)
             idmap[objid] = offs + implicit_offs
+            if isinstance(idmap, StrongIdMap):
+                widmap = idmap
+                widmap.link(objid, obj)
         objlen = len(obj)
 
         if objlen > MIN_COMPRESS_THRESHOLD:
@@ -1171,10 +1254,14 @@ _mapped_bytes = cython.declare(object, mapped_bytes)
 
 class mapped_unicode(unicode):
     @classmethod
+    @cython.locals(widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
             objid = id(obj)
             idmap[objid] = offs + implicit_offs
+            if isinstance(idmap, StrongIdMap):
+                widmap = idmap
+                widmap.link(objid, obj)
 
         return mapped_bytes.pack_into(obj.encode("utf8"), buf, offs, None, implicit_offs)
 
@@ -1192,11 +1279,15 @@ class mapped_decimal(Decimal):
     PACKER = struct.Struct('=q')
 
     @classmethod
-    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, exponent = cython.longlong, sign = cython.uchar)
+    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, exponent = cython.longlong,
+        sign = cython.uchar, widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
             objid = id(obj)
             idmap[objid] = offs + implicit_offs
+            if isinstance(idmap, StrongIdMap):
+                widmap = idmap
+                widmap.link(objid, obj)
 
         if not isinstance(obj, (Decimal, cDecimal)):
             obj = cDecimal(obj)
@@ -1229,11 +1320,15 @@ class mapped_datetime(datetime):
     PACKER = struct.Struct('=q')
 
     @classmethod
-    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong)
+    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong,
+        widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
             objid = id(obj)
             idmap[objid] = offs + implicit_offs
+            if isinstance(idmap, StrongIdMap):
+                widmap = idmap
+                widmap.link(objid, obj)
 
         packer = cls.PACKER
         timestamp = int(time.mktime(obj.timetuple()))
@@ -1260,11 +1355,15 @@ class mapped_date(date):
     PACKER = struct.Struct('=q')
 
     @classmethod
-    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong)
+    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong,
+        widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
             objid = id(obj)
             idmap[objid] = offs + implicit_offs
+            if isinstance(idmap, StrongIdMap):
+                widmap = idmap
+                widmap.link(objid, obj)
 
         packer = cls.PACKER
         timestamp = int(time.mktime(obj.timetuple()))
@@ -1507,6 +1606,7 @@ del t
 @cython.cclass
 class BufferProxyObject(object):
     cython.declare(
+        __weakref__ = object,
         buf = object,
         idmap = object,
         pybuf = 'Py_buffer',
@@ -2265,11 +2365,16 @@ class Schema(object):
     @cython.ccall
     @cython.locals(has_bitmap = cython.ulonglong, none_bitmap = cython.ulonglong, present_bitmap = cython.ulonglong,
         i = int, size = int, alignment = int, padding = int, mask = cython.ulonglong,
-        offs = cython.longlong, implicit_offs = cython.longlong, ival_offs = cython.longlong)
+        offs = cython.longlong, implicit_offs = cython.longlong, ival_offs = cython.longlong,
+        widmap = StrongIdMap)
     @cython.returns(tuple)
     def get_packable(self, packer, padding, obj, offs = 0, buf = None, idmap = None, implicit_offs = 0):
         if idmap is None:
-            idmap = {}
+            idmap = StrongIdMap()
+        if isinstance(idmap, StrongIdMap):
+            widmap = idmap
+        else:
+            widmap = None
         baseoffs = offs
         if buf is None:
             buf = self._pack_buffer
@@ -2298,6 +2403,8 @@ class Schema(object):
                     val_offs = idmap_get(val_id)
                     if val_offs is None:
                         idmap[val_id] = ival_offs = offs + implicit_offs
+                        if widmap is not None:
+                            widmap.link(val_id, val)
                         try:
                             offs = slot_types[slot].pack_into(val, buf, offs, idmap, implicit_offs)
                         except Exception as e:
@@ -2325,7 +2432,7 @@ class Schema(object):
     @cython.ccall
     def pack_into(self, obj, buf, offs, idmap = None, packer = None, padding = None, implicit_offs = 0):
         if idmap is None:
-            idmap = {}
+            idmap = StrongIdMap()
         if packer is None:
             packer, padding = self.get_packer(obj)
         baseoffs = offs

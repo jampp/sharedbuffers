@@ -306,6 +306,19 @@ class BasePackingTestMixin(object):
                 if k not in TEST_VALUES:
                     self.assertFalse(hasattr(dx, k))
 
+    def testPackRepack(self):
+        for TEST_VALUES in self.TEST_VALUES:
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            dx = self.schema.unpack(self.schema.pack(x))
+            dx = self.schema.unpack(self.schema.pack(dx))
+            for k,v in TEST_VALUES.iteritems():
+                self.assertTrue(hasattr(dx, k))
+                self.assertEqual(getattr(dx, k), v)
+            for k in self.Struct.__slots__:
+                if k not in TEST_VALUES:
+                    self.assertFalse(hasattr(dx, k))
+
+
 class SimplePackingTest(BasePackingTestMixin, unittest.TestCase):
     Struct = SimpleStruct
     TEST_VALUES = [
@@ -501,6 +514,9 @@ class NestedObjectPackagingTest(SimplePackingTest):
         else:
             return super(NestedObjectPackagingTest, self).assertEqual(value, expected, *p, **kw)
 
+    # Not supported without a registered schema
+    testPackRepack = None
+
 class NestedTypedObjectPackagingTest(NestedObjectPackagingTest):
     SubStruct = ContainerStruct
     subschema = mapped_struct.Schema.from_typed_slots(SubStruct)
@@ -517,6 +533,9 @@ class NestedTypedObjectPackagingTest(NestedObjectPackagingTest):
             }),
         },
     ]
+
+    # Reinstate testPackRepack
+    testPackRepack = SimplePackingTest.testPackRepack
 
     def setUp(self):
         class ContainerObjectStruct(object):
@@ -1483,11 +1502,11 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
 
     def testProxiedListSetItem(self):
         c = self.pack([1, 2, 3])
-        self.assertRaises(AttributeError, c.__setitem__, 0, 1)
+        self.assertRaises(TypeError, c.__setitem__, 0, 1)
 
     def testProxiedListDelItem(self):
         c = self.pack([1, 2, 3])
-        self.assertRaises(AttributeError, c.__delitem__, 0)
+        self.assertRaises(TypeError, c.__delitem__, 0)
 
     def testProxiedListStr(self):
         c = self.pack([1, 2.0])
