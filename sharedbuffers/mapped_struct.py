@@ -29,6 +29,11 @@ except:
 
 from chorde.clients.inproc import Cache
 
+try:
+    from chorde.clients.inproc import CuckooCache as FastCache
+except ImportError:
+    FastCache = Cache
+
 import cython
 
 npuint64 = cython.declare(object, numpy.uint64)
@@ -113,15 +118,30 @@ class NONE:
 @cython.cclass
 class StrongIdMap(object):
     cython.declare(
+        __weakref__ = object,
         idmap = dict,
         objmap = object,
-        strong_refs = dict,
+        strong_refs = object,
     )
 
-    def __init__(self):
+    def __init__(self, strong_limit = 128 << 20, preallocate = False):
         self.idmap = {}
-        self.strong_refs = {}
+        self.strong_refs = FastCache(
+            strong_limit,
+            eviction_callback = functools.partial(
+                self._on_strong_evict,
+                weakref.ref(self),
+            ),
+            preallocate = preallocate,
+        )
         self.objmap = weakref.WeakValueDictionary()
+
+    @staticmethod
+    @cython.locals(self = 'StrongIdMap')
+    def _on_strong_evict(wself, key, value):
+        self = wself()
+        if self is not None:
+            self.pop(key, None)
 
     def __len__(self):
         return len(self.idmap)
@@ -180,6 +200,7 @@ class StrongIdMap(object):
             return default
         return self.idmap.get(key, default)
 
+    @cython.ccall
     def pop(self, key, default=NONE):
         orv = self.objmap.pop(key, NONE)
         rv = self.idmap.pop(key, NONE)
@@ -196,6 +217,11 @@ class StrongIdMap(object):
     @cython.ccall
     @cython.returns(cython.bint)
     def link(self, key, obj):
+        if isinstance(obj, (proxied_list, proxied_dict, BufferProxyObject)):
+            # There's no need to link lifecycles, the object
+            # is identified uniquely by its buffer mapping and that is a stable id
+            return True
+
         try:
             self.objmap[key] = obj
             return True
@@ -204,6 +230,24 @@ class StrongIdMap(object):
             # its id from being reused while we hold its idmap entry
             self.strong_refs[key] = obj
             return False
+
+
+@cython.ccall
+@cython.locals(lobj = proxied_list, dobj = proxied_dict, oobj = BufferProxyObject)
+def shared_id(obj):
+    # (id(buf), offs) of buffer-mapped proxies
+    if isinstance(obj, proxied_list):
+        lobj = obj
+        return (id(lobj.buf) << 64) | lobj.offs
+    elif isinstance(obj, proxied_dict):
+        dobj = obj
+        return (id(dobj.buf) << 64) | dobj.offs
+    elif isinstance(obj, BufferProxyObject):
+        oobj = obj
+        return (id(oobj.buf) << 64) | oobj.offs
+    else:
+        # Otherwise plainly the id of the object
+        return id(obj)
 
 
 class mapped_frozenset(frozenset):
@@ -376,7 +420,7 @@ class mapped_tuple(tuple):
             for i,x in enumerate(obj):
                 if x is not None:
                     # these are wrapped objects, not plain objects, so make sure they have distinct xid
-                    xid = id(x) | (0xFL << 64)
+                    xid = shared_id(x) | (0xFL << 64)
                     if xid not in idmap:
                         idmap[xid] = val_offs = offs + implicit_offs
                         if widmap is not None:
@@ -564,11 +608,23 @@ class proxied_dict(object):
         __weakref__=object,
         objmapper=object,
         vlist=proxied_list,
+        buf=object,
+        offs=cython.ulonglong,
     )
 
-    def __init__(self, objmapper, vlist):
+    @property
+    def buffer(self):
+        return self.buf
+
+    @property
+    def offset(self):
+        return self.offs
+
+    def __init__(self, buf, offs, objmapper, vlist):
         self.objmapper = objmapper
         self.vlist = vlist
+        self.buf = buf
+        self.offs = offs
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
@@ -588,7 +644,7 @@ class proxied_dict(object):
         objmapper = ObjectIdMapper.map_buffer(buf, offs)
         offs += mapper_size
         vlist = proxied_list.unpack_from(buf, offs, idmap)
-        return proxied_dict(objmapper, vlist)
+        return proxied_dict(buf, offs, objmapper, vlist)
 
     def get(self, key, default_val = None):
         idx = self.objmapper.get(key)
@@ -841,6 +897,14 @@ class proxied_list(object):
         pybuf = 'Py_buffer',
         offs = cython.ulonglong
     )
+
+    @property
+    def buffer(self):
+        return self.buf
+
+    @property
+    def offset(self):
+        return self.offs
 
     if cython.compiled:
         def __del__(self):
@@ -1234,7 +1298,7 @@ class mapped_bytes(bytes):
         widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
-            objid = id(obj)
+            objid = shared_id(obj)
             idmap[objid] = offs + implicit_offs
             if isinstance(idmap, StrongIdMap):
                 widmap = idmap
@@ -1301,7 +1365,7 @@ class mapped_unicode(unicode):
     @cython.locals(widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
-            objid = id(obj)
+            objid = shared_id(obj)
             idmap[objid] = offs + implicit_offs
             if isinstance(idmap, StrongIdMap):
                 widmap = idmap
@@ -1327,7 +1391,7 @@ class mapped_decimal(Decimal):
         sign = cython.uchar, widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
-            objid = id(obj)
+            objid = shared_id(obj)
             idmap[objid] = offs + implicit_offs
             if isinstance(idmap, StrongIdMap):
                 widmap = idmap
@@ -1368,7 +1432,7 @@ class mapped_datetime(datetime):
         widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
-            objid = id(obj)
+            objid = shared_id(obj)
             idmap[objid] = offs + implicit_offs
             if isinstance(idmap, StrongIdMap):
                 widmap = idmap
@@ -1403,7 +1467,7 @@ class mapped_date(date):
         widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
-            objid = id(obj)
+            objid = shared_id(obj)
             idmap[objid] = offs + implicit_offs
             if isinstance(idmap, StrongIdMap):
                 widmap = idmap
@@ -2443,7 +2507,7 @@ class Schema(object):
                 if fixed_present & mask:
                     packable_append(val)
                 else:
-                    val_id = id(val)
+                    val_id = shared_id(val)
                     val_offs = idmap_get(val_id)
                     if val_offs is None:
                         idmap[val_id] = ival_offs = offs + implicit_offs

@@ -15,12 +15,12 @@ DEFAULT_PACK_BUFFER = 65536
 
 class Section(object):
 
-    def __init__(self, buf, implicit_offs=0):
+    def __init__(self, buf, implicit_offs=0, idmap_kwargs={}):
         self.buf = buf
         self.real_buf = buffer(buf)
         self.implicit_offs = implicit_offs
         self.write_pos = 0
-        self.idmap = StrongIdMap()
+        self.idmap = StrongIdMap(**idmap_kwargs)
 
     def allocate(self, size=None):
         write_pos = self.write_pos
@@ -54,8 +54,9 @@ class BaseObjectPool(object):
     def _mktemp(self):
         raise NotImplementedError
 
-    def __init__(self, section_size=DEFAULT_SECTION_SIZE, temp_kwargs={}):
+    def __init__(self, section_size=DEFAULT_SECTION_SIZE, temp_kwargs={}, idmap_kwargs={}):
         self.temp_kwargs = temp_kwargs
+        self.idmap_kwargs = idmap_kwargs
         self.section_size = section_size
         self.sections = []
         self.freehead = 0
@@ -72,7 +73,7 @@ class BaseObjectPool(object):
 
         implicit_offs = self.total_size
         self.total_size += len(buf)
-        new_section = Section(buf, implicit_offs)
+        new_section = Section(buf, implicit_offs, self.idmap_kwargs)
         self.sections.append(new_section)
         return new_section
 
@@ -118,6 +119,21 @@ class BaseObjectPool(object):
     def clear_idmaps(self):
         for section in self.sections:
             section.idmap.clear()
+
+    def dump(self, fileobj):
+        if not self.sections:
+            return 0
+
+        for section in self.sections[:-1]:
+            write_bytes = len(section.real_buf)
+            fileobj.write(section.real_buf)
+        section = self.sections[-1]
+
+        # Align to 8-bytes
+        write_bytes = section.write_pos
+        write_bytes += (8 - write_bytes % 8) % 8
+        fileobj.write(section.real_buf[:write_bytes])
+        return section.implicit_offs + write_bytes
 
 class TemporaryObjectPool(BaseObjectPool):
 
