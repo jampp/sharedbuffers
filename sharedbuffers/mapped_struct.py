@@ -123,6 +123,34 @@ class StrongIdMap(object):
         self.strong_refs = {}
         self.objmap = weakref.WeakValueDictionary()
 
+    def __len__(self):
+        return len(self.idmap)
+
+    def __iter__(self):
+        for key in self.idmap:
+            if key in self:
+                yield key
+
+    def iterkeys(self):
+        return iter(self)
+
+    def itervalues(self):
+        for key in self:
+            yield self[key]
+
+    def iteritems(self):
+        for key in self:
+            yield key, self[key]
+
+    def keys(self):
+        return list(self)
+
+    def values(self):
+        return list(self.itervalues())
+
+    def items(self):
+        return list(self.iteritems())
+
     def __setitem__(self, key, value):
         self.idmap[key] = value
         self.objmap[key] = NONE
@@ -256,7 +284,7 @@ class mapped_frozenset(frozenset):
 
 class mapped_tuple(tuple):
     @classmethod
-    @cython.locals(strong_refs = list, widmap = StrongIdMap)
+    @cython.locals(widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
             array = array.array):
         all_int = 1
@@ -535,7 +563,7 @@ class proxied_dict(object):
         iobuf = BufferIO(buf, offs)
         offs += ObjectIdMapper.build(_enum_keys(obj), iobuf, return_mapper=False)
         packer.pack_into(buf, ipos, iobuf.tell())
-        return proxied_list.pack_into(obj.values(), buf, offs, idmap, implicit_offs)
+        return proxied_list.pack_into([obj[k] for k in obj.iterkeys()], buf, offs, idmap, implicit_offs)
 
     @classmethod
     def unpack_from(cls, buf, offs, idmap = None):

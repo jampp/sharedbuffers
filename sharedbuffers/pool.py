@@ -78,7 +78,7 @@ class BaseObjectPool(object):
 
     def _pack_into(self, schema, obj, section, min_pack_buffer_cell=None):
         write_pos = section.write_pos
-        buf = schema.pack(obj, implicit_offs=section.implicit_offs + write_pos)
+        buf = schema.pack(obj, section.idmap, implicit_offs=section.implicit_offs + write_pos)
         if min_pack_buffer_cell:
             min_pack_buffer_cell[0] = max(min_pack_buffer_cell[0], len(buf))
         return section.append(buf, write_pos)
