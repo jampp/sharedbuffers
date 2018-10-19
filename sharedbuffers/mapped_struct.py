@@ -283,6 +283,10 @@ class mapped_frozenset(frozenset):
                     PyBuffer_Release(cython.address(pybuf))  # lint:ok
 
 class mapped_tuple(tuple):
+    cython.declare(
+        __weakref__=object,
+    )
+
     @classmethod
     @cython.locals(widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
@@ -398,6 +402,10 @@ class mapped_tuple(tuple):
         return rv
 
 class mapped_list(list):
+    cython.declare(
+        __weakref__=object,
+    )
+
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         # Same format as tuple, only different base type
@@ -455,6 +463,9 @@ class mapped_list(list):
         return rv
 
 class mapped_dict(dict):
+    cython.declare(
+        __weakref__=object,
+    )
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
@@ -549,7 +560,11 @@ class proxied_dict(object):
 
     HEADER_PACKER = struct.Struct('=Q')   # Offset into value list.
 
-    cython.declare(objmapper=object, vlist=proxied_list)
+    cython.declare(
+        __weakref__=object,
+        objmapper=object,
+        vlist=proxied_list,
+    )
 
     def __init__(self, objmapper, vlist):
         self.objmapper = objmapper
@@ -821,6 +836,7 @@ def islist(obj):
 class proxied_list(object):
 
     cython.declare(
+        __weakref__ = object,
         buf = object,
         pybuf = 'Py_buffer',
         offs = cython.ulonglong
