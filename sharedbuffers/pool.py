@@ -61,6 +61,7 @@ class BaseObjectPool(object):
         self.sections = []
         self.freehead = 0
         self.total_size = 0
+        self.idmap_preload = []
 
     def add_section(self):
         with self._mktemp() as f:
@@ -74,11 +75,24 @@ class BaseObjectPool(object):
         implicit_offs = self.total_size
         self.total_size += len(buf)
         new_section = Section(buf, implicit_offs, self.idmap_kwargs)
+
+        # Initialize with preloaded items
+        if self.idmap_preload:
+            idmap = {}
+            try:
+                for schema, obj in self.idmap_preload:
+                    self._pack_into(schema, obj, new_section, None, idmap)
+            except (struct.error, IndexError):
+                raise RuntimeError("Preload items dont't fit in empty section, increase section size")
+            new_section.idmap.preload(idmap)
+
         self.sections.append(new_section)
         return new_section
 
-    def _pack_into(self, schema, obj, section, min_pack_buffer_cell=None):
+    def _pack_into(self, schema, obj, section, min_pack_buffer_cell=None, idmap=None):
         write_pos = section.write_pos
+        if idmap is None:
+            idmap = section.idmap
         buf = schema.pack(obj, section.idmap, implicit_offs=section.implicit_offs + write_pos)
         if min_pack_buffer_cell:
             min_pack_buffer_cell[0] = max(min_pack_buffer_cell[0], len(buf))
@@ -87,15 +101,15 @@ class BaseObjectPool(object):
     def pack(self, schema, obj, min_pack_buffer=DEFAULT_PACK_BUFFER, clear_idmaps_on_new_section=True):
         sections = self.sections
         _min_pack_buffer=[min_pack_buffer]
-        for i in xrange(self.freehead, len(sections)):
-            section = sections[i]
+        for section in reversed(sections):
             if section.free_space < _min_pack_buffer[0]:
                 continue
 
             try:
                 pos = self._pack_into(schema, obj, section, _min_pack_buffer)
             except (struct.error, IndexError):
-                pass
+                # Possibly corrupt
+                section.idmap.clear()
             else:
                 break
         else:
@@ -104,6 +118,15 @@ class BaseObjectPool(object):
             section = self.add_section()
             pos = self._pack_into(schema, obj, section)
         return pos + section.implicit_offs, schema.unpack_from(section.real_buf, pos)
+
+    def add_preload(self, schema, obj):
+        """
+        Preload this object and all its contents into all the individual sections.
+        Fix those in the per-section idmap. Can improve both speed and reduce size
+        if the objects to be appended references the objects contained in the preloaded
+        objects a lot.
+        """
+        self.idmap_preload.append((schema, obj))
 
     def find_section(self, pos):
         for section in self.sections:

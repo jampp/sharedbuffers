@@ -119,14 +119,16 @@ class NONE:
 class StrongIdMap(object):
     cython.declare(
         __weakref__ = object,
+        preloaded = dict,
         idmap = dict,
         objmap = object,
         strong_refs = object,
     )
 
-    def __init__(self, strong_limit = 128 << 20, preallocate = False):
+    def __init__(self, strong_limit = 1 << 20, preallocate = False, strong_class = FastCache):
+        self.preloaded = {}
         self.idmap = {}
-        self.strong_refs = FastCache(
+        self.strong_refs = strong_class(
             strong_limit,
             eviction_callback = functools.partial(
                 self._on_strong_evict,
@@ -144,11 +146,13 @@ class StrongIdMap(object):
             self.pop(key, None)
 
     def __len__(self):
-        return len(self.idmap)
+        return len(self.idmap) + len(self.preloaded)
 
     def __iter__(self):
+        for key in self.preloaded:
+            yield key
         for key in self.idmap:
-            if key in self:
+            if key in self and key not in self.preloaded:
                 yield key
 
     def iterkeys(self):
@@ -176,6 +180,8 @@ class StrongIdMap(object):
         self.objmap[key] = NONE
 
     def __getitem__(self, key):
+        if key in self.preloaded:
+            return self.preloaded[key]
         if key not in self.objmap:
             self.idmap.pop(key, None)
             raise KeyError(key)
@@ -187,14 +193,22 @@ class StrongIdMap(object):
         del self.idmap[key]
 
     def __contains__(self, key):
-        return key in self.idmap and key in self.objmap
+        return key in self.preloaded or key in self.idmap and key in self.objmap
+
+    def preload(self, mapping):
+        self.preloaded.update(mapping)
 
     def clear(self):
         self.objmap.clear()
         self.idmap.clear()
         self.strong_refs.clear()
 
+    def clear_preloaded(self):
+        self.preloaded.clear()
+
     def get(self, key, default=None):
+        if key in self.preloaded:
+            return self.preloaded[key]
         if key not in self.objmap:
             self.idmap.pop(key, None)
             return default
@@ -202,6 +216,9 @@ class StrongIdMap(object):
 
     @cython.ccall
     def pop(self, key, default=NONE):
+        if key in self.preloaded:
+            # No popping from preloaded items
+            return self.preloaded[key]
         orv = self.objmap.pop(key, NONE)
         rv = self.idmap.pop(key, NONE)
         self.strong_refs.pop(key, None)
@@ -221,6 +238,9 @@ class StrongIdMap(object):
             # There's no need to link lifecycles, the object
             # is identified uniquely by its buffer mapping and that is a stable id
             return True
+        if is_equality_key(key):
+            # These are equality keys, they are hard references already
+            return True
 
         try:
             self.objmap[key] = obj
@@ -230,6 +250,14 @@ class StrongIdMap(object):
             # its id from being reused while we hold its idmap entry
             self.strong_refs[key] = obj
             return False
+
+
+@cython.ccall
+@cython.inline
+@cython.returns(cython.bint)
+def is_equality_key(obj):
+    # singletons and small strings
+    return obj is None or obj is () or (isinstance(obj, basestring) and len(obj) < 16)
 
 
 @cython.ccall
@@ -245,9 +273,33 @@ def shared_id(obj):
     elif isinstance(obj, BufferProxyObject):
         oobj = obj
         return (id(oobj.buf) << 64) | oobj.offs
+    elif is_equality_key(obj):
+        # Try an equality key, use the object itself as key if hashable
+        try:
+            hash(obj)
+        except TypeError:
+            pass
+        else:
+            return obj
+
+    # Otherwise plainly the id of the object
+    return id(obj)
+
+
+class WRAPPED:
+    pass
+
+
+@cython.ccall
+def wrapped_id(obj):
+    xid = shared_id(obj)
+    if isinstance(xid, (int, long)):
+        # We keep numeric ids numeric
+        xid |= 0xFL << 64
     else:
-        # Otherwise plainly the id of the object
-        return id(obj)
+        # Equality ids are wrapped in a tuple
+        xid = (WRAPPED, xid)
+    return xid
 
 
 class mapped_frozenset(frozenset):
@@ -420,7 +472,7 @@ class mapped_tuple(tuple):
             for i,x in enumerate(obj):
                 if x is not None:
                     # these are wrapped objects, not plain objects, so make sure they have distinct xid
-                    xid = shared_id(x) | (0xFL << 64)
+                    xid = wrapped_id(x)
                     if xid not in idmap:
                         idmap[xid] = val_offs = offs + implicit_offs
                         if widmap is not None:
@@ -2302,6 +2354,16 @@ class Schema(object):
     def set_pack_buffer_size(self, newsize):
         self.pack_buffer_size = newsize
         self._pack_buffer = bytearray(self.pack_buffer_size)
+
+    def reinitialize(self):
+        """
+        Reinitialize schema to account for newly registered types. Call after registering
+        all required types if you can't register them beforehand.
+        """
+        self.init(
+            self._map_types(self.slot_types),
+            packer_cache = self.packer_cache, unpacker_cache = self.unpacker_cache, alignment = self.alignment,
+            pack_buffer_size = self.pack_buffer_size)
 
     @cython.locals(slot_types = dict, slot_keys = tuple)
     def init(self, slot_types = None, slot_keys = None, alignment = 8, pack_buffer_size = 65536,
