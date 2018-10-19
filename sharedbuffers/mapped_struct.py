@@ -889,7 +889,7 @@ class proxied_list(object):
         return res
 
     def _make_empty(self):
-        return [] if type(self) is proxied_list else ()
+        return []
 
     def __getitem__(self, index):
         if isinstance(index, slice):
@@ -943,6 +943,8 @@ class proxied_list(object):
     def __len__(self):
         if self.elem_step == 0:
             return self._metadata()[1]
+        elif self.elem_start == self.elem_end:
+            return 0
         elif self.elem_step < 0:
             return (self.elem_start - self.elem_end - 1) / (-self.elem_step) + 1
         else:
@@ -966,9 +968,10 @@ class proxied_list(object):
 
     def __reversed__(self):
         l = len(self)
-        if l > 0:
-            for i in xrange(l - 1, -1, -1):
-                yield self[i]
+        if l == 0:
+            return self._make_empty()
+        for i in xrange(l - 1, -1, -1):
+            yield self[i]
 
     def __contains__(self, item):
         for e in self:
@@ -998,6 +1001,9 @@ class proxied_tuple(proxied_list):
     def __init__(self, *args, **kwargs):
         super(proxied_tuple, self).__init__(*args, **kwargs)
         self._hash = -1
+
+    def _make_empty(self):
+        return ()
 
     @cython.locals(mult = cython.long, x = cython.long, y = cython.long, len_ = cython.Py_ssize_t, i = cython.Py_ssize_t)
     def __hash__(self):
