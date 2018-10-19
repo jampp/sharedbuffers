@@ -977,10 +977,9 @@ class proxied_list(object):
     @cython.locals(l=cython.longlong)
     def __reversed__(self):
         l = len(self)
-        if l == 0:
-            return reversed(self._make_empty())
-        for i in xrange(l - 1, -1, -1):
-            yield self[i]
+        if l > 0:
+            for i in xrange(l - 1, -1, -1):
+                yield self[i]
 
     def __contains__(self, item):
         for e in self:
