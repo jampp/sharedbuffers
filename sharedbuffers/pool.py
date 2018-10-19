@@ -83,7 +83,7 @@ class BaseObjectPool(object):
             min_pack_buffer_cell[0] = max(min_pack_buffer_cell[0], len(buf))
         return section.append(buf, write_pos)
 
-    def pack(self, schema, obj, min_pack_buffer=DEFAULT_PACK_BUFFER):
+    def pack(self, schema, obj, min_pack_buffer=DEFAULT_PACK_BUFFER, clear_idmaps_on_new_section=True):
         sections = self.sections
         _min_pack_buffer=[min_pack_buffer]
         for i in xrange(self.freehead, len(sections)):
@@ -98,6 +98,8 @@ class BaseObjectPool(object):
             else:
                 break
         else:
+            if clear_idmaps_on_new_section:
+                self.clear_idmaps()
             section = self.add_section()
             pos = self._pack_into(schema, obj, section)
         return pos + section.implicit_offs, schema.unpack_from(section.real_buf, pos)
@@ -115,7 +117,7 @@ class BaseObjectPool(object):
 
     def clear_idmaps(self):
         for section in self.sections:
-            self.idmap.clear()
+            section.idmap.clear()
 
 class TemporaryObjectPool(BaseObjectPool):
 
