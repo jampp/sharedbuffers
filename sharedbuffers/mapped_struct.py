@@ -789,6 +789,12 @@ class proxied_list(object):
     def __init__(self, buf, offs, idmap = None, elem_start = 0, elem_end = 0, elem_step = 0):
         self.offs = offs
         self.buf = buf
+
+        if elem_step < 0:
+            elem_end = min(elem_end, elem_start)
+        elif elem_step > 0:
+            elem_start = min(elem_start, elem_end)
+
         self.elem_start = elem_start
         self.elem_end = elem_end
         self.elem_step = elem_step
@@ -888,6 +894,7 @@ class proxied_list(object):
 
         return res
 
+    @cython.ccall
     def _make_empty(self):
         return []
 
@@ -962,14 +969,16 @@ class proxied_list(object):
     def __delitem__(self, index):
         raise TypeError("Proxy objects are read-only")
 
+    @cython.locals(i=cython.longlong)
     def __iter__(self):
         for i in xrange(len(self)):
             yield self[i]
 
+    @cython.locals(l=cython.longlong)
     def __reversed__(self):
         l = len(self)
         if l == 0:
-            return self._make_empty()
+            return reversed(self._make_empty())
         for i in xrange(l - 1, -1, -1):
             yield self[i]
 
@@ -1002,6 +1011,7 @@ class proxied_tuple(proxied_list):
         super(proxied_tuple, self).__init__(*args, **kwargs)
         self._hash = -1
 
+    @cython.ccall
     def _make_empty(self):
         return ()
 
