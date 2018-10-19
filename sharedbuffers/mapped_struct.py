@@ -2580,8 +2580,11 @@ class Schema(object):
                         except Exception as e:
                             try:
                                 # Add some context. It may not work with all exception types, hence the fallback
-                                e = type(e)("%s packing attribute %s=%r of type %r" % (
-                                    e, slot, val, type(obj).__name__))
+                                vrepr = repr(val)
+                                if len(vrepr) > 200:
+                                    vrepr = vrepr[:200] + '...'
+                                e = type(e)("%s packing attribute %s=%s of type %s" % (
+                                    e, slot, vrepr, type(obj).__name__))
                             except:
                                 pass
                             else:
