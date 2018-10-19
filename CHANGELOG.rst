@@ -26,6 +26,7 @@ Added
 - More informative packing error messages
 - Add pool module with dynamic object pool implementations, allowing
   incremental build of large object heirarchies/collections.
+- Add GenericFileMapper utility class to get buffers out of files
 
 Changes
 -------
@@ -38,6 +39,11 @@ Changes
 - Support packing proxies as if they were the original thing in most
   cases. Nested uses require schema registration. This allows constructing
   shared buffers out of other shared buffers.
+- Improved idmap handling for the case of repacking proxies. It still may
+  fail to recognize primitive object identity properly since proxies will
+  return a unique object on each access, inflating the resulting buffer
+  perhaps considerably. Proper identity was implemented for proxied
+  containers though.
 
 v0.4.8 - 2018-05-28
 ===================
