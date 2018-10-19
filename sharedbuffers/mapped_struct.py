@@ -2791,6 +2791,21 @@ class _CZipMapBase(object):
     def map_zipfile(cls, fileobj, offset = 0, size = None):
         return _map_zipfile(cls, fileobj, offset, size)
 
+class GenericFileMapper(_ZipMapBase):
+    @classmethod
+    def map_file(cls, fileobj, offset = 0, size = None):
+        if isinstance(fileobj, zipfile.ZipExtFile):
+            return cls.map_zipfile(fileobj, offset, size)
+
+        if size is None:
+            fileobj.seek(0, os.SEEK_END)
+            size = fileobj.tell() - offset
+        fileobj.seek(offset)
+        map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
+        buf = mmap.mmap(fileobj.fileno(), size + offset - map_start,
+            access = mmap.ACCESS_READ, offset = map_start)
+        return buffer(buf, offset - map_start)
+
 class MappedArrayProxyBase(_ZipMapBase):
     _CURRENT_VERSION = 2
     _CURRENT_MINIMUM_READER_VERSION = 2
