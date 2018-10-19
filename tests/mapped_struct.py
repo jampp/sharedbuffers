@@ -1501,7 +1501,7 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         self.assertEquals(self.pack([1, 2.0]), (1, 2.0))
 
     def testProxiedListSlice(self):
-        orig = tuple([(str(i) if (i % 2) == 0 else i) for i in range(20)])
+        orig = [(str(i) if (i % 2) == 0 else i) for i in range(20)]
         obj = self.pack(orig)
         xlen = len(orig)
 

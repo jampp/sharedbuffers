@@ -819,7 +819,6 @@ class proxied_list(object):
         buf = _likerobuffer(buf)
         return cls(buf, offs, idmap)
 
-
     @cython.locals(obj_offs = cython.ulonglong, dcode = cython.char, index = cython.longlong, pindex = "unsigned long *",
         dataoffs = cython.ulonglong, objlen = cython.longlong, xlen = cython.longlong, step = cython.longlong)
     def _getitem(self, index):
@@ -829,6 +828,9 @@ class proxied_list(object):
         step = 1
 
         if self.elem_step != 0:
+            if self.elem_end == self.elem_start:
+                # This shouldn't happen.
+                raise IndexError
             step = abs(self.elem_step)
             if self.elem_step > 0:
                 xlen = (self.elem_end - self.elem_start - 1) / step + 1
@@ -886,61 +888,27 @@ class proxied_list(object):
 
         return res
 
-    @staticmethod
-    def _adjust_min(val, nmax, step):
-        val = min(val, nmax)
-        if step < 0 and val == nmax:
-            val -= 1
-        return val
-
+    def _make_empty(self):
+        return [] if type(self) is proxied_list else ()
 
     def __getitem__(self, index):
         if isinstance(index, slice):
-            start, end, step = index.start, index.stop, index.step
             xlen = len(self)
-
-            # Lots of adjustments going on here in order to correctly
-            # set the start and end indexes.
-
-            if step is None:
-                step = 1
-            elif step == 0:
-                raise ValueError("slice step cannot be zero")
-
-            if start is None:
-                start = self.elem_start if step > 0 else xlen - 1
-            else:
-                start += self.elem_start
-                if start < 0:
-                    start = xlen + start
-                    if start < 0:
-                        start = -1 if step < 0 else 0
-                elif start >= xlen:
-                    start = xlen if step > 0 else xlen - 1
-
-            if end is None:
-                end = xlen if step > 0 else -1
-            elif end < 0:
-                end = xlen + end
-                if end < 0:
-                    end = 0 if step > 0 else -1
-
-            end = self._adjust_min(end, xlen, step)
-            start = self._adjust_min(start, xlen, step)
+            start, end, step = index.indices(xlen)
 
             if step < 0:
                 if end >= start:
-                    return []
+                    return self._make_empty()
                 r_len = (start - end - 1) / (-step) + 1
                 end = (r_len - 1) * step + start - 1
             elif start >= end:
-                return ()
+                return self._make_empty()
             else:
                 r_len = (end - start - 1) / step + 1
                 end = (r_len - 1) * step + start + 1
 
             if r_len == 0:
-                return ()
+                return self._make_empty()
 
             return proxied_tuple(
                 buf = self.buf,
