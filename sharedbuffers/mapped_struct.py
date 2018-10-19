@@ -835,7 +835,6 @@ class proxied_list(object):
 
         if self.elem_step != 0:
             if self.elem_end == self.elem_start:
-                # This shouldn't happen.
                 raise IndexError
             step = abs(self.elem_step)
             if self.elem_step > 0:
@@ -902,6 +901,9 @@ class proxied_list(object):
         if isinstance(index, slice):
             xlen = len(self)
             start, end, step = index.indices(xlen)
+
+            start += self.elem_start
+            end += self.elem_start
 
             if step < 0:
                 if end >= start:
