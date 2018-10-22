@@ -900,23 +900,16 @@ class proxied_list(object):
     def __getitem__(self, index):
         if isinstance(index, slice):
             xlen = len(self)
+            if index.step is not None and self.elem_step != 0:
+                index = slice(index.start, index.stop, index.step * self.elem_step)
+                xlen *= self.elem_step
+
             start, end, step = index.indices(xlen)
 
             start += self.elem_start
             end += self.elem_start
 
-            if step < 0:
-                if end >= start:
-                    return self._make_empty()
-                r_len = (start - end - 1) / (-step) + 1
-                end = (r_len - 1) * step + start - 1
-            elif start >= end:
-                return self._make_empty()
-            else:
-                r_len = (end - start - 1) / step + 1
-                end = (r_len - 1) * step + start + 1
-
-            if r_len == 0:
+            if (step < 0 and end >= start) or (step >= 0 and start >= end):
                 return self._make_empty()
 
             return proxied_tuple(
