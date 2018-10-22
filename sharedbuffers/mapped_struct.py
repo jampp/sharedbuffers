@@ -901,7 +901,9 @@ class proxied_list(object):
         if isinstance(index, slice):
             xlen = len(self)
             if index.step is not None and self.elem_step != 0:
-                index = slice(index.start, index.stop, index.step * self.elem_step)
+                start = index.start if index.start is None else index.start * self.elem_step
+                end = index.stop if index.stop is None else index.stop * self.elem_step
+                index = slice(start, end, index.step * self.elem_step)
                 xlen *= self.elem_step
 
             start, end, step = index.indices(xlen)

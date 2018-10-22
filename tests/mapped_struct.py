@@ -1515,6 +1515,7 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         self.assertEquals(obj[1::-1], orig[1::-1])
         self.assertEquals(obj[2:][:5], orig[2:][:5])
         self.assertEquals(obj[::2][::2], orig[::2][::2])
+        self.assertEquals(obj[1:10:2][2::2], orig[1:10:2][2::2])
         self.assertEquals(obj[huge:huge], orig[huge:huge])
         self.assertEquals(obj[huge:huge:huge], orig[huge:huge:huge])
 
