@@ -64,27 +64,30 @@ class BaseObjectPool(object):
         self.idmap_preload = []
 
     def add_section(self):
-        with self._mktemp() as f:
+        f = self._mktemp()
+        try:
             f.truncate(self.section_size)
             buf = mmap.mmap(
                 f.fileno(), 0,
-                flags = mmap.MAP_SHARED,
-                prot = mmap.PROT_READ|mmap.PROT_WRITE,
-                access = mmap.ACCESS_READ|mmap.ACCESS_WRITE)
+                access = mmap.ACCESS_WRITE)
 
-        implicit_offs = self.total_size
-        self.total_size += len(buf)
-        new_section = Section(buf, implicit_offs, self.idmap_kwargs)
+            implicit_offs = self.total_size
+            self.total_size += len(buf)
+            new_section = Section(buf, implicit_offs, self.idmap_kwargs)
+            new_section.fileobj = f
 
-        # Initialize with preloaded items
-        if self.idmap_preload:
-            idmap = {}
-            try:
-                for schema, obj in self.idmap_preload:
-                    self._pack_into(schema, obj, new_section, None, idmap)
-            except (struct.error, IndexError):
-                raise RuntimeError("Preload items dont't fit in empty section, increase section size")
-            new_section.idmap.preload(idmap)
+            # Initialize with preloaded items
+            if self.idmap_preload:
+                idmap = {}
+                try:
+                    for schema, obj in self.idmap_preload:
+                        self._pack_into(schema, obj, new_section, None, idmap)
+                except (struct.error, IndexError):
+                    raise RuntimeError("Preload items dont't fit in empty section, increase section size")
+                new_section.idmap.preload(idmap)
+        except:
+            f.close()
+            raise
 
         self.sections.append(new_section)
         return new_section

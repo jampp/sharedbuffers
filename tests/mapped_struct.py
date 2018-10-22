@@ -281,6 +281,25 @@ class BasePackingTestMixin(object):
                 if k not in TEST_VALUES:
                     self.assertFalse(hasattr(dx, k))
 
+    def testPackMultiple(self):
+        for TEST_VALUES in self.TEST_VALUES:
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+
+            buf = bytearray(16<<20)
+            offsets = []
+            endp = 0
+            for i in xrange(10):
+                offsets.append(endp)
+                endp = self.schema.pack_into(x, buf, endp)
+            for offs in offsets:
+                dx = self.schema.unpack_from(buf, offs)
+                for k,v in TEST_VALUES.iteritems():
+                    self.assertTrue(hasattr(dx, k))
+                    self.assertEqual(getattr(dx, k), v)
+                for k in self.Struct.__slots__:
+                    if k not in TEST_VALUES:
+                        self.assertFalse(hasattr(dx, k))
+
     def testPackPickleUnpack(self):
         for TEST_VALUES in self.TEST_VALUES:
             x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
@@ -440,6 +459,16 @@ class NestedContainerPackingTest(SimplePackingTest):
         'l' : [[1],[2,3],(3,4)],
         'pt' : ((3,),(6,7,8),(1,7)),
         'pl' : [[1],[2,3],(3,4)],
+    }]
+
+class DictContainerPackingTest(SimplePackingTest):
+    Struct = ContainerStruct
+    TEST_VALUES = [{
+        'fset' : frozenset([1,3,7]),
+        't' : ({'a':frozenset([1,3,4])},{'b':(1,3,4)},{'c':[1,3,4]}),
+        'l' : [{'a':frozenset([1,3,4])},{'b':(1,3,4)},{'c':[1,3,4]}],
+        'pt' : ({'a':frozenset([1,3,4])},{'b':(1,3,4)},{'c':[1,3,4]}),
+        'pl' : [{'a':frozenset([1,3,4])},{'b':(1,3,4)},{'c':[1,3,4]}],
     }]
 
 class ObjectPackagingTest(SimplePackingTest):
