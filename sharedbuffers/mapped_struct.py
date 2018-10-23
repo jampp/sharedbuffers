@@ -841,12 +841,16 @@ class proxied_list(object):
                 xlen = (self.elem_end - self.elem_start - 1) / step + 1
             else:
                 xlen = (self.elem_start - self.elem_end - 1) / step + 1
+
+            if (self.elem_step < 0 and index > self.elem_start) or (
+                self.elem_step > 0 and index >= self.elem_end):
+                raise IndexError
             index = self.elem_start + index * self.elem_step
 
         if index < 0:
             index += xlen
 
-        if (index / step) >= max(xlen, objlen) or index < 0:
+        if index >= objlen or index < 0:
             raise IndexError
 
         if dcode == 't':
