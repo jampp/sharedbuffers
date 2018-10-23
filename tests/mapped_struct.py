@@ -153,6 +153,8 @@ class NDArrayStruct(TestStruct):
 
 class ObjectStruct(TestStruct):
     __slot_types__ = {
+        'b' : bytes,
+        'q' : bytes,
         'o' : object,
     }
 
@@ -278,6 +280,21 @@ class BasePackingTestMixin(object):
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
+                if k not in TEST_VALUES:
+                    self.assertFalse(hasattr(dx, k))
+
+    def testPackUnpackIdmap(self):
+        for TEST_VALUES in self.TEST_VALUES:
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            pack_idmap = {}
+            unpack_idmap = {}
+            dx = self.schema.unpack(self.schema.pack(x, pack_idmap), unpack_idmap)
+            for k,v in TEST_VALUES.iteritems():
+                unpack_idmap.clear()
+                self.assertTrue(hasattr(dx, k))
+                self.assertEqual(getattr(dx, k), v)
+            for k in self.Struct.__slots__:
+                unpack_idmap.clear()
                 if k not in TEST_VALUES:
                     self.assertFalse(hasattr(dx, k))
 
@@ -484,7 +501,10 @@ class ObjectPackagingTest(SimplePackingTest):
         { 'o' : u"bláblá€" },
         { 'o' : datetime.now() },
         { 'o' : date.today() },
-        { 'o' : buffer(bytearray(xrange(100)))}
+        { 'o' : buffer(bytearray(xrange(100)))},
+        { 'b' : "blabla", 'o' : "blabla" },
+        { 'q' : "blabla", 'o' : "blabla" },
+        { 'b' : "blabla", 'o' : "blabla", 'q' : "blabla" },
     ]
 
 class ObjectNDArrayPackagingTest(SimplePackingTest):

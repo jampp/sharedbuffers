@@ -2645,14 +2645,18 @@ class Schema(object):
                 if fixed_present & mask:
                     packable_append(val)
                 else:
-                    val_id = shared_id(val)
+                    slot_type = slot_types[slot]
+                    if slot_type is mapped_object:
+                        val_id = wrapped_id(val)
+                    else:
+                        val_id = shared_id(val)
                     val_offs = idmap_get(val_id)
                     if val_offs is None:
                         idmap[val_id] = ival_offs = offs + implicit_offs
                         if widmap is not None:
                             widmap.link(val_id, val)
                         try:
-                            offs = slot_types[slot].pack_into(val, buf, offs, idmap, implicit_offs)
+                            offs = slot_type.pack_into(val, buf, offs, idmap, implicit_offs)
                         except Exception as e:
                             try:
                                 # Add some context. It may not work with all exception types, hence the fallback
