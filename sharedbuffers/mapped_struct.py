@@ -899,17 +899,21 @@ class proxied_list(object):
 
     def __getitem__(self, index):
         if isinstance(index, slice):
-            xlen = len(self)
-            if index.step is not None and self.elem_step != 0:
-                start = index.start if index.start is None else index.start * self.elem_step
-                end = index.stop if index.stop is None else index.stop * self.elem_step
-                index = slice(start, end, index.step * self.elem_step)
-                xlen *= self.elem_step
+            objlen = self._metadata()[1]
+            start, end, step = index.indices(objlen)
+            if self.elem_step != 0:
+                if self.elem_step < 0:
+                    start = (start * self.elem_step) + self.elem_start
+                else:
+                    start = (start * self.elem_step + 1) * self.elem_start
 
-            start, end, step = index.indices(xlen)
+                end += self.elem_start
+                step *= self.elem_step
 
-            start += self.elem_start
-            end += self.elem_start
+                if start > objlen:
+                    start = objlen
+                if end > self.elem_end:
+                    end = self.elem_end
 
             if (step < 0 and end >= start) or (step >= 0 and start >= end):
                 return self._make_empty()
