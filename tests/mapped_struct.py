@@ -1674,6 +1674,7 @@ class DictPackingCommonTest(object):
             'a': SimpleStruct(a=1, b=2.0),
             'b': SimpleStruct(a=2, b=None),
             None: SimpleStruct(a=3, b=1.0),
+            (): SimpleStruct(a=4, b=1.5),
         }
         c = self.pack(d)
 
@@ -1681,6 +1682,10 @@ class DictPackingCommonTest(object):
         self.assertEquals(c['a'].b, 2.0)
         self.assertEquals(c['b'].a, 2)
         self.assertEquals(c['b'].b, None)
+        self.assertEquals(c[None].a, 3)
+        self.assertEquals(c[None].b, 1.0)
+        self.assertEquals(c[()].a, 4)
+        self.assertEquals(c[()].b, 1.5)
 
     def testMappedDictKeys(self):
         for d in self.TEST_DICTS:
