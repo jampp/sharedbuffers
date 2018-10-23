@@ -654,7 +654,10 @@ def _stable_hash(key):
     elif isinstance(key, basestring):
         hval = xxhash.xxh64(safe_utf8(key)).intdigest()
     elif isinstance(key, (int, long)):
-        hval = key
+        try:
+            hval = key
+        except OverflowError:
+            hval = key & 0xFFFFFFFFFFFFFFFF
     elif isinstance(key, float):
         trunc_key = int(key)
         if trunc_key == key:

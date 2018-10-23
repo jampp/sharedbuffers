@@ -1740,6 +1740,8 @@ class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Dic
         {frozenset([1]): frozenset(['a']), frozenset([2]): frozenset(['b'])},
         {'a': 1, 1: 'a', frozenset(): 1.0, (1, 2): 80000 },
         {None: 3},
+        {(1,2,3): 4, (-1,3): 7},
+        {frozenset([1,2,3]): 4, frozenset([-1,3]): 7},
     ]
 
 class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, DictPackingCommonTest):
@@ -1755,6 +1757,8 @@ class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Di
         {frozenset([1, 2]) : 97.9},
         {1.0: "test floats equivalent to integers"},
         {None: 3},
+        {(1,2,3): 4, (-1,3): 7},
+        {frozenset([1,2,3]): 4, frozenset([-1,3]): 7},
     ]
 
 class MappedDatetimePackingTest(unittest.TestCase):
