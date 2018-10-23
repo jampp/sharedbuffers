@@ -1842,6 +1842,14 @@ class BufferProxyObject(object):
         none_bitmap = cython.ulonglong
     )
 
+    @property
+    def _proxy_buffer(self):
+        return self.buf
+
+    @property
+    def _proxy_offset(self):
+        return self.offs
+
     @cython.locals(offs = cython.ulonglong, none_bitmap = cython.ulonglong)
     def __init__(self, buf, offs, none_bitmap, idmap = None):
         if cython.compiled:
