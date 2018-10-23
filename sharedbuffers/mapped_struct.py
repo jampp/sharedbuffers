@@ -4786,8 +4786,6 @@ class ObjectIdMapper(_CZipMapBase):
         stride0 = cython.size_t, stride1 = cython.size_t,
         indexbuf = 'Py_buffer', pindex = cython.p_char)
     def get(self, key, default = None):
-        if not isinstance(key, basestring):
-            return default
         hkey = _stable_hash(key)
         startpos = self._search_hkey(hkey)
         nitems = self.index_elements

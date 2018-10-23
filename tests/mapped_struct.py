@@ -781,6 +781,32 @@ class IdMapperTest(unittest.TestCase):
             if rvv != v:
                 self.assertEquals(rvv, v)
 
+    def testBuildInMem(self):
+        self._testBuild(2010, None)
+
+    def testBuildInMemReversed(self):
+        self._testBuild(2010, None, reversed = True)
+
+    def testBuildInMemShuffled(self):
+        self._testBuild(2010, None, shuffled = True)
+
+    def testBuildInMemDiscardDuplicates(self):
+        self._testBuild(2010, None, build_kwargs = dict(discard_duplicates = True),
+            gen_dupes = True)
+
+    def testBuildOnDisk(self):
+        self._testBuild(1010, tempfile.gettempdir())
+
+    def testBuildOnDiskReversed(self):
+        self._testBuild(1010, tempfile.gettempdir(), reversed=True)
+
+    def testBuildOnDiskShuffled(self):
+        self._testBuild(1010, tempfile.gettempdir(), shuffled=True)
+
+    def testBuildOnDiskDiscardDuplicates(self):
+        self._testBuild(1010, tempfile.gettempdir(), build_kwargs = dict(discard_duplicates = True),
+            gen_dupes = True)
+
     @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeInMem(self):
         self._testBuild(2010530, None)
@@ -817,6 +843,22 @@ class IdMapperTest(unittest.TestCase):
 
 class Id32MapperTest(IdMapperTest):
     IdMapperClass = mapped_struct.NumericId32Mapper
+
+class ObjectIdMapperTest(IdMapperTest):
+    IdMapperClass = mapped_struct.ObjectIdMapper
+
+    def gen_values(self, *p, **kw):
+        str_ = str
+        for k, v in super(ObjectIdMapperTest, self).gen_values(*p, **kw):
+            yield k, v
+            yield str_(k), v
+            yield (k,), v
+
+    # Not supported by ObjectIdMapper
+    testBuildInMemDiscardDuplicates = None
+    testBuildOnDiskDiscardDuplicates = None
+    testBuildHugeInMemDiscardDuplicates = None
+    testBuildHugeOnDiskDiscardDuplicates = None
 
 class ApproxStringIdMultiMapperTest(IdMapperTest):
     IdMapperClass = mapped_struct.ApproxStringIdMultiMapper

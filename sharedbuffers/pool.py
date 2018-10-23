@@ -63,6 +63,14 @@ class BaseObjectPool(object):
         self.total_size = 0
         self.idmap_preload = []
 
+    @property
+    def size(self):
+        if self.sections:
+            last_section = self.sections[-1]
+            return last_section.implicit_offs + last_section.write_pos
+        else:
+            return 0
+
     def add_section(self):
         f = self._mktemp()
         try:
