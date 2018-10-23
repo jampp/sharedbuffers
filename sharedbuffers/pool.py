@@ -96,7 +96,7 @@ class BaseObjectPool(object):
         write_pos = section.write_pos
         if idmap is None:
             idmap = section.idmap
-        buf = schema.pack(obj, section.idmap, implicit_offs=section.implicit_offs + write_pos)
+        buf = schema.pack(obj, idmap, implicit_offs=section.implicit_offs + write_pos)
         if min_pack_buffer_cell:
             min_pack_buffer_cell[0] = max(min_pack_buffer_cell[0], len(buf))
         return section.append(buf, write_pos)
@@ -164,4 +164,4 @@ class BaseObjectPool(object):
 class TemporaryObjectPool(BaseObjectPool):
 
     def _mktemp(self):
-        return tempfile.TemporaryFile(**self.temp_kwargs)
+        return tempfile.NamedTemporaryFile(**self.temp_kwargs)

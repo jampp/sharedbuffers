@@ -123,9 +123,32 @@ class StrongIdMap(object):
         idmap = dict,
         objmap = object,
         strong_refs = object,
+        stable_set = set,
     )
 
-    def __init__(self, strong_limit = 1 << 20 - 1, preallocate = False, strong_class = FastCache):
+    def __init__(self, strong_limit = 1 << 20 - 1, preallocate = False, strong_class = FastCache, stable_set = None):
+        """
+        Constructs a strong-referencing id map. The id map will keep strong references when necessary
+        to guarantee correct behavior, up to `strong_limit` references. After that, unused references
+        are evicted from both the strong-reference list and the id map itself, maintaining correct
+        behavior at the expense of deduplication effectiveness.
+
+        Params:
+
+            strong_limit: Keep at most this many strong references
+
+            preallocate: Passed to `strong_class` as a kwarg
+
+            strong_class: The cache constructor used for the strong referece list. By default, it uses a kind
+                of LRU cache. The constructor should accept `preallocate` as kwarg and `strong_limit` as
+                first positional argument. When given `preallocate=true`, the structure should be preallocated
+                to accommodate `strong_limit` elements. It should also accept an `eviction_callback` kwarg
+                with a callable to be called with `(key, value)` arguments when evicting items from the mapping.
+
+            stable_set: A set of shared_id s that are considered stable. That is, strong references are kept
+                by the caller, so they don't need to be tracked. This allows them to be persistent on the id map
+                and thus improve deduplication effectiveness with little overhead.
+        """
         self.preloaded = {}
         self.idmap = {}
         self.strong_refs = strong_class(
@@ -137,6 +160,9 @@ class StrongIdMap(object):
             preallocate = preallocate,
         )
         self.objmap = weakref.WeakValueDictionary()
+        if stable_set is not None and not isinstance(stable_set, set):
+            stable_set = set(stable_set)
+        self.stable_set = stable_set
 
     @staticmethod
     @cython.locals(self = 'StrongIdMap')
@@ -193,7 +219,7 @@ class StrongIdMap(object):
         del self.idmap[key]
 
     def __contains__(self, key):
-        return key in self.preloaded or key in self.idmap and key in self.objmap
+        return key in self.preloaded or (key in self.idmap and key in self.objmap)
 
     def preload(self, mapping):
         self.preloaded.update(mapping)
@@ -241,6 +267,11 @@ class StrongIdMap(object):
         if is_equality_key(key):
             # These are equality keys, they are hard references already
             return True
+        if self.stable_set is not None:
+            if key in self.stable_set:
+                return True
+            elif is_wrapped_key(key) and get_wrapped_key(key) in self.stable_set:
+                return True
 
         try:
             self.objmap[key] = obj
@@ -259,8 +290,8 @@ def is_equality_key(obj):
     # singletons and small strings
     if obj is None or obj is () or (isinstance(obj, basestring) and len(obj) < 16):
         return True
-    elif isinstance(obj, tuple) and len(obj) == 2 and obj[0] is WRAPPED:
-        return is_equality_key(obj[1])
+    elif is_wrapped_key(obj):
+        return is_equality_key(get_wrapped_key(obj))
     else:
         return False
 
@@ -305,6 +336,27 @@ def wrapped_id(obj):
         # Equality ids are wrapped in a tuple
         xid = (WRAPPED, xid)
     return xid
+
+
+@cython.ccall
+@cython.inline
+@cython.returns(cython.bint)
+def is_wrapped_key(obj):
+    # singletons and small strings
+    if isinstance(obj, tuple):
+        return len(obj) == 2 and obj[0] is WRAPPED
+    elif isinstance(obj, (int, long)):
+        return (obj >> 64) == 0xF
+
+
+@cython.ccall
+@cython.inline
+def get_wrapped_key(obj):
+    # singletons and small strings
+    if isinstance(obj, tuple):
+        return obj[1]
+    elif isinstance(obj, (int, long)):
+        return obj & 0xFFFFFFFFFFFFFFFF
 
 
 class mapped_frozenset(frozenset):
@@ -597,7 +649,9 @@ _FSET_SEED  = 8212431769940327799
 
 @cython.locals(hval=cython.ulonglong)
 def _stable_hash(key):
-    if isinstance(key, basestring):
+    if key is None:
+        hval = 1
+    elif isinstance(key, basestring):
         hval = xxhash.xxh64(safe_utf8(key)).intdigest()
     elif isinstance(key, (int, long)):
         hval = key
@@ -684,6 +738,7 @@ class proxied_dict(object):
         self.offs = offs
 
     @classmethod
+    @cython.locals(widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         packer = cls.HEADER_PACKER
         basepos = offs
@@ -1654,7 +1709,7 @@ class mapped_object(object):
             packer = cls.OBJ_PACKERS[typecode][0]
             endp = packer(obj.value, buf, endp, idmap, implicit_offs)
         else:
-            raise TypeError("Unsupported type")
+            raise TypeError("Unsupported type %r: %r" % (typecode, obj.value))
         return endp
 
     @classmethod
@@ -4526,6 +4581,11 @@ class ObjectIdMapper(_CZipMapBase):
     @cython.ccall
     @cython.locals(pos = cython.ulonglong, sindex = cython.longlong, uindex = cython.ulonglong)
     def _unpack(self, buf, index):
+        # None is represented with an offset of 1, which is an impossible offset
+        # (it would point into the header, 0 would be the dict itself so it's valid)
+        if index == 1:
+            return None
+
         # Compute absolute offset out of relative index
         pos = self._basepos
         if not cython.compiled:
@@ -4844,6 +4904,12 @@ class ObjectIdMapper(_CZipMapBase):
             for k,i in islice(initializer, 1000):
                 # Add the index item
                 n += 1
+
+                # None will be represented with an offset of 1, which is an impossible offset
+                # (it would point into the header, 0 would be the dict itself so it's valid)
+                if k is None:
+                    part.append((_stable_hash(k), 1, i))
+                    continue
 
                 # these are wrapped objects, not plain objects, so make sure they have distinct xid
                 kid = wrapped_id(k)

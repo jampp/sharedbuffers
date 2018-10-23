@@ -74,6 +74,28 @@ class SmallIntContainerPackingTest(unittest.TestCase):
                         self.assertFalse(hasattr(dx, k))
         self.assertGreater(len(p.sections), 1)
 
+    def testStableSet(self):
+        temp_idmap = {}
+        for TEST_VALUES in self.TEST_VALUES:
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            self.schema.pack(x, idmap=temp_idmap)
+
+        p = pool.TemporaryObjectPool(
+            section_size=1<<20,
+            idmap_kwargs=dict(stable_set=set(temp_idmap)))
+        del temp_idmap
+
+        for i in xrange(300):
+            for TEST_VALUES in self.TEST_VALUES:
+                x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+                dx = p.pack(self.schema, x)[1]
+                for k,v in TEST_VALUES.iteritems():
+                    self.assertTrue(hasattr(dx, k))
+                    self.assertEqual(getattr(dx, k), v)
+                for k in self.Struct.__slots__:
+                    if k not in TEST_VALUES:
+                        self.assertFalse(hasattr(dx, k))
+
     def testUnpack(self):
         p = pool.TemporaryObjectPool()
         for TEST_VALUES in self.TEST_VALUES:

@@ -1625,7 +1625,8 @@ class DictPackingCommonTest(object):
 
         d = {
             'a': SimpleStruct(a=1, b=2.0),
-            'b': SimpleStruct(a=2, b=None)
+            'b': SimpleStruct(a=2, b=None),
+            None: SimpleStruct(a=3, b=1.0),
         }
         c = self.pack(d)
 
@@ -1666,6 +1667,7 @@ class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Dic
         {1.0: 10.0, 2.0: 2.2, 3.0: 3.3},
         {frozenset([1]): frozenset(['a']), frozenset([2]): frozenset(['b'])},
         {'a': 1, 1: 'a', frozenset(): 1.0, (1, 2): 80000 },
+        {None: 3},
     ]
 
 class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, DictPackingCommonTest):
@@ -1679,7 +1681,8 @@ class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Di
         {'a': frozenset(), 'b': (1, 2), 'c': 1.0, 'd': [1, 2], 'e': dict(a=1) },
         {0: 42, 'a1_@!': 69, 3.5: 'uhhhh', (1, 2, 3): "four-five-six"},
         {frozenset([1, 2]) : 97.9},
-        {1.0: "test floats equivalent to integers"}
+        {1.0: "test floats equivalent to integers"},
+        {None: 3},
     ]
 
 class MappedDatetimePackingTest(unittest.TestCase):
