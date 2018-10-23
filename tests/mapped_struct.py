@@ -1520,6 +1520,21 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         self.assertEquals(obj[huge:huge], orig[huge:huge])
         self.assertEquals(obj[huge:huge:huge], orig[huge:huge:huge])
 
+    def testProxiedListSliceOutOfBounds(self):
+        orig = range(10)
+        xlen = len(orig)
+        obj = self.pack(range(10))
+
+        self.assertRaises(IndexError, lambda: obj[1:][xlen - 1])
+        self.assertRaises(IndexError, lambda: obj[-1::][1])
+        self.assertRaises(IndexError, lambda: obj[2:4:2][xlen / 2 - 2])
+        self.assertRaises(IndexError, lambda: obj[:2:-2][xlen / 2])
+
+    def testProxiedListSliceNotComparable(self):
+        obj = self.pack(range(3))
+        self.assertRaises(NotImplementedError, lambda: obj < "hello")
+        self.assertRaises(NotImplementedError, lambda: obj >= 42)
+
 
 class ProxiedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest, IndexedCollectionPackingTest):
     PACKING_CLASS = mapped_struct.proxied_tuple
