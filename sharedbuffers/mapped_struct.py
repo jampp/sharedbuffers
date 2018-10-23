@@ -342,7 +342,7 @@ def wrapped_id(obj):
 @cython.inline
 @cython.returns(cython.bint)
 def is_wrapped_key(obj):
-    # singletons and small strings
+    # keys for type-tagged objects
     if isinstance(obj, tuple):
         return len(obj) == 2 and obj[0] is WRAPPED
     elif isinstance(obj, (int, long)):
@@ -352,7 +352,7 @@ def is_wrapped_key(obj):
 @cython.ccall
 @cython.inline
 def get_wrapped_key(obj):
-    # singletons and small strings
+    # the key for the unwrapped value
     if isinstance(obj, tuple):
         return obj[1]
     elif isinstance(obj, (int, long)):
