@@ -795,16 +795,16 @@ class IdMapperTest(unittest.TestCase):
             gen_dupes = True)
 
     def testBuildOnDisk(self):
-        self._testBuild(1010, tempfile.gettempdir())
+        self._testBuild(10107, tempfile.gettempdir())
 
     def testBuildOnDiskReversed(self):
-        self._testBuild(1010, tempfile.gettempdir(), reversed=True)
+        self._testBuild(10107, tempfile.gettempdir(), reversed=True)
 
     def testBuildOnDiskShuffled(self):
-        self._testBuild(1010, tempfile.gettempdir(), shuffled=True)
+        self._testBuild(10107, tempfile.gettempdir(), shuffled=True)
 
     def testBuildOnDiskDiscardDuplicates(self):
-        self._testBuild(1010, tempfile.gettempdir(), build_kwargs = dict(discard_duplicates = True),
+        self._testBuild(10107, tempfile.gettempdir(), build_kwargs = dict(discard_duplicates = True),
             gen_dupes = True)
 
     @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
@@ -859,6 +859,11 @@ class ObjectIdMapperTest(IdMapperTest):
     testBuildOnDiskDiscardDuplicates = None
     testBuildHugeInMemDiscardDuplicates = None
     testBuildHugeOnDiskDiscardDuplicates = None
+
+    # Too much memory
+    testBuildHugeOnDisk = None
+    testBuildHugeOnDiskReversed = None
+    testBuildHugeOnDiskShuffled = None
 
 class ApproxStringIdMultiMapperTest(IdMapperTest):
     IdMapperClass = mapped_struct.ApproxStringIdMultiMapper
