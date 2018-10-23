@@ -835,23 +835,24 @@ class proxied_list(object):
 
         if self.elem_step != 0:
             if self.elem_end == self.elem_start:
-                raise IndexError
+                raise IndexError(index)
             step = abs(self.elem_step)
             if self.elem_step > 0:
                 xlen = (self.elem_end - self.elem_start - 1) / step + 1
             else:
                 xlen = (self.elem_start - self.elem_end - 1) / step + 1
 
-            if (self.elem_step < 0 and index > self.elem_start) or (
-                self.elem_step > 0 and index >= self.elem_end):
-                raise IndexError
             index = self.elem_start + index * self.elem_step
+
+            if (self.elem_step < 0 and (index > self.elem_start or index <= self.elem_end)) or (
+                self.elem_step > 0 and (index >= self.elem_end or index < self.elem_start)):
+                raise IndexError(index)
 
         if index < 0:
             index += xlen
 
         if index >= objlen or index < 0:
-            raise IndexError
+            raise IndexError(index)
 
         if dcode == 't':
             if cython.compiled:
