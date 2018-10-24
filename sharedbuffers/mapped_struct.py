@@ -526,6 +526,7 @@ class mapped_tuple(tuple):
             else:
                 widmap = None
 
+            dataoffs = offs
             for i,x in enumerate(obj):
                 if x is not None:
                     # these are wrapped objects, not plain objects, so make sure they have distinct xid
@@ -539,6 +540,12 @@ class mapped_tuple(tuple):
                     else:
                         val_offs = idmap[xid]
                     index[i] = val_offs - baseoffs - implicit_offs
+
+            if offs == dataoffs and min(index) > -0x7fffffff and max(index) < 0x7fffffff:
+                # it fits in 32-bits, and the index can shrink since we added no data, so shrink it
+                index = array('i', index)
+                offs = dataoffs = indexoffs + len(buffer(index))
+                buf[baseoffs] = 'T'
 
             # write index
             buf[indexoffs:indexoffs+len(buffer(index))] = buffer(index)
@@ -596,8 +603,14 @@ class mapped_list(list):
             objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
             offs += 8
             rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
-        elif dcode == 't':
-            dtype = 'l'
+        elif dcode == 't' or dcode == 'T':
+            if dcode == 't':
+                dtype = 'l'
+            elif dcode == 'T':
+                dtype = 'i'
+            else:
+                raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+
             objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
             offs += 8
 
@@ -1058,10 +1071,14 @@ class proxied_list(object):
 
                 return dcode, objlen, itemsize, dataoffs, None
 
-            elif dcode in ('q', 'd', 't'):
+            elif dcode in ('q', 'd', 't', 'T'):
                 objlen = cython.cast(cython.p_longlong, pbuf + dataoffs)[0] >> 8
                 dataoffs += 8
-                return dcode, objlen, 8, dataoffs, None
+                if dcode == 'T':
+                    itemsize = 4
+                else:
+                    itemsize = 8
+                return dcode, objlen, itemsize, dataoffs, None
 
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
@@ -1094,6 +1111,11 @@ class proxied_list(object):
                 objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
                 dataoffs += 8
                 return dcode, objlen, itemsizes['l'], dataoffs, struct.Struct('l')
+
+            elif dcode == 'T':
+                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
+                dataoffs += 8
+                return dcode, objlen, itemsizes['i'], dataoffs, struct.Struct('i')
 
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
@@ -1129,7 +1151,10 @@ class proxied_list(object):
         buf = _likerobuffer(buf)
         return cls(buf, offs, idmap)
 
-    @cython.locals(obj_offs = cython.ulonglong, dcode = cython.char, index = cython.ulonglong, pindex = "unsigned long *", dataoffs = cython.ulonglong)
+    @cython.locals(obj_offs = cython.ulonglong, dcode = cython.char, index = cython.ulonglong,
+        lpindex = "const long *",
+        ipindex = "const int *",
+        dataoffs = cython.ulonglong)
     def __getitem__(self, index):
 
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
@@ -1137,17 +1162,21 @@ class proxied_list(object):
         if index >= objlen:
             raise IndexError
 
-        if dcode == 't':
+        if dcode in ('t', 'T'):
             if cython.compiled:
-                pindex = cython.cast(cython.p_ulong, cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
-                obj_offs = self.offs + pindex[index]
+                if dcode == 't':
+                    lpindex = cython.cast('const long *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
+                    obj_offs = self.offs + lpindex[index]
+                elif dcode == 'T':
+                    ipindex = cython.cast('const int *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
+                    obj_offs = self.offs + ipindex[index]
             else:
                 index_offs = dataoffs + itemsize * int(index)
                 obj_offs = self.offs + _struct.unpack(self.buf[index_offs:index_offs + itemsize])[0]
         else:
             obj_offs = dataoffs + itemsize * int(index)
 
-        if dcode == 't':
+        if dcode in ('t', 'T'):
             res = mapped_object.unpack_from(self.buf, obj_offs)
         elif cython.compiled:
             if dcode == 'B':
