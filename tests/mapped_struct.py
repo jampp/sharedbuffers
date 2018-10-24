@@ -1537,6 +1537,13 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         self.assertNotEquals(obj, None)
         self.assertNotEquals(obj, "123456")
 
+    def testProxiedListNotEqual(self):
+        obj = self.pack([1, 2, 3, 4, 5])
+        self.assertNotEqual(obj, (1, 2, 3, 4))
+        self.assertNotEqual(obj[1:], (2, 3, 4))
+        self.assertNotEqual(obj[:-1], (1, 2, 3, 4, 5))
+        self.assertNotEqual(obj[2:4], (2, 3, 4))
+
 
 class ProxiedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest, IndexedCollectionPackingTest):
     PACKING_CLASS = mapped_struct.proxied_tuple
