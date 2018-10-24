@@ -1534,6 +1534,8 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         obj = self.pack(range(3))
         self.assertRaises(NotImplementedError, lambda: obj < "hello")
         self.assertRaises(NotImplementedError, lambda: obj >= 42)
+        self.assertNotEquals(obj, None)
+        self.assertNotEquals(obj, "123456")
 
 
 class ProxiedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest, IndexedCollectionPackingTest):
