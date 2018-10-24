@@ -2942,6 +2942,10 @@ class _CZipMapBase(object):
 class GenericFileMapper(_ZipMapBase):
     @classmethod
     def map_file(cls, fileobj, offset = 0, size = None):
+        """
+        Returns a buffer mapping the file object's requested
+        range, and the underlying mmap object as a tuple.
+        """
         if isinstance(fileobj, zipfile.ZipExtFile):
             return cls.map_zipfile(fileobj, offset, size)
 
@@ -2952,7 +2956,7 @@ class GenericFileMapper(_ZipMapBase):
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
         buf = mmap.mmap(fileobj.fileno(), size + offset - map_start,
             access = mmap.ACCESS_READ, offset = map_start)
-        return buffer(buf, offset - map_start)
+        return buffer(buf, offset - map_start), buf
 
 class MappedArrayProxyBase(_ZipMapBase):
     _CURRENT_VERSION = 2
