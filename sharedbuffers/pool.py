@@ -172,4 +172,4 @@ class BaseObjectPool(object):
 class TemporaryObjectPool(BaseObjectPool):
 
     def _mktemp(self):
-        return tempfile.NamedTemporaryFile(**self.temp_kwargs)
+        return tempfile.TemporaryFile(**self.temp_kwargs)
