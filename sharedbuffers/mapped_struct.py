@@ -463,7 +463,7 @@ class mapped_tuple(tuple):
     @cython.locals(widmap = StrongIdMap, pindex = 'long[:]',
         rel_offs = cython.longlong, min_offs = cython.longlong, max_offs = cython.longlong,
         offs = cython.ulonglong, implicit_offs = cython.ulonglong, val_offs = cython.ulonglong,
-        i = cython.ulonglong)
+        i = cython.ulonglong, iminval = cython.longlong, imaxval = cython.longlong)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
             array = array.array):
         baseoffs = offs
@@ -509,39 +509,46 @@ class mapped_tuple(tuple):
                         maxval = x
 
             if all_int or all_intlong:
-                if 0 <= minval and maxval <= 0xFF:
-                    # inline unsigned bytes
-                    buf[offs] = dtype = 'B'
-                elif -0x80 <= maxval <= 0x7F:
-                    # inline signed bytes
-                    buf[offs] = dtype = 'b'
-                elif 0 <= minval and maxval <= 0xFFFF:
-                    # inline unsigned shorts
-                    buf[offs] = dtype = 'H'
-                elif -0x8000 <= maxval <= 0x7FFF:
-                    # inline signed shorts
-                    buf[offs] = dtype = 'h'
-                elif 0 <= minval and maxval <= 0xFFFFFFFF:
-                    # inline unsigned ints
-                    buf[offs] = dtype = 'I'
-                elif -0x80000000 <= maxval <= 0x7FFFFFFF:
-                    # inline signed ints
-                    buf[offs] = dtype = 'i'
-                elif -0x8000000000000000L <= maxval <= 0x7FFFFFFFFFFFFFFFL:
-                    # inline signed int64 list
-                    buf[offs] = 'q'
-                    dtype = 'l'
-                elif 0 <= maxval <= 0xFFFFFFFFFFFFFFFFL:
-                    # inline unsigned int64 list
-                    buf[offs] = 'Q'
-                    dtype = 'L'
-                elif all_int:
-                    # inline sorted int64 list
-                    buf[offs] = 'q'
-                    dtype = 'l'
-                else:
-                    # longs are tricky, give up
-                    all_int = all_intlong = 0
+                try:
+                    iminval = minval
+                    imaxval = maxval
+                    if 0 <= iminval and imaxval <= 0xFF:
+                        # inline unsigned bytes
+                        buf[offs] = dtype = 'B'
+                    elif -0x80 <= iminval and imaxval <= 0x7F:
+                        # inline signed bytes
+                        buf[offs] = dtype = 'b'
+                    elif 0 <= iminval and imaxval <= 0xFFFF:
+                        # inline unsigned shorts
+                        buf[offs] = dtype = 'H'
+                    elif -0x8000 <= iminval and imaxval <= 0x7FFF:
+                        # inline signed shorts
+                        buf[offs] = dtype = 'h'
+                    elif 0 <= iminval and imaxval <= cython.cast(cython.longlong, 0xFFFFFFFF):
+                        # inline unsigned ints
+                        buf[offs] = dtype = 'I'
+                    elif -0x80000000 <= iminval and imaxval <= 0x7FFFFFFF:
+                        # inline signed ints
+                        buf[offs] = dtype = 'i'
+                    elif (cython.cast(cython.longlong, -0x8000000000000000L) <= iminval
+                            and imaxval <= cython.cast(cython.longlong, 0x7FFFFFFFFFFFFFFFL)):
+                        # inline signed int64 list
+                        buf[offs] = 'q'
+                        dtype = 'l'
+                    else:
+                        raise OverflowError
+                except OverflowError:
+                    if 0 <= minval and maxval <= 0xFFFFFFFFFFFFFFFFL:
+                        # inline unsigned int64 list
+                        buf[offs] = 'Q'
+                        dtype = 'L'
+                    elif all_int:
+                        # inline sorted int64 list
+                        buf[offs] = 'q'
+                        dtype = 'l'
+                    else:
+                        # longs are tricky, give up
+                        all_int = all_intlong = 0
         if all_int or all_intlong:
             if dtype == 'l' or dtype == 'L':
                 buf[offs+1:offs+8] = _struct_l_Q.pack(objlen)[:7]
