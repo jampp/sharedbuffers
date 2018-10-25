@@ -45,6 +45,7 @@ Changes
   perhaps considerably. Proper identity was implemented for proxied
   containers though.
 - Shrink some buffers by employing narrow pointers where possible
+- Optimized sequence packing
 
 v0.4.8 - 2018-05-28
 ===================
