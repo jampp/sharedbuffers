@@ -1483,11 +1483,11 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
 
     def testProxiedListSetItem(self):
         c = self.pack([1, 2, 3])
-        self.assertRaises(AttributeError, c.__setitem__, 0, 1)
+        self.assertRaises(TypeError, c.__setitem__, 0, 1)
 
     def testProxiedListDelItem(self):
         c = self.pack([1, 2, 3])
-        self.assertRaises(AttributeError, c.__delitem__, 0)
+        self.assertRaises(TypeError, c.__delitem__, 0)
 
     def testProxiedListStr(self):
         c = self.pack([1, 2.0])
@@ -1499,6 +1499,54 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
 
     def testProxiedListSpecificEqual(self):
         self.assertEquals(self.pack([1, 2.0]), (1, 2.0))
+
+    def testProxiedListSlice(self):
+        orig = [(str(i) if (i % 2) == 0 else i) for i in range(20)]
+        obj = self.pack(orig)
+        huge = 1 << 40
+
+        self.assertEquals(obj[1:], orig[1:])
+        self.assertEquals(obj[:-1], orig[:-1])
+        self.assertEquals(obj[2:4], orig[2:4])
+        self.assertEquals(obj[1:-1:2], orig[1:-1:2])
+        self.assertEquals(obj[::1], orig[::1])
+        self.assertEquals(obj[::2], orig[::2])
+        self.assertEquals(obj[::-1], orig[::-1])
+        self.assertEquals(obj[1::-1], orig[1::-1])
+        self.assertEquals(obj[2:][:5], orig[2:][:5])
+        self.assertEquals(obj[::3][::2], orig[::3][::2])
+        self.assertEquals(obj[1:10:2][2::5], orig[1:10:2][2::5])
+        self.assertEquals(obj[10:1:-3][2::2], orig[10:1:-3][2::2])
+        self.assertEquals(obj[:], orig[:])
+        self.assertEquals(obj[::], orig[::])
+        self.assertEquals(obj[huge:huge], orig[huge:huge])
+        self.assertEquals(obj[huge:huge:huge], orig[huge:huge:huge])
+
+    def testProxiedListSliceOutOfBounds(self):
+        orig = range(10)
+        xlen = len(orig)
+        obj = self.pack(range(10))
+
+        self.assertRaises(IndexError, lambda: obj[1:][xlen - 1])
+        self.assertRaises(IndexError, lambda: obj[-1::][1])
+        self.assertRaises(IndexError, lambda: obj[2:4:2][xlen / 2 - 2])
+        self.assertRaises(IndexError, lambda: obj[:2:-2][xlen / 2])
+        self.assertRaises(TypeError, lambda: obj[1:'a'])
+
+    def testProxiedListSliceNotComparable(self):
+        obj = self.pack(range(3))
+        self.assertRaises(NotImplementedError, lambda: obj < "hello")
+        self.assertRaises(NotImplementedError, lambda: obj >= 42)
+        self.assertNotEquals(obj, None)
+        self.assertNotEquals(obj, "123456")
+
+    def testProxiedListNotEqual(self):
+        obj = self.pack([1, 2, 3, 4, 5])
+        self.assertNotEqual(obj, (1, 2, 3, 4))
+        self.assertNotEqual(obj[1:], (2, 3, 4))
+        self.assertNotEqual(obj[:-1], (1, 2, 3, 4, 5))
+        self.assertNotEqual(obj[2:4], (2, 3, 4))
+
 
 class ProxiedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest, IndexedCollectionPackingTest):
     PACKING_CLASS = mapped_struct.proxied_tuple
