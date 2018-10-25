@@ -42,6 +42,8 @@ npint32 = cython.declare(object, numpy.int32)
 npfloat64 = cython.declare(object, numpy.float64)
 npfloat32 = cython.declare(object, numpy.float32)
 npempty = cython.declare(object, numpy.empty)
+npfrombuffer = cython.declare(object, numpy.frombuffer)
+npndarray = cython.declare(object, numpy.ndarray)
 
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
@@ -363,14 +365,26 @@ class mapped_frozenset(frozenset):
     @classmethod
     @cython.locals(cbuf = 'unsigned char[:]', i=int, ix=int, offs=cython.longlong)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
-        all_int = 1
-        for x in obj:
-            if type(x) is not int:
-                all_int = 0
-                break
+        if isinstance(obj, npndarray):
+            all_int = 0
+            obj_dtype = obj.dtype
+            if obj_dtype.isbuiltin:
+                dtype = obj_dtype.char
+                if dtype in ('L', 'l','I','i','H','h','B','b'):
+                    all_int = 1
+        else:
+            all_int = 1
+            for x in obj:
+                if type(x) is not int:
+                    all_int = 0
+                    break
         if all_int:
-            maxval = max(obj) if obj else 0
-            minval = min(obj) if obj else 0
+            if isinstance(obj, npndarray):
+                maxval = int(obj.max())
+                minval = int(obj.min())
+            else:
+                maxval = max(obj) if obj else 0
+                minval = min(obj) if obj else 0
             if 0 <= minval and maxval < 120:
                 # inline bitmap
                 try:
@@ -393,12 +407,14 @@ class mapped_frozenset(frozenset):
                 return offs
             else:
                 # Else, same representation as a tuple of sorted items, only backed in-memory by a frozenset
-                tup = mapped_tuple(sorted(obj))
-                return tup.pack_into(tup, buf, offs, idmap, implicit_offs)
+                if isinstance(obj, npndarray):
+                    tup = numpy.unique(obj)
+                else:
+                    tup = sorted(obj)
+                return mapped_tuple.pack_into(tup, buf, offs, idmap, implicit_offs)
         else:
             # Same representation as a tuple of items, only backed in-memory by a frozenset
-            tup = mapped_tuple(obj)
-            return tup.pack_into(tup, buf, offs, idmap, implicit_offs)
+            return mapped_tuple.pack_into(obj, buf, offs, idmap, implicit_offs)
 
     @classmethod
     @cython.locals(
@@ -450,56 +466,82 @@ class mapped_tuple(tuple):
         i = cython.ulonglong)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
             array = array.array):
-        all_int = 1
-        all_intlong = 1
-        all_float = 1
         baseoffs = offs
-        for x in obj:
-            if all_int and type(x) is not int:
-                all_int = 0
-            if all_intlong and type(x) is not int and type(x) is not long:
-                all_intlong = 0
-            if all_float and type(x) is not float:
-                all_float = 0
-            if not all_int and not all_intlong and not all_float:
-                break
         objlen = len(obj)
-        if all_int or all_intlong:
-            maxval = max(obj) if obj else 0
-            minval = min(obj) if obj else 0
-            if 0 <= minval and maxval <= 0xFF:
-                # inline unsigned bytes
-                buf[offs] = dtype = 'B'
-            elif -0x80 <= maxval <= 0x7F:
-                # inline signed bytes
-                buf[offs] = dtype = 'b'
-            elif 0 <= minval and maxval <= 0xFFFF:
-                # inline unsigned shorts
-                buf[offs] = dtype = 'H'
-            elif -0x8000 <= maxval <= 0x7FFF:
-                # inline signed shorts
-                buf[offs] = dtype = 'h'
-            elif 0 <= minval and maxval <= 0xFFFFFFFF:
-                # inline unsigned ints
-                buf[offs] = dtype = 'I'
-            elif -0x80000000 <= maxval <= 0x7FFFFFFF:
-                # inline signed ints
-                buf[offs] = dtype = 'i'
-            elif -0x8000000000000000L <= maxval <= 0x7FFFFFFFFFFFFFFFL:
-                # inline signed int64 list
-                buf[offs] = 'q'
-                dtype = 'l'
-            elif 0 <= maxval <= 0xFFFFFFFFFFFFFFFFL:
-                # inline unsigned int64 list
-                buf[offs] = 'Q'
-                dtype = 'L'
-            elif all_int:
-                # inline sorted int64 list
-                buf[offs] = 'q'
-                dtype = 'l'
-            else:
-                # longs are tricky, give up
-                all_int = all_intlong = 0
+        if isinstance(obj, npndarray):
+            all_int = all_intlong = all_float = 0
+            obj_dtype = obj.dtype
+            if obj_dtype.isbuiltin:
+                dtype = obj_dtype.char
+                if dtype in ('l','I','i','H','h','B','b'):
+                    all_int = all_intlong = 1
+                    all_float = 0
+                elif dtype == 'L':
+                    all_int = all_float = 0
+                    all_intlong = 1
+                elif dtype in ('d','f'):
+                    all_int = all_intlong = 0
+                    all_float = 1
+                if all_int or all_intlong or all_float:
+                    # translate l -> q
+                    if dtype == 'l':
+                        buf[offs] = 'q'
+                    elif dtype == 'L':
+                        buf[offs] = 'Q'
+                    else:
+                        buf[offs] = dtype
+        else:
+            all_int = all_intlong = all_float = 1
+            minval = maxval = 0
+            for x in obj:
+                if all_int and type(x) is not int:
+                    all_int = 0
+                if all_intlong and type(x) is not int and type(x) is not long:
+                    all_intlong = 0
+                if all_float and type(x) is not float:
+                    all_float = 0
+                if not all_int and not all_intlong and not all_float:
+                    break
+                elif all_intlong:
+                    if x < minval:
+                        minval = x
+                    if x > maxval:
+                        maxval = x
+
+            if all_int or all_intlong:
+                if 0 <= minval and maxval <= 0xFF:
+                    # inline unsigned bytes
+                    buf[offs] = dtype = 'B'
+                elif -0x80 <= maxval <= 0x7F:
+                    # inline signed bytes
+                    buf[offs] = dtype = 'b'
+                elif 0 <= minval and maxval <= 0xFFFF:
+                    # inline unsigned shorts
+                    buf[offs] = dtype = 'H'
+                elif -0x8000 <= maxval <= 0x7FFF:
+                    # inline signed shorts
+                    buf[offs] = dtype = 'h'
+                elif 0 <= minval and maxval <= 0xFFFFFFFF:
+                    # inline unsigned ints
+                    buf[offs] = dtype = 'I'
+                elif -0x80000000 <= maxval <= 0x7FFFFFFF:
+                    # inline signed ints
+                    buf[offs] = dtype = 'i'
+                elif -0x8000000000000000L <= maxval <= 0x7FFFFFFFFFFFFFFFL:
+                    # inline signed int64 list
+                    buf[offs] = 'q'
+                    dtype = 'l'
+                elif 0 <= maxval <= 0xFFFFFFFFFFFFFFFFL:
+                    # inline unsigned int64 list
+                    buf[offs] = 'Q'
+                    dtype = 'L'
+                elif all_int:
+                    # inline sorted int64 list
+                    buf[offs] = 'q'
+                    dtype = 'l'
+                else:
+                    # longs are tricky, give up
+                    all_int = all_intlong = 0
         if all_int or all_intlong:
             if dtype == 'l' or dtype == 'L':
                 buf[offs+1:offs+8] = _struct_l_Q.pack(objlen)[:7]
@@ -511,15 +553,22 @@ class mapped_tuple(tuple):
                 buf[offs+1:offs+8] = '\xff\xff\xff\xff\xff\xff\xff'
                 buf[offs+8:offs+12] = _struct_l_Q.pack(objlen)
                 offs += 12
-            a = array(dtype, obj)
+            if isinstance(obj, npndarray):
+                a = obj
+            else:
+                a = array(dtype, obj)
             abuf = buffer(a)
             buf[offs:offs+len(abuf)] = abuf
             offs += len(abuf)
             offs = (offs + 7) / 8 * 8
             return offs
         elif all_float:
-            buf[offs] = 'd'
-            a = array('d', obj)
+            if isinstance(obj, npndarray):
+                a = obj
+                # dtype already set when inspecting obj's dtype
+            else:
+                a = array('d', obj)
+                buf[offs] = 'd'
             buf[offs+1:offs+8] = _struct_l_Q.pack(objlen)[:7]
             offs += 8
             abuf = buffer(a)
@@ -529,6 +578,7 @@ class mapped_tuple(tuple):
             return offs
         else:
             # inline object tuple
+            use_narrow = False
             buf[offs] = 't'
             buf[offs+1:offs+8] = _struct_l_Q.pack(objlen)[:7]
             offs += 8
@@ -547,13 +597,44 @@ class mapped_tuple(tuple):
             else:
                 widmap = None
 
-            dataoffs = offs
+            # Get a sense of whether we can use narrow pointers
             min_offs = max_offs = 0
+            for i,x in enumerate(obj):
+                if x is None:
+                    rel_offs = 1
+                else:
+                    # these are wrapped objects, not plain objects, so make sure they have distinct xid
+                    xid = wrapped_id(x)
+                    if xid not in idmap:
+                        # Mark for later
+                        pindex[i] = 1
+                        continue
+                    else:
+                        val_offs = idmap[xid]
+                    rel_offs = val_offs - (baseoffs + implicit_offs)
+                pindex[i] = rel_offs
+                if rel_offs < min_offs:
+                    min_offs = rel_offs
+                elif rel_offs > max_offs:
+                    max_offs = rel_offs
+
+            if min_offs >= -0x80000000 and max_offs <= 0x7fffffff and (len(buf) - baseoffs) <= 0x7fffffff:
+                # We can use narrow pointers, guaranteed
+                use_narrow = True
+                offs = indexoffs + len(index_buffer) / 2
+                offs += (8 - offs & 7) & 7
+                dataoffs = offs
+                buf[baseoffs] = 'T'
+
+            dataoffs = offs
             mapped_object_ = mapped_object
             pack_into = mapped_object_.pack_into
             for i,x in enumerate(obj):
                 if x is None:
                     rel_offs = 1
+                elif pindex[i] != 1:
+                    # Already done, was a hit on the idmap
+                    continue
                 else:
                     # these are wrapped objects, not plain objects, so make sure they have distinct xid
                     xid = wrapped_id(x)
@@ -573,13 +654,17 @@ class mapped_tuple(tuple):
                     max_offs = rel_offs
             del pindex
 
-            if offs == dataoffs and min_offs >= -0x80000000 and max_offs <= 0x7fffffff:
+            if not use_narrow and offs == dataoffs and min_offs >= -0x80000000 and max_offs <= 0x7fffffff:
                 # it fits in 32-bits, and the index can shrink since we added no data, so shrink it
+                use_narrow = True
+                offs = indexoffs + len(index_buffer) / 2
+                offs += (8 - offs & 7) & 7
+                dataoffs = offs
+                buf[baseoffs] = 'T'
+            if use_narrow:
                 del index_buffer
                 index = index.astype(npint32)
                 index_buffer = buffer(index)
-                offs = dataoffs = indexoffs + len(index_buffer)
-                buf[baseoffs] = 'T'
 
             # write index
             buf[indexoffs:indexoffs+len(index_buffer)] = index_buffer
@@ -950,6 +1035,24 @@ class proxied_ndarray(object):
 
     HEADER_PACKER = struct.Struct('=QQ')
 
+    STANDARD_CODES_TO_DTYPE = (
+        # Maintain the order, it's important
+        numpy.uint64,
+        numpy.int64,
+        numpy.uint32,
+        numpy.int32,
+        numpy.uint16,
+        numpy.int16,
+        numpy.uint8,
+        numpy.int8,
+        numpy.float64,
+        numpy.float32,
+    )
+    STANDARD_DTYPES_TO_CODE = dict([
+        (numpy.dtype(dt).str, i)
+        for i, dt in enumerate(STANDARD_CODES_TO_DTYPE)
+    ])
+
     @classmethod
     def _make_dtype_params(cls, dtype):
         names = dtype.names
@@ -974,10 +1077,9 @@ class proxied_ndarray(object):
         dtype_offs = offs - header_offs
 
         dtype_params = cls._make_dtype_params(obj.dtype)
-        if isinstance(dtype_params, str):
-            dtype_params = [dtype_params]
-
-        offs = mapped_list.pack_into(dtype_params, buf, offs)
+        if isinstance(dtype_params, basestring):
+            dtype_params = cls.STANDARD_DTYPES_TO_CODE.get(dtype_params, dtype_params)
+        offs = mapped_object.pack_into(dtype_params, buf, offs)
         data_offs = offs - header_offs
 
         packer.pack_into(buf, header_offs, dtype_offs, data_offs)
@@ -991,13 +1093,16 @@ class proxied_ndarray(object):
         dtype_offs, data_offs = packer.unpack_from(buf, offs)
 
         shape = mapped_tuple.unpack_from(buf, offs + packer.size)
-        dtype_params = mapped_list.unpack_from(buf, offs + dtype_offs)
-        if isinstance(dtype_params[0], str):
-            dtype_params = dtype_params[0]
+        dtype_params = mapped_object.unpack_from(buf, offs + dtype_offs)
 
         data = proxied_buffer.unpack_from(buf, offs + data_offs)
 
-        ndarray = numpy.frombuffer(data, numpy.dtype(dtype_params))
+        if type(dtype_params) is int:
+            dtype = cls.STANDARD_CODES_TO_DTYPE[dtype_params]
+        else:
+            dtype = numpy.dtype(dtype_params)
+
+        ndarray = npfrombuffer(data, dtype)
         return ndarray.reshape(shape)
 
 # @cython.ccall
@@ -3055,7 +3160,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         else:
             self.buf = buf
         self.total_size, self.index_offset, self.index_elements = self._Header.unpack_from(buf, 0)
-        self.index = numpy.frombuffer(buf,
+        self.index = npfrombuffer(buf,
             offset = self.index_offset,
             dtype = numpy.uint64,
             count = self.index_elements)

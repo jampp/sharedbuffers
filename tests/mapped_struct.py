@@ -336,8 +336,8 @@ class BasePackingTestMixin(object):
             px = self.schema.pack(x)
             dx = self.schema.unpack(px, proxy_into = dx)
             for k,v in TEST_VALUES.iteritems():
-                self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
+                self.assertTrue(hasattr(dx, k))
             for k in self.Struct.__slots__:
                 if k not in TEST_VALUES:
                     self.assertFalse(hasattr(dx, k))
@@ -477,6 +477,43 @@ class NestedContainerPackingTest(SimplePackingTest):
         'pt' : ((3,),(6,7,8),(1,7)),
         'pl' : [[1],[2,3],(3,4)],
     }]
+
+class NumpyCastingContainerPackingTest(SimplePackingTest):
+    Struct = ContainerStruct
+    TEST_VALUES = [{
+        'fset' : numpy.array([1,3,7], dt),
+        't' : numpy.array([3,6,7], dt),
+        'l' : numpy.array([1,2,3], dt),
+        'pt' : numpy.array([3,6,7], dt),
+        'pl' : numpy.array([1,2,3], dt),
+    } for dt in (
+        numpy.int8,
+        numpy.uint8,
+        numpy.int16,
+        numpy.uint8,
+        numpy.int32,
+        numpy.uint32,
+        numpy.int64,
+        numpy.uint64,
+        numpy.float,
+        numpy.double,
+    )]
+
+    def assertEqual(self, a, b, *p, **kw):
+        if type(a) is not type(b):
+            typemap = {
+                mapped_struct.proxied_list : list,
+                mapped_struct.proxied_tuple : tuple,
+            }
+            if isinstance(a, numpy.ndarray):
+                btype = type(b)
+                btype = typemap.get(btype, btype)
+                a = btype(a)
+            elif isinstance(b, numpy.ndarray):
+                atype = type(a)
+                atype = typemap.get(atype, atype)
+                b = atype(b)
+        return super(NumpyCastingContainerPackingTest, self).assertEqual(a, b, *p, **kw)
 
 class DictContainerPackingTest(SimplePackingTest):
     Struct = ContainerStruct
