@@ -289,8 +289,26 @@ class StrongIdMap(object):
 @cython.inline
 @cython.returns(cython.bint)
 def is_equality_key(obj):
-    # singletons and small strings
-    if obj is None or obj is () or (isinstance(obj, basestring) and len(obj) < 16):
+    # same as is_equality_key_compatible except for integer keys,
+    # where the LONG_MASK must be checked
+    if (obj is None or obj is ()
+            or (isinstance(obj, (int, long)) and obj & LONG_MASK)
+            or (isinstance(obj, basestring) and len(obj) < 16)):
+        return True
+    elif is_wrapped_key(obj):
+        return is_equality_key(get_wrapped_key(obj))
+    else:
+        return False
+
+
+@cython.ccall
+@cython.inline
+@cython.returns(cython.bint)
+def is_equality_key_compatible(obj):
+    # singletons, small strings and integers
+    if (obj is None or obj is ()
+            or isinstance(obj, (int, long))
+            or (isinstance(obj, basestring) and len(obj) < 16)):
         return True
     elif is_wrapped_key(obj):
         return is_equality_key(get_wrapped_key(obj))
@@ -304,15 +322,23 @@ def shared_id(obj):
     # (id(buf), offs) of buffer-mapped proxies
     if isinstance(obj, proxied_list):
         lobj = obj
-        return (id(lobj.buf) << 64) | lobj.offs
+        return (id(lobj.buf) << 68) | lobj.offs | PROXY_MASK
     elif isinstance(obj, proxied_dict):
         dobj = obj
-        return (id(dobj.buf) << 64) | dobj.offs
+        return (id(dobj.buf) << 68) | dobj.offs | PROXY_MASK
     elif isinstance(obj, BufferProxyObject):
         oobj = obj
-        return (id(oobj.buf) << 64) | oobj.offs
-    elif is_equality_key(obj):
-        # Try an equality key, use the object itself as key if hashable
+        return (id(oobj.buf) << 68) | oobj.offs | PROXY_MASK
+    elif is_equality_key_compatible(obj):
+        # For numeric keys, just add the LONG_MASK to differentiate them from regular ids
+        if isinstance(obj, int):
+            # Up to 64 bits, just add the LONG_MASK
+            return obj | LONG_MASK
+        elif isinstance(obj, long):
+            # Real longs must make room for the flag bits
+            return (obj & 0xFFFFFFFFFFFFFFFFL) | ((obj >> 64) << 68) | LONG_MASK
+
+        # For other keys, use the object itself as key if hashable
         try:
             hash(obj)
         except TypeError:
@@ -328,12 +354,18 @@ class WRAPPED:
     pass
 
 
+WRAP_MASK = cython.declare(object, 1L << 64)
+LONG_MASK = cython.declare(object, 2L << 64)
+PROXY_MASK = cython.declare(object, 4L << 64)
+FLAG_MASK = cython.declare(object, 0xFL << 64)
+
+
 @cython.ccall
 def wrapped_id(obj):
     xid = shared_id(obj)
     if isinstance(xid, (int, long)):
         # We keep numeric ids numeric
-        xid |= 0xFL << 64
+        xid |= WRAP_MASK
     else:
         # Equality ids are wrapped in a tuple
         xid = (WRAPPED, xid)
@@ -348,7 +380,7 @@ def is_wrapped_key(obj):
     if isinstance(obj, tuple):
         return len(obj) == 2 and obj[0] is WRAPPED
     elif isinstance(obj, (int, long)):
-        return (obj >> 64) == 0xF
+        return (obj & WRAP_MASK) == WRAP_MASK
 
 
 @cython.ccall
@@ -357,8 +389,10 @@ def get_wrapped_key(obj):
     # the key for the unwrapped value
     if isinstance(obj, tuple):
         return obj[1]
-    elif isinstance(obj, (int, long)):
-        return obj & 0xFFFFFFFFFFFFFFFF
+    elif isinstance(obj, int):
+        return obj
+    elif isinstance(obj, long):
+        return obj & ~WRAP_MASK
 
 
 class mapped_frozenset(frozenset):
