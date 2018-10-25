@@ -831,7 +831,6 @@ class proxied_list(object):
 
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         xlen = objlen
-        step = 1
         orig_index = index
 
         if self.elem_step != 0:

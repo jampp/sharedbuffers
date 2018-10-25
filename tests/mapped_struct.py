@@ -1517,6 +1517,8 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         self.assertEquals(obj[::3][::2], orig[::3][::2])
         self.assertEquals(obj[1:10:2][2::5], orig[1:10:2][2::5])
         self.assertEquals(obj[10:1:-3][2::2], orig[10:1:-3][2::2])
+        self.assertEquals(obj[:], orig[:])
+        self.assertEquals(obj[::], orig[::])
         self.assertEquals(obj[huge:huge], orig[huge:huge])
         self.assertEquals(obj[huge:huge:huge], orig[huge:huge:huge])
 
@@ -1529,6 +1531,7 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         self.assertRaises(IndexError, lambda: obj[-1::][1])
         self.assertRaises(IndexError, lambda: obj[2:4:2][xlen / 2 - 2])
         self.assertRaises(IndexError, lambda: obj[:2:-2][xlen / 2])
+        self.assertRaises(TypeError, lambda: obj[1:'a'])
 
     def testProxiedListSliceNotComparable(self):
         obj = self.pack(range(3))
