@@ -20,7 +20,6 @@ import collections
 import weakref
 from datetime import timedelta, datetime, date
 from decimal import Decimal
-import numpy as np
 
 try:
     from cdecimal import Decimal as cDecimal
@@ -958,7 +957,7 @@ class proxied_ndarray(object):
 
         data = proxied_buffer.unpack_from(buf, offs + data_offs)
 
-        ndarray = np.frombuffer(data, np.dtype(dtype_params))
+        ndarray = numpy.frombuffer(data, numpy.dtype(dtype_params))
         return ndarray.reshape(shape)
 
 # @cython.ccall
@@ -1680,7 +1679,7 @@ class mapped_object(object):
         date : 'V',
         Decimal : 'F',
         cDecimal : 'F',
-        np.ndarray : 'n',
+        numpy.ndarray : 'n',
         buffer : 'r',
 
         dict : 'm',
@@ -1826,7 +1825,7 @@ VARIABLE_TYPES = {
     date : mapped_date,
     Decimal : mapped_decimal,
     cDecimal : mapped_decimal,
-    np.ndarray : proxied_ndarray,
+    numpy.ndarray : proxied_ndarray,
     buffer : proxied_buffer,
 }
 
@@ -2323,7 +2322,7 @@ PROXY_TYPES = {
     date : DateBufferProxyProperty,
     Decimal : DecimalBufferProxyProperty,
     cDecimal : DecimalBufferProxyProperty,
-    np.ndarray : ProxiedNDArrayBufferProxyProperty,
+    numpy.ndarray : ProxiedNDArrayBufferProxyProperty,
     buffer : ProxiedBufferBufferProxyProperty,
 }
 

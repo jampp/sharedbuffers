@@ -44,6 +44,7 @@ Changes
   return a unique object on each access, inflating the resulting buffer
   perhaps considerably. Proper identity was implemented for proxied
   containers though.
+- Shrink some buffers by employing narrow pointers where possible
 
 v0.4.8 - 2018-05-28
 ===================
