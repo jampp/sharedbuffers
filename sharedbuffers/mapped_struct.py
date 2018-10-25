@@ -1216,7 +1216,7 @@ class proxied_list(object):
                     obj_offs = self.offs + ipindex[index]
             else:
                 index_offs = dataoffs + itemsize * int(index)
-                obj_offs = self.offs + _struct.unpack(self.buf[index_offs:index_offs + itemsize])[0]
+                obj_offs = self.offs + _struct.unpack_from(self.buf, index_offs)[0]
         else:
             obj_offs = dataoffs + itemsize * int(index)
 
