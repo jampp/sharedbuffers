@@ -47,6 +47,11 @@ Changes
 - Shrink some buffers by employing narrow pointers where possible
 - Optimized sequence packing
 
+Bugfixes
+--------
+
+- Fix a buffer reference leak in proxies when building with Cython
+
 v0.4.8 - 2018-05-28
 ===================
 
