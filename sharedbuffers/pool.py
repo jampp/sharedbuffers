@@ -135,7 +135,7 @@ class BaseObjectPool(object):
         Make sure the contents of buf are relocatable (ie: have no external references)
         """
         sections = self.sections
-        for section in reversed(sections):
+        for section in sections:
             if section.free_space < len(buf):
                 continue
 
