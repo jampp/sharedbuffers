@@ -1194,7 +1194,7 @@ class proxied_list(object):
             index = self.elem_start + index * self.elem_step
 
             if ((self.elem_step < 0 and (index > self.elem_start or index <= self.elem_end))
-                    or (self.elem_step > 0 and (index >= self.elem_end or index < self.elem_start)):
+                    or (self.elem_step > 0 and (index >= self.elem_end or index < self.elem_start))):
                 raise IndexError(orig_index)
 
         if index < 0:
