@@ -130,6 +130,28 @@ class BaseObjectPool(object):
             pos = self._pack_into(schema, obj, section)
         return pos + section.implicit_offs, schema.unpack_from(section.real_buf, pos)
 
+    def add(self, schema, buf, clear_idmaps_on_new_section=True):
+        """
+        Make sure the contents of buf are relocatable (ie: have no external references)
+        """
+        sections = self.sections
+        for section in reversed(sections):
+            if section.free_space < len(buf):
+                continue
+
+            try:
+                pos = section.append(buf, section.write_pos)
+            except (struct.error, IndexError):
+                pass
+            else:
+                break
+        else:
+            if clear_idmaps_on_new_section:
+                self.clear_idmaps()
+            section = self.add_section()
+            pos = section.append(buf, section.write_pos)
+        return pos + section.implicit_offs, schema.unpack_from(section.real_buf, pos)
+
     def add_preload(self, schema, obj):
         """
         Preload this object and all its contents into all the individual sections.

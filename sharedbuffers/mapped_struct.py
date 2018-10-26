@@ -234,6 +234,7 @@ class StrongIdMap(object):
     def clear_preloaded(self):
         self.preloaded.clear()
 
+    @cython.ccall
     def get(self, key, default=None):
         if key in self.preloaded:
             return self.preloaded[key]
@@ -2875,7 +2876,11 @@ class Schema(object):
                         val_id = wrapped_id(val)
                     else:
                         val_id = shared_id(val)
-                    val_offs = idmap_get(val_id)
+                    if widmap is not None:
+                        # fast-call
+                        val_offs = widmap.get(val_id)
+                    else:
+                        val_offs = idmap_get(val_id)
                     if val_offs is None:
                         idmap[val_id] = ival_offs = offs + implicit_offs
                         if widmap is not None:
