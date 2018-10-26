@@ -7,6 +7,14 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.4.9 - 2018-10-29
+==================
+
+Bugfixes
+--------
+
+- Fix a buffer reference leak in proxies when building with Cython
+
 0.4.8 - 2018-05-28
 ==================
 
