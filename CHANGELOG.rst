@@ -46,6 +46,11 @@ Changes
   containers though.
 - Shrink some buffers by employing narrow pointers where possible
 
+Bugfixes
+--------
+
+- Fix a buffer reference leak in proxies when building with Cython
+
 v0.4.8 - 2018-05-28
 ===================
 
