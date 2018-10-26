@@ -32,6 +32,11 @@ Changes
 - Use `v` prefix on releases to have fixed links for this document
 - mapped_list now returns actual lists and not a subclass
 
+Bugfixes
+--------
+
+- Fix a buffer reference leak in proxies when building with Cython
+
 v0.4.8 - 2018-05-28
 ===================
 
