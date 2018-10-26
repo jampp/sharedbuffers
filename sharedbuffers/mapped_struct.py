@@ -302,7 +302,13 @@ def shared_id(obj):
     # (id(buf), offs) of buffer-mapped proxies
     if isinstance(obj, proxied_list):
         lobj = obj
-        return (id(lobj.buf) << 64) | lobj.offs
+        rv = (id(lobj.buf) << 64) | lobj.offs
+        if lobj.elem_step != 0:
+            # Add slice arguments to the shared_id
+            rv |= long(lobj.elem_step) << (68 + 64)
+            rv |= long(lobj.elem_start) << (68 + 128)
+            rv |= long(lobj.elem_end) << (68 + 192)
+        return rv
     elif isinstance(obj, proxied_dict):
         dobj = obj
         return (id(dobj.buf) << 64) | dobj.offs
