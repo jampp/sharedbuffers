@@ -434,17 +434,29 @@ class mapped_frozenset(frozenset):
                 except:
                     isbuffer = False
                 if cython.compiled and isbuffer:
-                    cbuf[offs] = 'm'
-                    for i in xrange(1, 8):
-                        cbuf[offs+i] = 0
+                    if maxval < 56:
+                        cbuf[offs] = 'm'
+                        for i in xrange(1, 8):
+                            cbuf[offs+i] = 0
+                    else:
+                        cbuf[offs] = 'M'
+                        for i in xrange(1, 15):
+                            cbuf[offs+i] = 0
                     for ix in obj:
                         cbuf[offs+1+ix/8] |= 1 << (ix & 7)
                 else:
-                    buf[offs:offs+1] = 'm'
-                    buf[offs+1:offs+8] = '\x00\x00\x00\x00\x00\x00\x00'
+                    if maxval < 56:
+                        buf[offs:offs+1] = 'm'
+                        buf[offs+1:offs+8] = '\x00\x00\x00\x00\x00\x00\x00'
+                    else:
+                        buf[offs:offs+1] = 'M'
+                        buf[offs+1:offs+15] = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
                     for x in obj:
                         buf[offs+1+x/8] |= 1 << (x & 7)
-                offs += 8
+                if maxval < 56:
+                    offs += 8
+                else:
+                    offs += 15
                 return offs
             else:
                 # Else, same representation as a tuple of sorted items, only backed in-memory by a frozenset
@@ -472,12 +484,19 @@ class mapped_frozenset(frozenset):
         else:
             pbuf = buf
         try:
-            if pbuf[offs] == 'm':
+            fs_type = pbuf[offs]
+            if fs_type == 'm' or fs_type == 'M':
                 # inline bitmap
-                if cython.compiled and offs+7 >= pybuf.len:
+                if fs_type == 'm':
+                    fs_size = 7
+                elif fs_type == 'M':
+                    fs_size = 15
+                else:
+                    raise ValueError("Unknown set type %r" % fs_type)
+                if cython.compiled and offs+fs_size >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
                 rv = []
-                for i in xrange(7):
+                for i in xrange(fs_size):
                     b = ord(pbuf[offs+1+i])
                     if b:
                         for j in xrange(8):

@@ -46,6 +46,8 @@ Changes
   containers though.
 - Shrink some buffers by employing narrow pointers where possible
 - Optimized sequence packing
+- New wide bitmap frozenset format allows more frozensets to be packed
+  as bitmaps.
 
 Bugfixes
 --------
