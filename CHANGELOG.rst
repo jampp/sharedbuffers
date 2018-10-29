@@ -16,6 +16,7 @@ Bugfixes
 - Fix frozenset bitmap packing, it would write past the allocated
   bitmap and thus not only clobber memory after the marked end,
   but also discard elements in the process
+- Fix a buffer reference leak in proxies when building with Cython
 
 0.4.8 - 2018-05-28
 ==================

@@ -686,18 +686,21 @@ class BufferProxyObject(object):
         none_bitmap = cython.ulonglong
     )
 
-    @cython.locals(offs = cython.ulonglong, none_bitmap = cython.ulonglong)
-    def __init__(self, buf, offs, none_bitmap, idmap = None):
+    def __cinit__(self, buf, offs, none_bitmap, idmap = None):
         if cython.compiled:
             self.pybuf.buf = cython.NULL
+
+    @cython.locals(offs = cython.ulonglong, none_bitmap = cython.ulonglong)
+    def __init__(self, buf, offs, none_bitmap, idmap = None):
         self._init(buf, offs, none_bitmap, idmap)
 
     @cython.ccall
     @cython.locals(offs = cython.ulonglong, none_bitmap = cython.ulonglong)
     def _init(self, buf, offs, none_bitmap, idmap):
         if cython.compiled:
-            if self.pybuf.buf == cython.NULL:
+            if self.pybuf.buf != cython.NULL:
                 PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+                self.pybuf.buf = cython.NULL
 
         self.buf = buf
         self.idmap = idmap
@@ -714,11 +717,11 @@ class BufferProxyObject(object):
         self.none_bitmap = none_bitmap
         self.idmap = idmap
 
-    if cython.compiled:
-        def __del__(self):
-            if self.buf is not None:
+    def __dealloc__(self):
+        if cython.compiled:
+            if self.pybuf.buf != cython.NULL:
                 PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
-                self.buf = None
+                self.pybuf.buf = cython.NULL
 
 @cython.cclass
 class BaseBufferProxyProperty(object):
