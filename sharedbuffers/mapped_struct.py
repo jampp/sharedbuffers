@@ -83,7 +83,7 @@ class mapped_frozenset(frozenset):
         if all_int:
             maxval = max(obj) if obj else 0
             minval = min(obj) if obj else 0
-            if 0 <= minval and maxval < 120:
+            if 0 <= minval and maxval < 56:
                 # inline bitmap
                 buf[offs] = 'm'
                 buf[offs+1:offs+8] = '\x00\x00\x00\x00\x00\x00\x00\x00'
@@ -260,6 +260,9 @@ class mapped_list(list):
 
         baseoffs = offs
         dcode = buf[offs]
+        if type(dcode) is int:
+            # bytearrays...
+            dcode = chr(dcode)
         if dcode in ('B','b','H','h','I','i'):
             dtype = dcode
             objlen, = struct.unpack('<I', buf[offs+1:offs+4] + '\x00')

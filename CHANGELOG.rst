@@ -7,6 +7,16 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+0.4.9 - 2018-10-29
+==================
+
+Bugfixes
+--------
+
+- Fix frozenset bitmap packing, it would write past the allocated
+  bitmap and thus not only clobber memory after the marked end,
+  but also discard elements in the process
+
 0.4.8 - 2018-05-28
 ==================
 
