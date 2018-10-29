@@ -1117,3 +1117,16 @@ class FrozensetPackingTest(unittest.TestCase):
         fs = frozenset()
         mapped_struct.mapped_frozenset.pack_into(fs, a, 0)
         self.assertIs(mapped_struct.mapped_frozenset.unpack_from(a, 0), fs)
+
+    def testBitmapSets(self):
+        a = bytearray(16)
+        bitmap_values = [
+            frozenset([1,3,6]),
+            frozenset([10,30,60]),
+            frozenset([69,99]),
+            frozenset([1,5,7,38,49,67,99,105,119]),
+            frozenset([119]),
+        ]
+        for fs in bitmap_values:
+            mapped_struct.mapped_frozenset.pack_into(fs, a, 0)
+            self.assertEqual(mapped_struct.mapped_frozenset.unpack_from(a, 0), fs)
