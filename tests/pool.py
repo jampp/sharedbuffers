@@ -34,17 +34,26 @@ class SmallIntContainerPackingTest(unittest.TestCase):
     def setUp(self):
         self.schema = mapped_struct.Schema.from_typed_slots(self.Struct)
 
-    def testPack(self):
+    def testPack(self, schema = None):
+        if schema is None:
+            schema = self.schema
         p = pool.TemporaryObjectPool()
         for TEST_VALUES in self.TEST_VALUES:
             x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
-            dx = p.pack(self.schema, x)[1]
+            dx = p.pack(schema, x)[1]
             for k,v in TEST_VALUES.iteritems():
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
                 if k not in TEST_VALUES:
                     self.assertFalse(hasattr(dx, k))
+
+    def testPackObject(self):
+        # hack - unregister schema
+        mapped_struct.mapped_object.TYPE_CODES.pop(self.Struct, None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop('\xfe', None)
+        mapped_struct.mapped_object.register_schema(self.Struct, self.schema, '\xfe')
+        self.testPack(schema=mapped_struct.mapped_object)
 
     def testPreload(self):
         p = pool.TemporaryObjectPool()
