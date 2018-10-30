@@ -100,16 +100,28 @@ class BaseObjectPool(object):
         self.sections.append(new_section)
         return new_section
 
-    def _pack_into(self, schema, obj, section, min_pack_buffer_cell=None, idmap=None):
+    def _pack_into(self, schema, obj, section, min_pack_buffer_cell=None, idmap=None, pack_buffer=None):
         write_pos = section.write_pos
         if idmap is None:
             idmap = section.idmap
-        buf = schema.pack(obj, idmap, implicit_offs=section.implicit_offs + write_pos)
+        implicit_offs = section.implicit_offs + write_pos
+        if hasattr(schema, 'pack'):
+            buf = schema.pack(obj, idmap, implicit_offs=implicit_offs)
+        elif hasattr(schema, 'pack_into'):
+            if pack_buffer is None:
+                if min_pack_buffer_cell:
+                    pack_buffer_size = min_pack_buffer_cell[0]
+                else:
+                    pack_buffer_size = 1 << 20
+                pack_buffer = bytearray(pack_buffer_size)
+            endp = schema.pack_into(obj, pack_buffer, 0, idmap, implicit_offs=implicit_offs)
+            buf = pack_buffer[:endp]
         if min_pack_buffer_cell:
             min_pack_buffer_cell[0] = max(min_pack_buffer_cell[0], len(buf))
         return section.append(buf, write_pos)
 
-    def pack(self, schema, obj, min_pack_buffer=DEFAULT_PACK_BUFFER, clear_idmaps_on_new_section=True):
+    def pack(self, schema, obj, min_pack_buffer=DEFAULT_PACK_BUFFER, clear_idmaps_on_new_section=True,
+            pack_buffer=None):
         sections = self.sections
         _min_pack_buffer=[min_pack_buffer]
         for section in reversed(sections):
