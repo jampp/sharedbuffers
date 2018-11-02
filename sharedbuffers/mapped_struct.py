@@ -2880,18 +2880,29 @@ class Schema(object):
 
     @cython.ccall
     @cython.locals(has_bitmap = cython.ulonglong, none_bitmap = cython.ulonglong, present_bitmap = cython.ulonglong,
-        i = int)
+        i = int, get_values = cython.bint)
     @cython.returns(tuple)
-    def _get_bitmaps(self, obj):
+    def _get_bitmaps(self, obj, get_values=False):
         has_bitmap = 0
         none_bitmap = 0
+        if get_values:
+            values = []
         for i,slot in enumerate(self.slot_keys):
-            if hasattr(obj, slot):
+            try:
+                val = getattr(obj, slot)
+            except AttributeError:
+                pass
+            else:
                 has_bitmap |= cython.cast(cython.ulonglong, 1) << i
-                if getattr(obj, slot, 0) is None:
+                if val is None:
                     none_bitmap |= cython.cast(cython.ulonglong, 1) << i
+                elif get_values:
+                    values.append(val)
         present_bitmap = has_bitmap & ~none_bitmap
-        return has_bitmap, none_bitmap, present_bitmap
+        if get_values:
+            return has_bitmap, none_bitmap, present_bitmap, values
+        else:
+            return has_bitmap, none_bitmap, present_bitmap
 
     @cython.ccall
     @cython.locals(has_bitmap = cython.ulonglong, none_bitmap = cython.ulonglong, present_bitmap = cython.ulonglong,
@@ -2944,7 +2955,7 @@ class Schema(object):
 
     @cython.ccall
     @cython.locals(has_bitmap = cython.ulonglong, none_bitmap = cython.ulonglong, present_bitmap = cython.ulonglong,
-        i = int, size = int, alignment = int, padding = int, mask = cython.ulonglong,
+        i = int, size = int, alignment = int, padding = int, val_pos = int, mask = cython.ulonglong,
         offs = cython.longlong, implicit_offs = cython.longlong, ival_offs = cython.longlong,
         widmap = StrongIdMap)
     @cython.returns(tuple)
@@ -2958,7 +2969,7 @@ class Schema(object):
         baseoffs = offs
         if buf is None:
             buf = self._pack_buffer
-        has_bitmap, none_bitmap, present_bitmap = self._get_bitmaps(obj)
+        has_bitmap, none_bitmap, present_bitmap, values = self._get_bitmaps(obj, True)
         fixed_present = present_bitmap & self._fixed_bitmap
         size = packer.size
         offs += size + padding
@@ -2972,10 +2983,12 @@ class Schema(object):
         idmap_get = idmap.get
         slot_types = self.slot_types
         alignment = self.alignment
+        val_pos = 0
         for i,slot in enumerate(self.slot_keys):
             mask = cython.cast(cython.ulonglong, 1) << i
             if present_bitmap & mask:
-                val = getattr(obj, slot)
+                val = values[val_pos]
+                val_pos += 1
                 if fixed_present & mask:
                     packable_append(val)
                 else:
