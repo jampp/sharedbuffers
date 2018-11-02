@@ -2957,7 +2957,7 @@ class Schema(object):
     @cython.locals(has_bitmap = cython.ulonglong, none_bitmap = cython.ulonglong, present_bitmap = cython.ulonglong,
         i = int, size = int, alignment = int, padding = int, val_pos = int, mask = cython.ulonglong,
         offs = cython.longlong, implicit_offs = cython.longlong, ival_offs = cython.longlong,
-        widmap = StrongIdMap)
+        widmap = StrongIdMap, values = list)
     @cython.returns(tuple)
     def get_packable(self, packer, padding, obj, offs = 0, buf = None, idmap = None, implicit_offs = 0):
         if idmap is None:
