@@ -3304,7 +3304,7 @@ class GenericFileMapper(_ZipMapBase):
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
         buf = mmap.mmap(fileobj.fileno(), size + offset - map_start,
             access = mmap.ACCESS_READ, offset = map_start)
-        return buffer(buf, offset - map_start), buf
+        return buffer(buf, offset - map_start, size), buf
 
 class MappedArrayProxyBase(_ZipMapBase):
     _CURRENT_VERSION = 2
