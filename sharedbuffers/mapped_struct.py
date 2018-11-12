@@ -2046,15 +2046,18 @@ class mapped_object(object):
         return endp
 
     @classmethod
+    @cython.locals(cpadding=cython.size_t, cpacker_size=cython.size_t, offs=cython.size_t)
     def unpack_from(cls, buf, offs, idmap = None):
-        cpacker, cpadding = cls.CODE_PACKER
-        typecode, = cpacker.unpack_from(buf, offs)
+        cpadding = 7
+        cpacker_size = 1
+        buf = _likerobuffer(buf)
+        typecode = buf[offs]
         if typecode in cls.PACKERS:
             packer, padding = cls.PACKERS[typecode]
             typecode, value = packer.unpack_from(buf, offs)
             return value
         elif typecode in cls.OBJ_PACKERS:
-            offs += cpacker.size + cpadding
+            offs += cpacker_size + cpadding
             unpacker = cls.OBJ_PACKERS[typecode][1]
             return unpacker(buf, offs, idmap)
         else:
