@@ -1387,11 +1387,12 @@ class proxied_list(object):
         buf = _likerobuffer(buf)
         return cls(buf, offs, idmap)
 
+    @cython.ccall
     @cython.locals(obj_offs = cython.ulonglong, dcode = cython.char, index = cython.longlong,
         objlen = cython.longlong, xlen = cython.longlong, step = cython.longlong,
         lpindex = "const long *",
         ipindex = "const int *",
-        dataoffs = cython.ulonglong)
+        dataoffs = cython.ulonglong, itemsize = cython.uchar)
     def _getitem(self, index):
 
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
@@ -1431,7 +1432,7 @@ class proxied_list(object):
                 index_offs = dataoffs + itemsize * int(index)
                 obj_offs = self.offs + _struct.unpack_from(self.buf, index_offs)[0]
         else:
-            obj_offs = dataoffs + itemsize * int(index)
+            obj_offs = dataoffs + itemsize * cython.cast(cython.size_t, int(index))
 
         if dcode in ('t', 'T'):
             res = mapped_object.unpack_from(self.buf, obj_offs)
@@ -1541,7 +1542,7 @@ class proxied_list(object):
     @cython.locals(i=cython.longlong)
     def __iter__(self):
         for i in xrange(len(self)):
-            yield self[i]
+            yield self._getitem(i)
 
     @cython.locals(l=cython.longlong)
     def __reversed__(self):
