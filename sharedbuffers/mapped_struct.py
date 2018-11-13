@@ -1170,7 +1170,9 @@ class proxied_ndarray(object):
             dtype = numpy.dtype(dtype_params)
 
         ndarray = npfrombuffer(data, dtype)
-        return ndarray.reshape(shape)
+        if len(shape) != 1:
+            ndarray = ndarray.reshape(shape)
+        return ndarray
 
 # @cython.ccall
 # @cython.returns(cython.bint)
