@@ -1407,7 +1407,7 @@ class IndexedCollectionPackingTest(CollectionPackingTestHelpers):
         self.assertNotEquals(c, pack([1, 2.0, 3]))
         self.assertNotEquals(c, pack([2, 2.0]))
 
-class MappedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest):
+class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest):
     PACKING_CLASS = mapped_struct.mapped_frozenset
     COLLECTION_CLASS = frozenset
 
@@ -1425,17 +1425,17 @@ class MappedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest)
         self.assertEqual(c.symmetric_difference([1, 8]), frozenset([2, 3, 4, 5, 8]))
 
     def testSubsetSuperset(self):
-        c1 = self.pack([1, 2])
-        c2 = self.pack([1, 2, 3, 4])
-        self.assertTrue(c1 < c2)
-        self.assertTrue(c1 <= c2)
-        self.assertFalse(c1 < c2)
-        self.assertTrue(c2 > c1)
-        self.assertTrue(c2 >= c1)
-        self.assertFalse(c2 > c2)
+        small = self.pack([1, 2])
+        big = self.pack([1, 2, 3, 4])
+        self.assertTrue(small < big)
+        self.assertTrue(small <= big)
+        self.assertFalse(small < small)
+        self.assertTrue(big > small)
+        self.assertTrue(big >= small)
+        self.assertFalse(big > big)
 
-class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest):
-    PACKING_CLASS = mapped_struct.proxied_frozenset
+class MappedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest):
+    PACKING_CLASS = mapped_struct.mapped_frozenset
     COLLECTION_CLASS = frozenset
 
     def testIterators(self):
