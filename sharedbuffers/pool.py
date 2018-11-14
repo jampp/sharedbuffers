@@ -32,12 +32,6 @@ class Section(object):
         else:
             raise IndexError("Buffer overflow trying to allocate %d bytes from section" % size)
 
-    def resize(self, pos, new_size):
-        new_end = pos + new_size
-        if new_end != self.write_pos:
-            raise RuntimeError("Cannot resize non-tail buffers")
-        self.write_pos = new_end
-
     def append(self, buf, verify_pos=None):
         write_pos = self.allocate(len(buf))
         if verify_pos is not None and verify_pos != write_pos:
@@ -193,7 +187,6 @@ class BaseObjectPool(object):
             return 0
 
         for section in self.sections[:-1]:
-            write_bytes = len(section.real_buf)
             fileobj.write(section.real_buf)
         section = self.sections[-1]
 
