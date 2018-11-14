@@ -108,7 +108,7 @@ def _likerobuffer(buf):
 
 class mapped_frozenset(frozenset):
     @classmethod
-    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, sort=False):
         all_int = 1
         for x in obj:
             if type(x) is not int:
@@ -131,7 +131,7 @@ class mapped_frozenset(frozenset):
                 return tup.pack_into(tup, buf, offs, idmap, implicit_offs)
         else:
             # Same representation as a tuple of items, only backed in-memory by a frozenset
-            tup = mapped_tuple(obj)
+            tup = mapped_tuple(obj if sort is False else sorted(obj))
             return tup.pack_into(tup, buf, offs, idmap, implicit_offs)
 
     @classmethod
@@ -376,8 +376,8 @@ def _stable_hash(key):
         else:
             mant, expo = math.frexp(key)
             hval = _mix_hash(expo, int(mant * 0xffffffffffff))
-    elif isinstance(key, (tuple, frozenset, proxied_tuple)):
-        if isinstance(key, frozenset):
+    elif isinstance(key, (tuple, frozenset, proxied_tuple, proxied_frozenset)):
+        if isinstance(key, (frozenset, proxied_frozenset)):
             hval = _FSET_SEED
         else:
             hval = _TUPLE_SEED
@@ -1001,6 +1001,166 @@ if not cython.compiled:
     setattr(proxied_list, '__eq__', getattr(proxied_list, '_eq'))
     setattr(proxied_list, '__ne__', getattr(proxied_list, '_ne'))
 
+@cython.cclass
+class proxied_frozenset(object):
+
+    cython.declare(objlist = object)
+
+    def __init__(self, objlist):
+        self.objlist = objlist
+
+    @classmethod
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+        return mapped_frozenset.pack_into(obj, buf, offs, idmap, implicit_offs, sort=True)
+
+    @classmethod
+    @cython.locals(
+        i=int, j=int, offs=cython.longlong,
+        pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar)
+    def unpack_from(cls, buf, offs, idmap = None):
+        buf = _likerobuffer(buf)
+        if cython.compiled:
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+            pbuf = cython.cast(cython.p_uchar, pybuf.buf)
+            if offs >= pybuf.len:
+                PyBuffer_Release(cython.address(pybuf))
+                raise IndexError("Offset out of range")
+        else:
+            pbuf = buf
+        try:
+            if pbuf[offs] == 'm':
+                # inline bitmap
+                if cython.compiled and offs+7 >= pybuf.len:
+                    raise IndexError("Object spans beyond buffer end")
+                rv = []
+                for i in xrange(7):
+                    b = ord(pbuf[offs+1+i])
+                    if b:
+                        for j in xrange(8):
+                            if b & (1<<j):
+                                rv.append(i*8+j)
+                return frozenset(rv)
+            else:
+                return proxied_frozenset(proxied_list(buf, offs, idmap))
+        finally:
+            if cython.compiled:
+                if type(buf) is buffer:
+                    PyBuffer_Release(cython.address(pybuf))
+
+    def copy(self):
+        return self
+
+    def __len__(self):
+        return len(self.objlist)
+
+    @cython.locals(i1=cython.Py_ssize_t, i2=cython.Py_ssize_t,
+        cnt=cython.Py_ssize_t, step=cython.Py_ssize_t, lst='proxied_list')
+    def __contains__(self, elem):
+        i1 = 0
+        i2 = len(self.objlist)
+        cnt = i2 - i1
+        lst = self.objlist
+
+        while cnt > 0:
+            step = cnt >> 1
+            val = lst._getitem(step)
+            if val == elem:
+                return True
+            elif val < elem:
+                cnt -= step + 1
+            else:
+                cnt = step
+        return False
+
+    def __iter__(self):
+        return iter(self.objlist)
+
+    def union(self, *seqs):
+        return frozenset(self).union(*seqs)
+
+    def intersection(self, *seqs):
+        return frozenset(self).intersection(*seqs)
+
+    def difference(self, *seqs):
+        return frozenset(self).difference(*seqs)
+
+    def symmetric_difference(self, *seqs):
+        return frozenset(self).symmetric_difference(*seqs)
+
+    def __eq__(self, seq):
+        if not isinstance(seq, (set, frozenset, proxied_frozenset, mapped_frozenset)) or (
+              len(self) != len(seq)):
+            return False
+        for val in self:
+            if val not in seq:
+                return False
+        return True
+
+    @cython.ccall
+    @cython.locals(strict_subset=cython.bint)
+    def _subset(self, seq, strict_subset):
+        if len(self) > len(seq):
+            return False
+
+        for val in self:
+            if val not in seq:
+                return False
+        return not strict_subset or len(self) < len(seq)
+
+    def __lt__(self, seq):
+        return self._subset(seq, True)
+
+    def __le__(self, seq):
+        return self._subset(seq, False)
+
+    @cython.ccall
+    @cython.locals(strict_superset=cython.bint)
+    def _superset(self, seq, strict_superset):
+        if len(self) < len(seq):
+            return False
+
+        for val in seq:
+            if val not in self:
+                return False
+
+        return not strict_superset or len(self) > len(seq)
+
+    def __gt__(self, seq):
+        return self._superset(seq, True)
+
+    def __ge__(self, seq):
+        return self._superset(seq, False)
+
+    def __or__(self, seq):
+        return self.union(seq)
+
+    def __ror__(self, seq):
+        return self.union(seq)
+
+    def __and__(self, seq):
+        return self.intersection(seq)
+
+    def __rand__(self, seq):
+        return self.intersection(seq)
+
+    def __sub__(self, seq):
+        return self.difference(seq)
+
+    def __rsub__(self, seq):
+        return frozenset(seq).difference(self)
+
+    def __xor__(self, seq):
+        return self.symmetric_difference(seq)
+
+    def __rxor__(self, seq):
+        return frozenset(seq).symmetric_difference(self)
+
+    def __repr__(self):
+        return "proxied_frozenset(%s)" % str(self)
+
+    def __str__(self):
+        return str(self.objlist)
+
 is_cpython = cython.declare(cython.bint, sys.subversion[0] == 'CPython')
 
 @cython.cclass
@@ -1384,6 +1544,7 @@ class mapped_object(object):
         proxied_ndarray: 'n',
         proxied_buffer: 'r',
         proxied_dict: 'M',
+        proxied_frozenset: 'O',
 
         int : 'q',
         long : 'q',
@@ -1433,7 +1594,8 @@ class mapped_object(object):
         'v' : (mapped_datetime.pack_into, mapped_datetime.unpack_from, mapped_datetime),
         'V' : (mapped_date.pack_into, mapped_date.unpack_from, mapped_date),
         'F' : (mapped_decimal.pack_into, mapped_decimal.unpack_from, mapped_decimal),
-        'M' : (proxied_dict.pack_into, proxied_dict.unpack_from, proxied_dict)
+        'M' : (proxied_dict.pack_into, proxied_dict.unpack_from, proxied_dict),
+        'O' : (proxied_frozenset.pack_into, proxied_frozenset.unpack_from, proxied_frozenset)
     }
 
     del p
@@ -1975,6 +2137,10 @@ class ObjectBufferProxyProperty(GenericBufferProxyProperty):
 class ProxiedDictBufferProxyProperty(GenericBufferProxyProperty):
     typ = proxied_dict
 
+@cython.cclass
+class ProxiedFrozensetBufferProxyProperty(GenericBufferProxyProperty):
+    typ = proxied_frozenset
+
 PROXY_TYPES = {
     uint8 : UByteBufferProxyProperty,
     int8 : ByteBufferProxyProperty,
@@ -2005,6 +2171,7 @@ PROXY_TYPES = {
     proxied_ndarray : ProxiedNDArrayBufferProxyProperty,
     proxied_buffer : ProxiedBufferBufferProxyProperty,
     proxied_dict : ProxiedDictBufferProxyProperty,
+    proxied_frozenset : ProxiedFrozensetBufferProxyProperty,
 
     int : LongBufferProxyProperty,
     long : LongBufferProxyProperty,
