@@ -1408,25 +1408,33 @@ class IndexedCollectionPackingTest(CollectionPackingTestHelpers):
         self.assertNotEquals(c, pack([2, 2.0]))
 
 class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest):
-    PACKING_CLASS = mapped_struct.mapped_frozenset
+    PACKING_CLASS = mapped_struct.proxied_frozenset
     COLLECTION_CLASS = frozenset
 
+    def testContains(self):
+        values = [float(x) for x in range(5)]
+        c = self.pack(values)
+        for val in values:
+            self.assertIn(val, c)
+        for val in values:
+            self.assertNotIn(-val - 1, c)
+
     def testCmpSets(self):
-        c = self.pack([1, 2, 3, 4, 5])
-        self.assertEqual(c, self.pack([5, 4, 3, 2, 1]))
+        c = self.pack([1., 2., 3., 4., 5.])
+        self.assertEqual(c, self.pack([5., 4., 3., 2., 1.]))
         self.assertEqual(c, set(c))
         self.assertEqual(c, frozenset(c))
 
     def testSetOps(self):
-        c = self.pack([1, 2, 3, 4, 5])
-        self.assertEqual(c.union([3, 6]), frozenset([1, 2, 3, 4, 5, 6]))
-        self.assertEqual(c.intersection([3, 5, 9]), frozenset([3, 5]))
-        self.assertEqual(c.difference([2, 4, 8]), frozenset([1, 3, 5]))
-        self.assertEqual(c.symmetric_difference([1, 8]), frozenset([2, 3, 4, 5, 8]))
+        c = self.pack([1., 2., 3., 4., 5.])
+        self.assertEqual(c.union([3., 6.]), frozenset([1., 2., 3., 4., 5., 6.]))
+        self.assertEqual(c.intersection([3., 5., 9.]), frozenset([3., 5.]))
+        self.assertEqual(c.difference([2., 4., 8.]), frozenset([1., 3., 5.]))
+        self.assertEqual(c.symmetric_difference([1., 8.]), frozenset([2., 3., 4., 5., 8.]))
 
     def testSubsetSuperset(self):
-        small = self.pack([1, 2])
-        big = self.pack([1, 2, 3, 4])
+        small = self.pack([1., 2.])
+        big = self.pack([1., 2., 3., 4.])
         self.assertTrue(small < big)
         self.assertTrue(small <= big)
         self.assertFalse(small < small)
