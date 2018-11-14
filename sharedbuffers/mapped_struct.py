@@ -1140,7 +1140,9 @@ class proxied_ndarray(object):
         packer = cls.HEADER_PACKER
         offs += packer.size
 
-        offs = mapped_tuple.pack_into(obj.shape, buf, offs)
+        shape = obj.shape
+        if len(shape) != 1:
+            offs = mapped_tuple.pack_into(shape, buf, offs)
         dtype_offs = offs - header_offs
 
         dtype_params = cls._make_dtype_params(obj.dtype)
@@ -1154,12 +1156,17 @@ class proxied_ndarray(object):
 
 
     @classmethod
-    @cython.locals(offs = cython.ulonglong, dtype_offs = cython.ulonglong, data_offs = cython.ulonglong)
+    @cython.locals(offs = cython.ulonglong, dtype_offs = cython.ulonglong, data_offs = cython.ulonglong,
+        shape_offs = cython.ulonglong)
     def unpack_from(cls, buf, offs, idmap = None):
         packer = cls.HEADER_PACKER
         dtype_offs, data_offs = packer.unpack_from(buf, offs)
 
-        shape = mapped_tuple.unpack_from(buf, offs + packer.size)
+        shape_offs = packer.size
+        if dtype_offs != shape_offs:
+            shape = mapped_tuple.unpack_from(buf, offs + shape_offs)
+        else:
+            shape = None
         dtype_params = mapped_object.unpack_from(buf, offs + dtype_offs)
 
         data = proxied_buffer.unpack_from(buf, offs + data_offs)
@@ -1170,7 +1177,7 @@ class proxied_ndarray(object):
             dtype = numpy.dtype(dtype_params)
 
         ndarray = npfrombuffer(data, dtype)
-        if len(shape) != 1:
+        if shape is not None:
             ndarray = ndarray.reshape(shape)
         return ndarray
 
