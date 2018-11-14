@@ -3289,6 +3289,13 @@ class mapped_object_with_schema(object):
     def unpack_from(self, buf, offs, idmap = None):
         return self._schema.unpack_from(buf, offs, idmap)
 
+    def __reduce__(self):
+        return (type(self), (self.schema,))
+
+    # For compatibility with older pickles, we don't need a getstate
+    def __setstate__(self, state):
+        self._schema = state['schema']
+
 @cython.ccall
 def _map_zipfile(cls, fileobj, offset, size):
     # Open underlying file
