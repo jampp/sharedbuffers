@@ -522,8 +522,8 @@ class mapped_tuple(tuple):
     @classmethod
     @cython.locals(widmap = StrongIdMap, pindex = 'long[:]',
         rel_offs = cython.longlong, min_offs = cython.longlong, max_offs = cython.longlong,
-        offs = cython.ulonglong, implicit_offs = cython.ulonglong, val_offs = cython.ulonglong,
-        i = cython.ulonglong, iminval = cython.longlong, imaxval = cython.longlong)
+        offs = cython.Py_ssize_t, implicit_offs = cython.Py_ssize_t, val_offs = cython.Py_ssize_t,
+        i = cython.Py_ssize_t, iminval = cython.longlong, imaxval = cython.longlong)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
             array = array.array):
         baseoffs = offs
@@ -916,18 +916,18 @@ class BufferIO(object):
     def seek(self, pos):
         self.pos = pos
 
+_DICT_HEADER_PACKER = cython.declare(object, struct.Struct('=Q'))
+_DICT_HEADER_SIZE = cython.declare(cython.Py_ssize_t, _DICT_HEADER_PACKER.size)
 
 @cython.cclass
 class proxied_dict(object):
-
-    HEADER_PACKER = struct.Struct('=Q')   # Offset into value list.
 
     cython.declare(
         __weakref__=object,
         objmapper=object,
         vlist=proxied_list,
         buf=object,
-        offs=cython.ulonglong,
+        offs=cython.Py_ssize_t,
     )
 
     @property
@@ -945,26 +945,26 @@ class proxied_dict(object):
         self.offs = offs
 
     @classmethod
-    @cython.locals(widmap = StrongIdMap)
+    @cython.locals(widmap = StrongIdMap, cur_offs = cython.Py_ssize_t, implicit_offs = cython.Py_ssize_t)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
-        packer = cls.HEADER_PACKER
-        basepos = offs
-        offs += packer.size
-        iobuf = BufferIO(buf, offs)
-        offs += ObjectIdMapper.build(
+        basepos = cur_offs = offs
+        cur_offs += _DICT_HEADER_SIZE
+        iobuf = BufferIO(buf, cur_offs)
+        cur_offs += cython.cast(cython.Py_ssize_t, ObjectIdMapper.build(
             _enum_keys(obj), iobuf,
             return_mapper=False,
             idmap=idmap,
-            implicit_offs=implicit_offs + offs)
-        packer.pack_into(buf, basepos, offs - basepos)
-        return proxied_list.pack_into([obj[k] for k in obj.iterkeys()], buf, offs, idmap, implicit_offs)
+            implicit_offs=implicit_offs + cur_offs))
+        _DICT_HEADER_PACKER.pack_into(buf, basepos, cur_offs - basepos)
+        return proxied_list.pack_into([obj[k] for k in obj.iterkeys()], buf, cur_offs, idmap, implicit_offs)
 
     @classmethod
+    @cython.locals(values_offs = cython.Py_ssize_t, ioffs = cython.Py_ssize_t)
     def unpack_from(cls, buf, offs, idmap = None):
-        packer = cls.HEADER_PACKER
-        values_offs, = packer.unpack_from(buf, offs)
-        objmapper = ObjectIdMapper.map_buffer(buf, offs + packer.size)
-        vlist = proxied_list.unpack_from(buf, offs + values_offs, idmap)
+        ioffs = offs
+        values_offs, = _DICT_HEADER_PACKER.unpack_from(buf, offs)
+        objmapper = ObjectIdMapper.map_buffer(buf, ioffs + _DICT_HEADER_SIZE)
+        vlist = proxied_list.unpack_from(buf, ioffs + values_offs, idmap)
         return proxied_dict(buf, offs, objmapper, vlist)
 
     def get(self, key, default_val = None):
@@ -1075,50 +1075,61 @@ if not cython.compiled:
         setattr(proxied_dict, new, getattr(proxied_dict, orig))
     delattr(proxied_dict, '__richcmp__')
 
+
+_BUFFER_HEADER_PACKER = cython.declare(object, struct.Struct('=Q'))
+_BUFFER_HEADER_SIZE = cython.declare(cython.Py_ssize_t, _BUFFER_HEADER_PACKER.size)
+
+
 class proxied_buffer(object):
 
-    HEADER_PACKER = struct.Struct('=Q')
-
     @classmethod
+    @cython.locals(cur_offs = cython.Py_ssize_t, objlen = cython.Py_ssize_t)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
-        packer = cls.HEADER_PACKER
-        packer.pack_into(buf, offs, len(obj))
-        offs += packer.size
+        cur_offs = offs
+        objlen = len(obj)
+        _BUFFER_HEADER_PACKER.pack_into(buf, offs, objlen)
+        cur_offs += _BUFFER_HEADER_SIZE
 
-        end_offs = offs + len(obj)
-        buf[offs:end_offs] = obj
+        end_offs = cur_offs + objlen
+        buf[cur_offs:end_offs] = obj
 
         return end_offs
 
     @classmethod
+    @cython.locals(cur_offs = cython.Py_ssize_t)
     def unpack_from(cls, buf, offs, idmap = None):
-        packer = cls.HEADER_PACKER
-        size, = packer.unpack_from(buf, offs)
-        offs += packer.size
+        cur_offs = offs
+        size, = _BUFFER_HEADER_PACKER.unpack_from(buf, offs)
+        cur_offs += _BUFFER_HEADER_SIZE
 
-        return buffer(buf, offs, size)
+        return buffer(buf, cur_offs, size)
+
+
+_NDARRAY_HEADER_PACKER = cython.declare(object, struct.Struct('=QQ'))
+_NDARRAY_HEADER_SIZE = cython.declare(cython.Py_ssize_t, _NDARRAY_HEADER_PACKER.size)
+
+_NDARRAY_STANDARD_CODES_TO_DTYPE = cython.declare(tuple, (
+    # Maintain the order, it's important
+    numpy.uint64,
+    numpy.int64,
+    numpy.uint32,
+    numpy.int32,
+    numpy.uint16,
+    numpy.int16,
+    numpy.uint8,
+    numpy.int8,
+    numpy.float64,
+    numpy.float32,
+))
+_NDARRAY_STANDARD_DTYPES_TO_CODE = cython.declare(dict, dict([
+    (numpy.dtype(dt).str, i)
+    for i, dt in enumerate(_NDARRAY_STANDARD_CODES_TO_DTYPE)
+]))
+NDARRAY_STANDARD_CODES_TO_DTYPE = _NDARRAY_STANDARD_CODES_TO_DTYPE
+NDARRAY_STANDARD_DTYPES_TO_CODE = _NDARRAY_STANDARD_DTYPES_TO_CODE
+
 
 class proxied_ndarray(object):
-
-    HEADER_PACKER = struct.Struct('=QQ')
-
-    STANDARD_CODES_TO_DTYPE = (
-        # Maintain the order, it's important
-        numpy.uint64,
-        numpy.int64,
-        numpy.uint32,
-        numpy.int32,
-        numpy.uint16,
-        numpy.int16,
-        numpy.uint8,
-        numpy.int8,
-        numpy.float64,
-        numpy.float32,
-    )
-    STANDARD_DTYPES_TO_CODE = dict([
-        (numpy.dtype(dt).str, i)
-        for i, dt in enumerate(STANDARD_CODES_TO_DTYPE)
-    ])
 
     @classmethod
     def _make_dtype_params(cls, dtype):
@@ -1134,45 +1145,44 @@ class proxied_ndarray(object):
             return dtype.str
 
     @classmethod
-    @cython.locals(offs = cython.ulonglong, implicit_offs = cython.ulonglong, header_offs = cython.ulonglong)
+    @cython.locals(cur_offs = cython.Py_ssize_t, implicit_offs = cython.Py_ssize_t, baseoffs = cython.Py_ssize_t)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
-        header_offs = offs
-        packer = cls.HEADER_PACKER
-        offs += packer.size
+        cur_offs = baseoffs = header_offs = offs
+        cur_offs += _NDARRAY_HEADER_SIZE
 
         shape = obj.shape
         if len(shape) != 1:
-            offs = mapped_tuple.pack_into(shape, buf, offs)
-        dtype_offs = offs - header_offs
+            cur_offs = mapped_tuple.pack_into(shape, buf, cur_offs)
+        dtype_offs = cur_offs - baseoffs
 
         dtype_params = cls._make_dtype_params(obj.dtype)
         if isinstance(dtype_params, basestring):
-            dtype_params = cls.STANDARD_DTYPES_TO_CODE.get(dtype_params, dtype_params)
-        offs = mapped_object.pack_into(dtype_params, buf, offs)
-        data_offs = offs - header_offs
+            dtype_params = _NDARRAY_STANDARD_DTYPES_TO_CODE.get(dtype_params, dtype_params)
+        cur_offs = mapped_object.pack_into(dtype_params, buf, cur_offs)
+        data_offs = cur_offs - baseoffs
 
-        packer.pack_into(buf, header_offs, dtype_offs, data_offs)
-        return proxied_buffer.pack_into(buffer(obj), buf, offs)
+        _NDARRAY_HEADER_PACKER.pack_into(buf, header_offs, dtype_offs, data_offs)
+        return proxied_buffer.pack_into(buffer(obj), buf, cur_offs)
 
 
     @classmethod
-    @cython.locals(offs = cython.ulonglong, dtype_offs = cython.ulonglong, data_offs = cython.ulonglong,
-        shape_offs = cython.ulonglong)
+    @cython.locals(baseoffs = cython.Py_ssize_t, dtype_offs = cython.Py_ssize_t, data_offs = cython.Py_ssize_t,
+        shape_offs = cython.Py_ssize_t)
     def unpack_from(cls, buf, offs, idmap = None):
-        packer = cls.HEADER_PACKER
-        dtype_offs, data_offs = packer.unpack_from(buf, offs)
+        baseoffs = offs
+        dtype_offs, data_offs = _NDARRAY_HEADER_PACKER.unpack_from(buf, offs)
 
-        shape_offs = packer.size
+        shape_offs = _NDARRAY_HEADER_SIZE
         if dtype_offs != shape_offs:
-            shape = mapped_tuple.unpack_from(buf, offs + shape_offs)
+            shape = mapped_tuple.unpack_from(buf, baseoffs + shape_offs)
         else:
             shape = None
-        dtype_params = mapped_object.unpack_from(buf, offs + dtype_offs)
+        dtype_params = mapped_object.unpack_from(buf, baseoffs + dtype_offs)
 
-        data = proxied_buffer.unpack_from(buf, offs + data_offs)
+        data = proxied_buffer.unpack_from(buf, baseoffs + data_offs)
 
         if type(dtype_params) is int:
-            dtype = cls.STANDARD_CODES_TO_DTYPE[dtype_params]
+            dtype = _NDARRAY_STANDARD_CODES_TO_DTYPE[cython.cast(int, dtype_params)]
         else:
             dtype = numpy.dtype(dtype_params)
 
@@ -1245,7 +1255,7 @@ class proxied_list(object):
         __weakref__ = object,
         buf = object,
         pybuf = 'Py_buffer',
-        offs = cython.ulonglong,
+        offs = cython.Py_ssize_t,
         elem_start = cython.longlong,
         elem_end = cython.longlong,
         elem_step = cython.longlong
@@ -1266,8 +1276,8 @@ class proxied_list(object):
                 self.pybuf.buf = cython.NULL
 
     @cython.ccall
-    @cython.locals(dataoffs = cython.ulonglong, dcode = cython.char, pbuf = 'const char *',
-        itemsize = cython.uchar, objlen = cython.ulonglong)
+    @cython.locals(dataoffs = cython.Py_ssize_t, dcode = cython.char, pbuf = 'const char *',
+        itemsize = cython.uchar, objlen = cython.Py_ssize_t)
     def _metadata(self,
         itemsizes = dict([(dtype, array.array(dtype, []).itemsize) for dtype in ('B','b','H','h','I','i','l','L','d')])):
 
@@ -1353,7 +1363,7 @@ class proxied_list(object):
         if cython.compiled:
             self.pybuf.buf = cython.NULL
 
-    @cython.locals(offs = cython.ulonglong, idmap = dict, elem_start = cython.longlong,
+    @cython.locals(offs = cython.Py_ssize_t, idmap = dict, elem_start = cython.longlong,
         elem_end = cython.longlong, elem_step = cython.longlong)
     def __init__(self, buf, offs, idmap = None, elem_start = 0, elem_end = 0, elem_step = 0):
         self.offs = offs
@@ -1397,11 +1407,11 @@ class proxied_list(object):
         return cls(buf, offs, idmap)
 
     @cython.ccall
-    @cython.locals(obj_offs = cython.ulonglong, dcode = cython.char, index = cython.longlong,
+    @cython.locals(obj_offs = cython.Py_ssize_t, dcode = cython.char, index = cython.longlong,
         objlen = cython.longlong, xlen = cython.longlong, step = cython.longlong,
         lpindex = "const long *",
         ipindex = "const int *",
-        dataoffs = cython.ulonglong, itemsize = cython.uchar)
+        dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def _getitem(self, index):
 
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
@@ -2183,7 +2193,7 @@ class BufferProxyObject(object):
         buf = object,
         idmap = object,
         pybuf = 'Py_buffer',
-        offs = cython.ulonglong,
+        offs = cython.Py_ssize_t,
         none_bitmap = cython.ulonglong
     )
 
@@ -2199,12 +2209,12 @@ class BufferProxyObject(object):
         if cython.compiled:
             self.pybuf.buf = cython.NULL
 
-    @cython.locals(offs = cython.ulonglong, none_bitmap = cython.ulonglong)
+    @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
     def __init__(self, buf, offs, none_bitmap, idmap = None):
         self._init(buf, offs, none_bitmap, idmap)
 
     @cython.ccall
-    @cython.locals(offs = cython.ulonglong, none_bitmap = cython.ulonglong)
+    @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
     def _init(self, buf, offs, none_bitmap, idmap):
         if cython.compiled:
             if self.pybuf.buf != cython.NULL:
@@ -2220,7 +2230,7 @@ class BufferProxyObject(object):
             PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
 
     @cython.ccall
-    @cython.locals(offs = cython.ulonglong, none_bitmap = cython.ulonglong)
+    @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
     def _reset(self, offs, none_bitmap, idmap):
         self.offs = offs
         self.none_bitmap = none_bitmap
@@ -2234,7 +2244,7 @@ class BufferProxyObject(object):
 
 @cython.cclass
 class BaseBufferProxyProperty(object):
-    cython.declare(offs = cython.ulonglong, mask = cython.ulonglong)
+    cython.declare(offs = cython.Py_ssize_t, mask = cython.ulonglong)
 
     def __init__(self, offs, mask):
         self.offs = offs
@@ -2437,7 +2447,7 @@ class FloatBufferProxyProperty(BaseBufferProxyProperty):
 class BytesBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
 
-    @cython.locals(obj = BufferProxyObject, offs = cython.ulonglong, buflen = cython.ulonglong, pybuf = 'Py_buffer*',
+    @cython.locals(obj = BufferProxyObject, offs = cython.Py_ssize_t, buflen = cython.ulonglong, pybuf = 'Py_buffer*',
         poffs = object)
     def __get__(self, obj, klass):
         if obj is None:
@@ -2472,7 +2482,7 @@ class BytesBufferProxyProperty(BaseBufferProxyProperty):
 class UnicodeBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
 
-    @cython.locals(obj = BufferProxyObject, offs = cython.ulonglong, buflen = cython.ulonglong, pybuf = 'Py_buffer*',
+    @cython.locals(obj = BufferProxyObject, offs = cython.Py_ssize_t, buflen = cython.ulonglong, pybuf = 'Py_buffer*',
         poffs = object)
     def __get__(self, obj, klass):
         if obj is None:
@@ -2521,7 +2531,7 @@ class MissingBufferProxyProperty(BaseBufferProxyProperty):
 class GenericBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
 
-    @cython.locals(obj = BufferProxyObject, offs = cython.ulonglong, buflen = cython.ulonglong, pybuf = 'Py_buffer*',
+    @cython.locals(obj = BufferProxyObject, offs = cython.Py_ssize_t, buflen = cython.ulonglong, pybuf = 'Py_buffer*',
         poffs = object)
     def __get__(self, obj, klass):
         if obj is None:
@@ -4480,7 +4490,6 @@ class NumericIdMapper(_CZipMapBase):
         # Just touch everything in sequential order
         self.index.max()
 
-    @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer', pybuf = 'Py_buffer')
     def iterkeys(self):
         return iter(self.index[:,0])
 
@@ -4678,7 +4687,7 @@ class NumericIdMapper(_CZipMapBase):
 
     @classmethod
     @cython.locals(
-        basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong,
+        basepos = cython.Py_ssize_t, curpos = cython.Py_ssize_t, endpos = cython.Py_ssize_t, finalpos = cython.Py_ssize_t,
         discard_duplicates = cython.bint, discard_duplicate_keys = cython.bint)
     def build(cls, initializer, destfile = None, tempdir = None,
             discard_duplicates = False, discard_duplicate_keys = False, return_mapper=True):
@@ -4831,7 +4840,7 @@ class NumericIdMapper(_CZipMapBase):
 
     @classmethod
     @cython.locals(
-        basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong,
+        basepos = cython.Py_ssize_t, curpos = cython.Py_ssize_t, endpos = cython.Py_ssize_t, finalpos = cython.Py_ssize_t,
         discard_duplicates = cython.bint, discard_duplicate_keys = cython.bint, index_elements = cython.size_t,
         mapper = 'NumericIdMapper')
     def merge(cls, parts, destfile = None, tempdir = None,
@@ -4883,7 +4892,7 @@ class ObjectIdMapper(_CZipMapBase):
         _likebuf = object,
         _file = object,
         _dtype = object,
-        _basepos = cython.ulonglong,
+        _basepos = cython.Py_ssize_t,
         index = object,
         index_elements = cython.ulonglong,
         index_offset = cython.ulonglong,
@@ -4960,7 +4969,7 @@ class ObjectIdMapper(_CZipMapBase):
         self.index.max()
 
     @cython.ccall
-    @cython.locals(pos = cython.ulonglong, sindex = cython.longlong, uindex = cython.ulonglong)
+    @cython.locals(pos = cython.Py_ssize_t, sindex = cython.longlong, uindex = cython.ulonglong)
     def _unpack(self, buf, index):
         # None is represented with an offset of 1, which is an impossible offset
         # (it would point into the header, 0 would be the dict itself so it's valid)
@@ -5231,8 +5240,8 @@ class ObjectIdMapper(_CZipMapBase):
 
     @classmethod
     @cython.locals(
-        basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong,
-        dtypemax = cython.ulonglong, implicit_offs = cython.ulonglong, widmap = StrongIdMap, kpos = cython.longlong,
+        basepos = cython.Py_ssize_t, curpos = cython.Py_ssize_t, endpos = cython.Py_ssize_t, finalpos = cython.Py_ssize_t,
+        dtypemax = cython.ulonglong, implicit_offs = cython.Py_ssize_t, widmap = StrongIdMap, kpos = cython.longlong,
         ukpos = cython.ulonglong)
     def build(cls, initializer, destfile = None, tempdir = None, return_mapper=True, min_buf_size=128, idmap=None,
             implicit_offs=0):
@@ -5741,7 +5750,7 @@ class StringIdMapper(_CZipMapBase):
 
     @classmethod
     @cython.locals(
-        basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong,
+        basepos = cython.Py_ssize_t, curpos = cython.Py_ssize_t, endpos = cython.Py_ssize_t, finalpos = cython.Py_ssize_t,
         dtypemax = cython.ulonglong)
     def build(cls, initializer, destfile = None, tempdir = None, return_mapper=True):
         if destfile is None:

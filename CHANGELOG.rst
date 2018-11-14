@@ -48,6 +48,8 @@ Changes
 - Optimized sequence packing
 - New wide bitmap frozenset format allows more frozensets to be packed
   as bitmaps.
+- Offsets are Py_ssize_t now. That shouldn't be a noticeable change,
+  unless you've got more storage than they universe.
 
 Bugfixes
 --------
