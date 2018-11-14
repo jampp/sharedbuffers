@@ -3272,17 +3272,22 @@ class Schema(object):
     def unpack(self, buf, idmap = None, factory_class_new = None, proxy_into = None):
         return self.unpack_from(buffer(buf), 0, idmap, factory_class_new, proxy_into)
 
+@cython.cclass
 class mapped_object_with_schema(object):
-    cython.declare(schema = Schema)
+    cython.declare(_schema = Schema)
 
     def __init__(self, schema):
-        self.schema = schema
+        self._schema = schema
+
+    @property
+    def schema(self):
+        return self._schema
 
     def pack_into(self, obj, buf, offs, idmap = None, implicit_offs = 0):
-        return self.schema.pack_into(obj, buf, offs, idmap, implicit_offs = implicit_offs)
+        return self._schema.pack_into(obj, buf, offs, idmap, None, None, implicit_offs)
 
     def unpack_from(self, buf, offs, idmap = None):
-        return self.schema.unpack_from(buf, offs, idmap)
+        return self._schema.unpack_from(buf, offs, idmap)
 
 @cython.ccall
 def _map_zipfile(cls, fileobj, offset, size):
