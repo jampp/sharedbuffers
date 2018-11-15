@@ -1004,10 +1004,16 @@ if not cython.compiled:
 @cython.cclass
 class proxied_frozenset(object):
 
-    cython.declare(objlist = 'proxied_list')
+    cython.declare(objlist = 'proxied_list',
+        nbits=cython.Py_ssize_t, bitrep=cython.size_t)
 
-    def __init__(self, objlist):
+    def __init__(self, objlist, nbits=-1, bitrep=0):
         self.objlist = objlist
+        self.nbits = nbits
+        self.bitrep = bitrep
+
+    def Xget(self):
+        return self.bitrep, self.nbits
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
@@ -1033,14 +1039,15 @@ class proxied_frozenset(object):
                 # inline bitmap
                 if cython.compiled and offs+7 >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
-                rv = []
+                nbits, bitrep = 0, 0
                 for i in xrange(7):
                     b = ord(pbuf[offs+1+i])
                     if b:
                         for j in xrange(8):
                             if b & (1<<j):
-                                rv.append(i*8+j)
-                return frozenset(rv)
+                                bitrep |= 1 << (i * 8 + j)
+                                nbits += 1
+                return proxied_frozenset(None, nbits, bitrep)
             else:
                 return proxied_frozenset(proxied_list(buf, offs, idmap))
         finally:
@@ -1052,11 +1059,23 @@ class proxied_frozenset(object):
         return self
 
     def __len__(self):
-        return len(self.objlist)
+        if self.nbits < 0:
+            return len(self.objlist)
+        else:
+            return self.nbits
 
     @cython.locals(i1=cython.Py_ssize_t, i2=cython.Py_ssize_t,
         step=cython.Py_ssize_t, c=cython.int)
     def __contains__(self, elem):
+        if self.nbits >= 0:
+            try:
+                eint = int(elem)
+                if eint != elem or eint >= 64 or eint < 0:
+                    return False
+                return (self.bitrep & (1 << eint)) != 0
+            except (ValueError, TypeError):
+                return False
+
         i1 = 0
         i2 = len(self.objlist)
 
@@ -1071,8 +1090,20 @@ class proxied_frozenset(object):
                 i2 = step
         return False
 
+    @cython.locals(i=cython.Py_ssize_t, val=cython.size_t, xlen=cython.Py_ssize_t)
     def __iter__(self):
-        return iter(self.objlist)
+        if self.nbits < 0:
+            for i in xrange(len(self)):
+                yield self.objlist._getitem(i)
+        else:
+            bitrep = self.bitrep
+            i = 0
+
+            while bitrep != 0:
+                if (bitrep & 1) != 0:
+                    yield i
+                bitrep >>= 1
+                i += 1
 
     def union(self, *seqs):
         return frozenset(self).union(*seqs)
@@ -1087,21 +1118,31 @@ class proxied_frozenset(object):
         return frozenset(self).symmetric_difference(*seqs)
 
     @cython.ccall
-    @cython.locals(i=cython.Py_ssize_t, xlen=cython.Py_ssize_t, pfset='proxied_frozenset')
+    @cython.locals(i=cython.Py_ssize_t, xlen=cython.Py_ssize_t,
+        pfset='proxied_frozenset', bitrep=cython.size_t)
     def _frozenset_eq(self, x):
         if isinstance(x, proxied_frozenset):
             pfset = cython.cast('proxied_frozenset', x)
-            return self.objlist == pfset.objlist
+            return self.objlist == pfset.objlist and self.bitrep == pfset.bitrep
 
         xlen = len(self)
         if not isinstance(x, (set, frozenset)) or xlen != len(x):
             return False
+        elif self.nbits >= 0:
+            bitrep = self.bitrep
+            i = 0
+
+            while bitrep != 0:
+                if (bitrep & 1) != 0 and i not in x:
+                    return False
+                bitrep >>= 1
+                i += 1
+            return True
 
         for i in xrange(xlen):
             val = self.objlist._getitem(i)
             if val not in x:
                 return False
-            i += 1
         return True
 
 
@@ -1114,19 +1155,46 @@ class proxied_frozenset(object):
     @cython.ccall
     @cython.locals(strict_subset=cython.bint, i=cython.Py_ssize_t,
         xlen=cython.Py_ssize_t, pfset='proxied_frozenset',
-        seqlen=cython.Py_ssize_t, c=cython.int)
+        seqlen=cython.Py_ssize_t, c=cython.int, bitrep=cython.size_t)
     def _subset(self, seq, strict_subset):
         i = 0
         xlen = len(self)
 
         if isinstance(seq, proxied_frozenset):
-            j = 0
             pfset = cython.cast('proxied_frozenset', seq)
+            if pfset.nbits >= 0:
+                if self.nbits >= 0:
+                    # Both proxies use compressed representation.
+                    return self.nbits <= pfset.nbits and (
+                        (self.bitrep & pfset.bitrep) == self.bitrep) and (
+                        not strict_subset or self.nbits < pfset.nbits)
+                else:
+                    try:
+                        for i in xrange(xlen):
+                            val = self.objlist._getitem(i)
+                            ival = int(val)
+                            if val != ival or ival >= 64 or ival < 0 or (
+                                  pfset.bitrep & (1 << ival)) == 0:
+                                return False
+                        return not strict_subset or xlen < pfset.nbits
+                    except (ValueError, TypeError):
+                        return False
+            elif self.nbits >= 0:
+                bitrep = self.bitrep
+                while bitrep != 0:
+                    if (bitrep & 1) != 0 and i not in pfset:
+                        return False
+                    bitrep >>= 1
+                    i += 1
+                return not strict_subset or xlen < len(pfset)
+
+            # Both proxies use sorted lists.
+            j = 0
             seqlen = len(pfset.objlist)
             if xlen > seqlen:
                 return False
 
-            while i < xlen:
+            for i in xrange(xlen):
                 val = self.objlist._getitem(i)
                 while True:
                     c = cmp(val, pfset.objlist._getitem(j))
@@ -1135,16 +1203,20 @@ class proxied_frozenset(object):
                         break
                     elif c > 0 or j == seqlen:
                         return False
-                i += 1
             return not strict_subset or xlen < seqlen
         elif xlen > len(seq):
             return False
+        elif self.nbits >= 0:
+            for i in xrange(xlen):
+                val = 1 << i
+                if val not in seq:
+                    return False
+        else:
+            for i in xrange(xlen):
+                val = self.objlist._getitem(i)
+                if val not in seq:
+                    return False
 
-        while i < xlen:
-            val = self.objlist._getitem(i)
-            if val not in seq:
-                return False
-            i += 1
         return not strict_subset or xlen < len(seq)
 
     def __lt__(self, seq):
@@ -1196,7 +1268,7 @@ class proxied_frozenset(object):
         return "proxied_frozenset(%s)" % str(self)
 
     def __str__(self):
-        return str(self.objlist)
+        return "[%s]" % ",".join(str(x) for x in self)
 
 is_cpython = cython.declare(cython.bint, sys.subversion[0] == 'CPython')
 

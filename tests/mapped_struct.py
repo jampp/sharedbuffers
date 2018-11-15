@@ -1420,6 +1420,7 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
             self.assertNotIn(-val - 1, c)
 
     def testCmpSets(self):
+        f = self.pack([1])
         c = self.pack([1., 2., 3., 4., 5.])
         self.assertEqual(c, self.pack([5., 4., 3., 2., 1.]))
         self.assertEqual(c, set(c))
@@ -1445,6 +1446,28 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
         big = self.pack([1., 1.5, 2., 2.5, 3.])
         self.assertFalse(small < big)
         self.assertFalse(big > small)
+
+    def testCompressed(self):
+        small = self.pack([1, 2])
+        big = self.pack([1, 2, 3, 4, 5])
+
+        self.assertTrue(small < big)
+        self.assertTrue(small <= big)
+        self.assertFalse(small < small)
+        self.assertTrue(big > small)
+        self.assertTrue(big >= small)
+        self.assertFalse(big > big)
+
+    def testMixed(self):
+        small = self.pack([1, 2])
+        big = self.pack([1., 2, 3., 4, 5.])
+
+        self.assertTrue(small < big)
+        self.assertTrue(small <= big)
+        self.assertFalse(small < small)
+        self.assertTrue(big > small)
+        self.assertTrue(big >= small)
+        self.assertFalse(big > big)
 
 class MappedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest):
     PACKING_CLASS = mapped_struct.mapped_frozenset
