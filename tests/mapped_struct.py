@@ -336,8 +336,8 @@ class BasePackingTestMixin(object):
             px = self.schema.pack(x)
             dx = self.schema.unpack(px, proxy_into = dx)
             for k,v in TEST_VALUES.iteritems():
-                self.assertEqual(getattr(dx, k), v)
                 self.assertTrue(hasattr(dx, k))
+                self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
                 if k not in TEST_VALUES:
                     self.assertFalse(hasattr(dx, k))
