@@ -3310,6 +3310,7 @@ class mapped_object_with_schema(object):
 
 @cython.locals(result = mapped_object_with_schema, state = tuple)
 def __pyx_unpickle_mapped_object_with_schema(result, state):
+    # For compatibility with older pickles only
     result._schema = state[0]
 
 @cython.ccall
