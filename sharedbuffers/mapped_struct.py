@@ -2463,7 +2463,10 @@ class BytesBufferProxyProperty(BaseBufferProxyProperty):
             assert offs + cython.sizeof(cython.ushort) <= buflen
             if obj.idmap is not None:
                 poffs = offs # python version of offs
-                rv = obj.idmap.get(poffs)
+                if type(obj.idmap) is dict:
+                    rv = cython.cast(dict, obj.idmap).get(poffs)
+                else:
+                    rv = obj.idmap.get(poffs)
                 if rv is not None:
                     return rv
             rv = _unpack_bytes_from_cbuffer(cython.cast(cython.p_char, pybuf.buf), offs, buflen, None)
@@ -2498,7 +2501,10 @@ class UnicodeBufferProxyProperty(BaseBufferProxyProperty):
             assert offs + cython.sizeof(cython.ushort) <= buflen
             if obj.idmap is not None:
                 poffs = offs # python version of offs
-                rv = obj.idmap.get(poffs)
+                if type(obj.idmap) is dict:
+                    rv = cython.cast(dict, obj.idmap).get(poffs)
+                else:
+                    rv = obj.idmap.get(poffs)
                 if rv is not None:
                     return rv
             rv = _unpack_bytes_from_cbuffer(cython.cast(cython.p_char, pybuf.buf), offs, buflen, None).decode("utf8")
