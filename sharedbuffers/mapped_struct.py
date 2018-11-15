@@ -1004,7 +1004,7 @@ if not cython.compiled:
 @cython.cclass
 class proxied_frozenset(object):
 
-    cython.declare(objlist = object)
+    cython.declare(objlist = 'proxied_list')
 
     def __init__(self, objlist):
         self.objlist = objlist
@@ -1019,15 +1019,15 @@ class proxied_frozenset(object):
         pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar)
     def unpack_from(cls, buf, offs, idmap = None):
         buf = _likerobuffer(buf)
-        if cython.compiled:
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-            pbuf = cython.cast(cython.p_uchar, pybuf.buf)
-            if offs >= pybuf.len:
-                PyBuffer_Release(cython.address(pybuf))
-                raise IndexError("Offset out of range")
-        else:
-            pbuf = buf
         try:
+            if cython.compiled:
+                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+                pbuf = cython.cast(cython.p_uchar, pybuf.buf)
+                if offs >= pybuf.len:
+                    raise IndexError("Offset out of range")
+            else:
+                pbuf = buf
+
             if pbuf[offs] == 'm':
                 # inline bitmap
                 if cython.compiled and offs+7 >= pybuf.len:
@@ -1053,16 +1053,14 @@ class proxied_frozenset(object):
     def __len__(self):
         return len(self.objlist)
 
-    @cython.locals(i1=cython.Py_ssize_t, i2=cython.Py_ssize_t,
-        step=cython.Py_ssize_t, lst='proxied_list')
+    @cython.locals(i1=cython.Py_ssize_t, i2=cython.Py_ssize_t, step=cython.Py_ssize_t)
     def __contains__(self, elem):
         i1 = 0
         i2 = len(self.objlist)
-        lst = self.objlist
 
         while i1 < i2:
             step = (i1 + i2) >> 1
-            val = lst._getitem(step)
+            val = self.objlist._getitem(step)
             if val == elem:
                 return True
             elif val < elem:
@@ -1086,49 +1084,87 @@ class proxied_frozenset(object):
     def symmetric_difference(self, *seqs):
         return frozenset(self).symmetric_difference(*seqs)
 
-    def __eq__(self, seq):
-        if not isinstance(seq, (set, frozenset, proxied_frozenset, mapped_frozenset)) or (
-              len(self) != len(seq)):
+    @cython.ccall
+    @cython.locals(i=cython.Py_ssize_t, xlen=cython.Py_ssize_t, pfset='proxied_frozenset')
+    def _frozenset_eq(self, x):
+        if isinstance(x, proxied_frozenset):
+            pfset = cython.cast('proxied_frozenset', x)
+            return self.objlist == pfset.objlist
+
+        xlen = len(self)
+        if not isinstance(x, (set, frozenset)) or xlen != len(x):
             return False
-        for val in self:
-            if val not in seq:
+
+        i = 0
+        while i < xlen:
+            val = self.objlist._getitem(i)
+            if val not in x:
                 return False
+            i += 1
         return True
 
+
+    def __eq__(self, seq):
+        if isinstance(self, proxied_frozenset):
+            return self._frozenset_eq(seq)
+        else:
+            return seq._frozenset_eq(self)
+
     @cython.ccall
-    @cython.locals(strict_subset=cython.bint)
+    @cython.locals(strict_subset=cython.bint, i=cython.Py_ssize_t,
+        xlen=cython.Py_ssize_t, pfset='proxied_frozenset', seqlen=cython.Py_ssize_t)
     def _subset(self, seq, strict_subset):
-        if len(self) > len(seq):
+        i = 0
+        xlen = len(self)
+
+        if isinstance(seq, proxied_frozenset):
+            j = 0
+            pfset = cython.cast('proxied_frozenset', seq)
+            seqlen = len(pfset.objlist)
+            if xlen > seqlen:
+                return False
+
+            while i < xlen:
+                val = self.objlist._getitem(i)
+                while True:
+                    c = cmp(val, pfset.objlist._getitem(j))
+                    j += 1
+                    if c == 0:
+                        break
+                    elif c > 0 or j == seqlen:
+                        return False
+                i += 1
+            return not strict_subset or xlen < seqlen
+        elif xlen > len(seq):
             return False
 
-        for val in self:
+        while i < xlen:
+            val = self.objlist._getitem(i)
             if val not in seq:
                 return False
-        return not strict_subset or len(self) < len(seq)
+            i += 1
+        return not strict_subset or xlen < len(seq)
 
     def __lt__(self, seq):
-        return self._subset(seq, True)
+        if isinstance(self, proxied_frozenset):
+            return self._subset(seq, True)
+        else:
+            return seq._subset(self, True)
 
     def __le__(self, seq):
-        return self._subset(seq, False)
-
-    @cython.ccall
-    @cython.locals(strict_superset=cython.bint)
-    def _superset(self, seq, strict_superset):
-        if len(self) < len(seq):
-            return False
-
-        for val in seq:
-            if val not in self:
-                return False
-
-        return not strict_superset or len(self) > len(seq)
+        if isinstance(self, proxied_frozenset):
+            return self._subset(seq, False)
+        else:
+            return seq._subset(self, False)
 
     def __gt__(self, seq):
-        return self._superset(seq, True)
+        return seq < self
 
     def __ge__(self, seq):
-        return self._superset(seq, False)
+        return seq <= self
+
+    def __nonzero__(self):
+        return len(self) > 0
 
     def __or__(self, seq):
         return self.union(seq)
