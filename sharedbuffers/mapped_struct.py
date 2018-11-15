@@ -1020,6 +1020,7 @@ class proxied_frozenset(object):
     def unpack_from(cls, buf, offs, idmap = None):
         buf = _likerobuffer(buf)
         try:
+            pybuf.buf = cython.NULL
             if cython.compiled:
                 PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
                 pbuf = cython.cast(cython.p_uchar, pybuf.buf)
@@ -1044,7 +1045,7 @@ class proxied_frozenset(object):
                 return proxied_frozenset(proxied_list(buf, offs, idmap))
         finally:
             if cython.compiled:
-                if type(buf) is buffer:
+                if type(buf) is buffer and pybuf.buf != cython.NULL:
                     PyBuffer_Release(cython.address(pybuf))
 
     def copy(self):
@@ -1095,8 +1096,7 @@ class proxied_frozenset(object):
         if not isinstance(x, (set, frozenset)) or xlen != len(x):
             return False
 
-        i = 0
-        while i < xlen:
+        for i in xrange(xlen):
             val = self.objlist._getitem(i)
             if val not in x:
                 return False
@@ -1106,9 +1106,9 @@ class proxied_frozenset(object):
 
     def __eq__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._frozenset_eq(seq)
+            return cython.cast('proxied_frozenset', self)._frozenset_eq(seq)
         else:
-            return seq._frozenset_eq(self)
+            return cython.cast('proxied_frozenset', seq)._frozenset_eq(self)
 
     @cython.ccall
     @cython.locals(strict_subset=cython.bint, i=cython.Py_ssize_t,
@@ -1147,15 +1147,15 @@ class proxied_frozenset(object):
 
     def __lt__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._subset(seq, True)
+            return cython.cast('proxied_frozenset', self)._subset(seq, True)
         else:
-            return seq._subset(self, True)
+            return cython.cast('proxied_frozenset', seq)._subset(self, True)
 
     def __le__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._subset(seq, False)
+            return cython.cast('proxied_frozenset', self)._subset(seq, False)
         else:
-            return seq._subset(self, False)
+            return cython.cast('proxied_frozenset', seq)._subset(self, False)
 
     def __gt__(self, seq):
         return seq < self
