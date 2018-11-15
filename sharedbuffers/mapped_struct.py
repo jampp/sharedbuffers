@@ -3306,7 +3306,12 @@ class mapped_object_with_schema(object):
         return (type(self), (None,), (self._schema,))
 
     def __setstate__(self, state):
-        self._schema = state[0]
+        if isinstance(state, (tuple, list)):
+            self._schema = state[0]
+        elif isinstance(state, dict):
+            self._schema = state['schema']
+        else:
+            raise ValueError("Bad mapped_object_with_schema state: %r" % (state,))
 
 def __pyx_unpickle_mapped_object_with_schema(__pyx_type, __pyx_checksum, __pyx_state):
     # For compatibility with older pickles only
