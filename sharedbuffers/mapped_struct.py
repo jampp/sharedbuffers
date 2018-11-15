@@ -2213,11 +2213,11 @@ class BufferProxyObject(object):
 
     @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
     def __init__(self, buf, offs, none_bitmap, idmap = None):
-        self._init(buf, offs, none_bitmap, idmap)
+        self._init_internal(buf, offs, none_bitmap, idmap)
 
     @cython.cfunc
     @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
-    def _init(self, buf, offs, none_bitmap, idmap):
+    def _init_internal(self, buf, offs, none_bitmap, idmap):
         if cython.compiled:
             if self.pybuf.buf != cython.NULL:
                 PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
@@ -2233,10 +2233,20 @@ class BufferProxyObject(object):
 
     @cython.ccall
     @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
-    def _reset(self, offs, none_bitmap, idmap):
+    def _init(self, buf, offs, none_bitmap, idmap):
+        self._init_internal(buf, offs, none_bitmap, idmap)
+
+    @cython.cfunc
+    @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
+    def _reset_internal(self, offs, none_bitmap, idmap):
         self.offs = offs
         self.none_bitmap = none_bitmap
         self.idmap = idmap
+
+    @cython.ccall
+    @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
+    def _reset(self, offs, none_bitmap, idmap):
+        self._reset_internal(offs, none_bitmap, idmap)
 
     def __dealloc__(self):
         if cython.compiled:
@@ -3159,9 +3169,9 @@ class Schema(object):
                     if not isinstance(proxy_into, gfactory):
                         proxy_into.__class__ = gfactory
                     if proxy_into.buf is buf:
-                        proxy_into._reset(offs, none_bitmap, idmap)
+                        proxy_into._reset_internal(offs, none_bitmap, idmap)
                     else:
-                        proxy_into._init(buf, offs, none_bitmap, idmap)
+                        proxy_into._init_internal(buf, offs, none_bitmap, idmap)
                     rv = proxy_into
             else:
                 unpacker, padding, opformat, gfactory = unpacker_info
