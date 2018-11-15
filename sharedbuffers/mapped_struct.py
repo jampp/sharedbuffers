@@ -2215,7 +2215,7 @@ class BufferProxyObject(object):
     def __init__(self, buf, offs, none_bitmap, idmap = None):
         self._init(buf, offs, none_bitmap, idmap)
 
-    @cython.ccall
+    @cython.cfunc
     @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
     def _init(self, buf, offs, none_bitmap, idmap):
         if cython.compiled:
