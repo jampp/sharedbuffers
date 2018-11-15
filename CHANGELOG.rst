@@ -45,6 +45,7 @@ Changes
   perhaps considerably. Proper identity was implemented for proxied
   containers though.
 - Shrink some buffers by employing narrow pointers where possible
+- Improved performance of binary search utilities.
 
 Bugfixes
 --------
