@@ -1026,9 +1026,6 @@ class proxied_frozenset(object):
         self.bitlen = -1 if self.objlist is not None else (
             _count_bits_set(self.bitrep_lo) + _count_bits_set(self.bitrep_hi))
 
-    def Xget(self):
-        return self.bitrep_lo, self.bitrep_hi, self.bitlen
-
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         return mapped_frozenset.pack_into(obj, buf, offs, idmap, implicit_offs, sort=True)
@@ -1037,7 +1034,7 @@ class proxied_frozenset(object):
     @cython.locals(
         i=int, j=int, offs=cython.longlong,
         pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar,
-        bitrep=cython.ulonglong)
+        bitrep_lo=cython.ulonglong, bitrep_hi=cython.ulonglong)
     def unpack_from(cls, buf, offs, idmap = None):
         buf = _likerobuffer(buf)
         try:
@@ -1051,11 +1048,18 @@ class proxied_frozenset(object):
                 pbuf = buf
 
             if pbuf[offs] == 'm':
-                # inline bitmap
+                # inline bitmap (64 bits)
                 if cython.compiled and offs+7 >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
-                bitrep = cython.cast(cython.p_ulonglong, pbuf + offs + 1)[0]
-                return proxied_frozenset(None, bitrep, 0)
+                bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs + 1)[0]
+                return proxied_frozenset(None, bitrep_lo, 0)
+            elif pbuf[offs] == 'M':
+                # inline bitmap (128 bits)
+                if cython.compiled and offs+15 >= pybuf.len:
+                    raise IndexError("Object spans beyond buffer end")
+                bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs + 1)[0]
+                bitrep_hi = cython.cast(cython.p_ulonglong, pbuf + offs + 1)[1]
+                return proxied_frozenset(None, bitrep_lo, bitrep_hi)
             else:
                 return proxied_frozenset(proxied_list(buf, offs, idmap))
         finally:
@@ -1078,7 +1082,7 @@ class proxied_frozenset(object):
         if self.objlist is None:
             try:
                 eint = int(elem)
-                if eint != elem or eint >= 128 and eint < 0:
+                if eint != elem or eint >= 128 or eint < 0:
                     return False
                 return (eint < 64 and (self.bitrep_lo & (1 << eint)) != 0) or (
                     (eint < 128 and (self.bitrep_hi & (1 << eint)) != 0))
