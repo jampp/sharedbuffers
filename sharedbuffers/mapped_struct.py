@@ -3302,13 +3302,12 @@ class mapped_object_with_schema(object):
         return self._schema.unpack_from(buf, offs, idmap)
 
     def __reduce__(self):
-        return (type(self), (self.schema,))
+        # WARNING: Not using setstate somehow breaks schemas with cyclic references \_(0_0)_/
+        return (type(self), (None,), (self._schema,))
 
-    # For compatibility with older pickles, we don't need a getstate
     def __setstate__(self, state):
         self._schema = state[0]
 
-@cython.locals(result = mapped_object_with_schema, __pyx_checksum = cython.long, __pyx_state = tuple)
 def __pyx_unpickle_mapped_object_with_schema(__pyx_type, __pyx_checksum, __pyx_state):
     # For compatibility with older pickles only
     result = mapped_object_with_schema.__new__(__pyx_type)
