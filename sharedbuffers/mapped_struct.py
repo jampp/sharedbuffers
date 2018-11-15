@@ -668,7 +668,7 @@ class mapped_tuple(tuple):
 
             # Get a sense of whether we can use narrow pointers
             min_offs = max_offs = 0
-            for i,x in enumerate(obj):
+            for i, x in enumerate(obj):
                 if x is None:
                     rel_offs = 1
                 else:
