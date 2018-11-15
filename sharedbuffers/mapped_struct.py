@@ -3306,7 +3306,7 @@ class mapped_object_with_schema(object):
 
     # For compatibility with older pickles, we don't need a getstate
     def __setstate__(self, state):
-        self._schema = state['schema']
+        self._schema = state[0]
 
 @cython.locals(result = mapped_object_with_schema, __pyx_checksum = cython.long, __pyx_state = tuple)
 def __pyx_unpickle_mapped_object_with_schema(__pyx_type, __pyx_checksum, __pyx_state):
