@@ -411,7 +411,8 @@ class mapped_frozenset(frozenset):
             obj_dtype = obj.dtype
             if obj_dtype.isbuiltin:
                 dtype = obj_dtype.char
-                if dtype in ('L', 'l','I','i','H','h','B','b'):
+                cdtype = cython.cast('const char*', dtype)[0]
+                if cdtype in ('L', 'l', 'I', 'i', 'H', 'h', 'B', 'b'):
                     all_int = 1
         else:
             all_int = 1
@@ -533,20 +534,21 @@ class mapped_tuple(tuple):
             obj_dtype = obj.dtype
             if obj_dtype.isbuiltin:
                 dtype = obj_dtype.char
-                if dtype in ('l','I','i','H','h','B','b'):
+                cdtype = cython.cast('const char*', dtype)[0]
+                if cdtype in ('l', 'I', 'i', 'H', 'h', 'B', 'b'):
                     all_int = all_intlong = 1
                     all_float = 0
-                elif dtype == 'L':
+                elif cdtype == 'L':
                     all_int = all_float = 0
                     all_intlong = 1
-                elif dtype in ('d','f'):
+                elif cdtype in ('d', 'f'):
                     all_int = all_intlong = 0
                     all_float = 1
                 if all_int or all_intlong or all_float:
                     # translate l -> q
-                    if dtype == 'l':
+                    if cdtype == 'l':
                         buf[offs] = 'q'
-                    elif dtype == 'L':
+                    elif cdtype == 'L':
                         buf[offs] = 'Q'
                     else:
                         buf[offs] = dtype
