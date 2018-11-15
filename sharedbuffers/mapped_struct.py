@@ -3313,6 +3313,7 @@ def __pyx_unpickle_mapped_object_with_schema(__pyx_type, __pyx_checksum, __pyx_s
     # For compatibility with older pickles only
     result = mapped_object_with_schema.__new__(__pyx_type)
     result._schema = __pyx_state[0]
+    return result
 
 @cython.ccall
 def _map_zipfile(cls, fileobj, offset, size):
