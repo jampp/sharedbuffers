@@ -3308,6 +3308,10 @@ class mapped_object_with_schema(object):
     def __setstate__(self, state):
         self._schema = state['schema']
 
+@cython.locals(result = mapped_object_with_schema, state = tuple)
+def __pyx_unpickle_mapped_object_with_schema(result, state):
+    result._schema = state[0]
+
 @cython.ccall
 def _map_zipfile(cls, fileobj, offset, size):
     # Open underlying file
