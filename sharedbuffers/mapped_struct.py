@@ -2546,7 +2546,11 @@ class GenericBufferProxyProperty(BaseBufferProxyProperty):
                 cython.cast(cython.p_uchar, pybuf.buf) + obj.offs + self.offs)[0]
             if obj.idmap is not None:
                 poffs = offs # python version of offs
-                rv = obj.idmap.get(poffs, poffs) # idmap cannot possibly hold "poffs" for that offset
+                if type(obj.idmap) is dict:
+                    rv = cython.cast(dict, obj.idmap).get(poffs, poffs)
+                else:
+                    rv = obj.idmap.get(poffs, poffs)
+                # idmap cannot possibly hold "poffs" for that offset
                 if rv is not poffs:
                     return rv
             assert offs + cython.sizeof(cython.ushort) <= buflen
