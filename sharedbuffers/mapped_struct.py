@@ -17,9 +17,9 @@ import zipfile
 import math
 import sys
 import collections
+import weakref
 from datetime import timedelta, datetime, date
 from decimal import Decimal
-import numpy as np
 
 try:
     from cdecimal import Decimal as cDecimal
@@ -27,6 +27,11 @@ except:
     cDecimal = Decimal
 
 from chorde.clients.inproc import Cache
+
+try:
+    from chorde.clients.inproc import CuckooCache as FastCache
+except ImportError:
+    FastCache = Cache
 
 import cython
 
@@ -106,8 +111,263 @@ def _likerobuffer(buf):
     else:
         return buffer(buf)
 
+class NONE:
+    pass
+
+@cython.cclass
+class StrongIdMap(object):
+    cython.declare(
+        __weakref__ = object,
+        preloaded = dict,
+        idmap = dict,
+        objmap = object,
+        strong_refs = object,
+        stable_set = set,
+    )
+
+    def __init__(self, strong_limit = 1 << 20 - 1, preallocate = False, strong_class = FastCache, stable_set = None):
+        """
+        Constructs a strong-referencing id map. The id map will keep strong references when necessary
+        to guarantee correct behavior, up to `strong_limit` references. After that, unused references
+        are evicted from both the strong-reference list and the id map itself, maintaining correct
+        behavior at the expense of deduplication effectiveness.
+
+        Params:
+
+            strong_limit: Keep at most this many strong references
+
+            preallocate: Passed to `strong_class` as a kwarg
+
+            strong_class: The cache constructor used for the strong referece list. By default, it uses a kind
+                of LRU cache. The constructor should accept `preallocate` as kwarg and `strong_limit` as
+                first positional argument. When given `preallocate=true`, the structure should be preallocated
+                to accommodate `strong_limit` elements. It should also accept an `eviction_callback` kwarg
+                with a callable to be called with `(key, value)` arguments when evicting items from the mapping.
+
+            stable_set: A set of shared_id s that are considered stable. That is, strong references are kept
+                by the caller, so they don't need to be tracked. This allows them to be persistent on the id map
+                and thus improve deduplication effectiveness with little overhead.
+        """
+        self.preloaded = {}
+        self.idmap = {}
+        self.strong_refs = strong_class(
+            strong_limit,
+            eviction_callback = functools.partial(
+                self._on_strong_evict,
+                weakref.ref(self),
+            ),
+            preallocate = preallocate,
+        )
+        self.objmap = weakref.WeakValueDictionary()
+        if stable_set is not None and not isinstance(stable_set, set):
+            stable_set = set(stable_set)
+        self.stable_set = stable_set
+
+    @staticmethod
+    @cython.locals(self = 'StrongIdMap')
+    def _on_strong_evict(wself, key, value):
+        self = wself()
+        if self is not None:
+            self.pop(key, None)
+
+    def __len__(self):
+        return len(self.idmap) + len(self.preloaded)
+
+    def __iter__(self):
+        for key in self.preloaded:
+            yield key
+        for key in self.idmap:
+            if key in self and key not in self.preloaded:
+                yield key
+
+    def iterkeys(self):
+        return iter(self)
+
+    def itervalues(self):
+        for key in self:
+            yield self[key]
+
+    def iteritems(self):
+        for key in self:
+            yield key, self[key]
+
+    def keys(self):
+        return list(self)
+
+    def values(self):
+        return list(self.itervalues())
+
+    def items(self):
+        return list(self.iteritems())
+
+    def __setitem__(self, key, value):
+        self.idmap[key] = value
+        self.objmap[key] = NONE
+
+    def __getitem__(self, key):
+        if key in self.preloaded:
+            return self.preloaded[key]
+        if key not in self.objmap:
+            self.idmap.pop(key, None)
+            raise KeyError(key)
+        return self.idmap[key]
+
+    def __delitem__(self, key):
+        self.objmap.pop(key, None)
+        self.strong_refs.pop(key, None)
+        del self.idmap[key]
+
+    def __contains__(self, key):
+        return key in self.preloaded or (key in self.idmap and key in self.objmap)
+
+    def preload(self, mapping):
+        self.preloaded.update(mapping)
+
+    def clear(self):
+        self.objmap.clear()
+        self.idmap.clear()
+        self.strong_refs.clear()
+
+    def clear_preloaded(self):
+        self.preloaded.clear()
+
+    @cython.ccall
+    def get(self, key, default=None):
+        if key in self.preloaded:
+            return self.preloaded[key]
+        if key not in self.objmap:
+            self.idmap.pop(key, None)
+            return default
+        return self.idmap.get(key, default)
+
+    @cython.ccall
+    def pop(self, key, default=NONE):
+        if key in self.preloaded:
+            # No popping from preloaded items
+            return self.preloaded[key]
+        orv = self.objmap.pop(key, NONE)
+        rv = self.idmap.pop(key, NONE)
+        self.strong_refs.pop(key, None)
+        if orv is NONE:
+            rv = NONE
+        if rv is not NONE:
+            return rv
+        elif default is NONE:
+            raise KeyError(key)
+        else:
+            return default
+
+    @cython.ccall
+    @cython.returns(cython.bint)
+    def link(self, key, obj):
+        if isinstance(obj, (proxied_list, proxied_dict, BufferProxyObject)):
+            # There's no need to link lifecycles, the object
+            # is identified uniquely by its buffer mapping and that is a stable id
+            return True
+        if is_equality_key(key):
+            # These are equality keys, they are hard references already
+            return True
+        if self.stable_set is not None:
+            if key in self.stable_set:
+                return True
+            elif is_wrapped_key(key) and get_wrapped_key(key) in self.stable_set:
+                return True
+
+        try:
+            self.objmap[key] = obj
+            return True
+        except TypeError:
+            # Not weakly referenceable, try to hold a strong reference then to stop
+            # its id from being reused while we hold its idmap entry
+            self.strong_refs[key] = obj
+            return False
+
+
+@cython.ccall
+@cython.inline
+@cython.returns(cython.bint)
+def is_equality_key(obj):
+    # singletons and small strings
+    if obj is None or obj is () or (isinstance(obj, basestring) and len(obj) < 16):
+        return True
+    elif is_wrapped_key(obj):
+        return is_equality_key(get_wrapped_key(obj))
+    else:
+        return False
+
+
+@cython.ccall
+@cython.locals(lobj = proxied_list, dobj = proxied_dict, oobj = BufferProxyObject)
+def shared_id(obj):
+    # (id(buf), offs) of buffer-mapped proxies
+    if isinstance(obj, proxied_list):
+        lobj = obj
+        rv = (id(lobj.buf) << 64) | lobj.offs
+        if lobj.elem_step != 0:
+            # Add slice arguments to the shared_id
+            rv |= long(lobj.elem_step) << (68 + 64)
+            rv |= long(lobj.elem_start) << (68 + 128)
+            rv |= long(lobj.elem_end) << (68 + 192)
+        return rv
+    elif isinstance(obj, proxied_dict):
+        dobj = obj
+        return (id(dobj.buf) << 64) | dobj.offs
+    elif isinstance(obj, BufferProxyObject):
+        oobj = obj
+        return (id(oobj.buf) << 64) | oobj.offs
+    elif is_equality_key(obj):
+        # Try an equality key, use the object itself as key if hashable
+        try:
+            hash(obj)
+        except TypeError:
+            pass
+        else:
+            return obj
+
+    # Otherwise plainly the id of the object
+    return id(obj)
+
+
+class WRAPPED:
+    pass
+
+
+@cython.ccall
+def wrapped_id(obj):
+    xid = shared_id(obj)
+    if isinstance(xid, (int, long)):
+        # We keep numeric ids numeric
+        xid |= 0xFL << 64
+    else:
+        # Equality ids are wrapped in a tuple
+        xid = (WRAPPED, xid)
+    return xid
+
+
+@cython.ccall
+@cython.inline
+@cython.returns(cython.bint)
+def is_wrapped_key(obj):
+    # keys for type-tagged objects
+    if isinstance(obj, tuple):
+        return len(obj) == 2 and obj[0] is WRAPPED
+    elif isinstance(obj, (int, long)):
+        return (obj >> 64) == 0xF
+
+
+@cython.ccall
+@cython.inline
+def get_wrapped_key(obj):
+    # the key for the unwrapped value
+    if isinstance(obj, tuple):
+        return obj[1]
+    elif isinstance(obj, (int, long)):
+        return obj & 0xFFFFFFFFFFFFFFFF
+
+
 class mapped_frozenset(frozenset):
     @classmethod
+    @cython.locals(cbuf = 'unsigned char[:]', i=int, ix=int, offs=cython.longlong)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         all_int = 1
         for x in obj:
@@ -119,10 +379,22 @@ class mapped_frozenset(frozenset):
             minval = min(obj) if obj else 0
             if 0 <= minval and maxval < 120:
                 # inline bitmap
-                buf[offs] = 'm'
-                buf[offs+1:offs+8] = '\x00\x00\x00\x00\x00\x00\x00\x00'
-                for x in obj:
-                    buf[offs+1+x/8] |= 1 << (x & 7)
+                try:
+                    cbuf = buf
+                    isbuffer = True
+                except:
+                    isbuffer = False
+                if cython.compiled and isbuffer:
+                    cbuf[offs] = 'm'
+                    for i in xrange(1, 8):
+                        cbuf[offs+i] = 0
+                    for ix in obj:
+                        cbuf[offs+1+ix/8] |= 1 << (ix & 7)
+                else:
+                    buf[offs:offs+1] = 'm'
+                    buf[offs+1:offs+8] = '\x00\x00\x00\x00\x00\x00\x00'
+                    for x in obj:
+                        buf[offs+1+x/8] |= 1 << (x & 7)
                 offs += 8
                 return offs
             else:
@@ -170,9 +442,14 @@ class mapped_frozenset(frozenset):
                     PyBuffer_Release(cython.address(pybuf))  # lint:ok
 
 class mapped_tuple(tuple):
+    cython.declare(
+        __weakref__=object,
+    )
+
     @classmethod
+    @cython.locals(widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
-            int = int, type = type, min = min, max = max, array = array.array, id = id):
+            array = array.array):
         all_int = 1
         all_float = 1
         baseoffs = offs
@@ -249,19 +526,32 @@ class mapped_tuple(tuple):
             offs += len(buffer(index))
 
             if idmap is None:
-                idmap = {}
+                idmap = StrongIdMap()
+            if isinstance(idmap, StrongIdMap):
+                widmap = idmap
+            else:
+                widmap = None
 
+            dataoffs = offs
             for i,x in enumerate(obj):
                 if x is not None:
                     # these are wrapped objects, not plain objects, so make sure they have distinct xid
-                    xid = id(x) | (0xFL << 64)
+                    xid = wrapped_id(x)
                     if xid not in idmap:
                         idmap[xid] = val_offs = offs + implicit_offs
+                        if widmap is not None:
+                            widmap.link(xid, x)
                         mx = mapped_object(x)
                         offs = mx.pack_into(mx, buf, offs, idmap, implicit_offs)
                     else:
                         val_offs = idmap[xid]
                     index[i] = val_offs - baseoffs - implicit_offs
+
+            if offs == dataoffs and min(index) > -0x7fffffff and max(index) < 0x7fffffff:
+                # it fits in 32-bits, and the index can shrink since we added no data, so shrink it
+                index = array('i', index)
+                offs = dataoffs = indexoffs + len(buffer(index))
+                buf[baseoffs] = 'T'
 
             # write index
             buf[indexoffs:indexoffs+len(buffer(index))] = buffer(index)
@@ -278,6 +568,10 @@ class mapped_tuple(tuple):
         return rv
 
 class mapped_list(list):
+    cython.declare(
+        __weakref__=object,
+    )
+
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         # Same format as tuple, only different base type
@@ -315,8 +609,14 @@ class mapped_list(list):
             objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
             offs += 8
             rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
-        elif dcode == 't':
-            dtype = 'l'
+        elif dcode == 't' or dcode == 'T':
+            if dcode == 't':
+                dtype = 'l'
+            elif dcode == 'T':
+                dtype = 'i'
+            else:
+                raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+
             objlen, = struct.unpack('<Q', buf[offs+1:offs+8] + '\x00')
             offs += 8
 
@@ -335,6 +635,9 @@ class mapped_list(list):
         return rv
 
 class mapped_dict(dict):
+    cython.declare(
+        __weakref__=object,
+    )
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
@@ -365,10 +668,15 @@ _FSET_SEED  = 8212431769940327799
 
 @cython.locals(hval=cython.ulonglong)
 def _stable_hash(key):
-    if isinstance(key, basestring):
+    if key is None:
+        hval = 1
+    elif isinstance(key, basestring):
         hval = xxhash.xxh64(safe_utf8(key)).intdigest()
     elif isinstance(key, (int, long)):
-        hval = key
+        try:
+            hval = key
+        except OverflowError:
+            hval = key & 0xFFFFFFFFFFFFFFFF
     elif isinstance(key, float):
         trunc_key = int(key)
         if trunc_key == key:
@@ -429,31 +737,50 @@ class proxied_dict(object):
 
     HEADER_PACKER = struct.Struct('=Q')   # Offset into value list.
 
-    cython.declare(objmapper=object, vlist=proxied_list)
+    cython.declare(
+        __weakref__=object,
+        objmapper=object,
+        vlist=proxied_list,
+        buf=object,
+        offs=cython.ulonglong,
+    )
 
-    def __init__(self, objmapper, vlist):
+    @property
+    def buffer(self):
+        return self.buf
+
+    @property
+    def offset(self):
+        return self.offs
+
+    def __init__(self, buf, offs, objmapper, vlist):
         self.objmapper = objmapper
         self.vlist = vlist
+        self.buf = buf
+        self.offs = offs
 
     @classmethod
+    @cython.locals(widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         packer = cls.HEADER_PACKER
-        ipos = offs
+        basepos = offs
         offs += packer.size
         iobuf = BufferIO(buf, offs)
-        offs += ObjectIdMapper.build(_enum_keys(obj), iobuf, return_mapper=False)
-        packer.pack_into(buf, ipos, iobuf.tell())
-        return offs + proxied_list.pack_into(obj.values(), buf, offs, idmap, implicit_offs)
+        offs += ObjectIdMapper.build(
+            _enum_keys(obj), iobuf,
+            return_mapper=False,
+            idmap=idmap,
+            implicit_offs=implicit_offs + offs)
+        packer.pack_into(buf, basepos, offs - basepos)
+        return proxied_list.pack_into([obj[k] for k in obj.iterkeys()], buf, offs, idmap, implicit_offs)
 
     @classmethod
     def unpack_from(cls, buf, offs, idmap = None):
         packer = cls.HEADER_PACKER
-        mapper_size, = packer.unpack_from(buf, offs)
-        offs += packer.size
-        objmapper = ObjectIdMapper.map_buffer(buf, offs)
-        offs += mapper_size
-        vlist = proxied_list.unpack_from(buf, offs, idmap)
-        return proxied_dict(objmapper, vlist)
+        values_offs, = packer.unpack_from(buf, offs)
+        objmapper = ObjectIdMapper.map_buffer(buf, offs + packer.size)
+        vlist = proxied_list.unpack_from(buf, offs + values_offs, idmap)
+        return proxied_dict(buf, offs, objmapper, vlist)
 
     def get(self, key, default_val = None):
         idx = self.objmapper.get(key)
@@ -637,7 +964,7 @@ class proxied_ndarray(object):
 
         data = proxied_buffer.unpack_from(buf, offs + data_offs)
 
-        ndarray = np.frombuffer(data, np.dtype(dtype_params))
+        ndarray = numpy.frombuffer(data, numpy.dtype(dtype_params))
         return ndarray.reshape(shape)
 
 # @cython.ccall
@@ -701,6 +1028,7 @@ def islist(obj):
 class proxied_list(object):
 
     cython.declare(
+        __weakref__ = object,
         buf = object,
         pybuf = 'Py_buffer',
         offs = cython.ulonglong,
@@ -708,6 +1036,14 @@ class proxied_list(object):
         elem_end = cython.longlong,
         elem_step = cython.longlong
     )
+
+    @property
+    def buffer(self):
+        return self.buf
+
+    @property
+    def offset(self):
+        return self.offs
 
     def __dealloc__(self):
         if cython.compiled:
@@ -745,10 +1081,14 @@ class proxied_list(object):
 
                 return dcode, objlen, itemsize, dataoffs, None
 
-            elif dcode in ('q', 'd', 't'):
+            elif dcode in ('q', 'd', 't', 'T'):
                 objlen = cython.cast(cython.p_longlong, pbuf + dataoffs)[0] >> 8
                 dataoffs += 8
-                return dcode, objlen, 8, dataoffs, None
+                if dcode == 'T':
+                    itemsize = 4
+                else:
+                    itemsize = 8
+                return dcode, objlen, itemsize, dataoffs, None
 
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
@@ -781,6 +1121,11 @@ class proxied_list(object):
                 objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
                 dataoffs += 8
                 return dcode, objlen, itemsizes['l'], dataoffs, struct.Struct('l')
+
+            elif dcode == 'T':
+                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
+                dataoffs += 8
+                return dcode, objlen, itemsizes['i'], dataoffs, struct.Struct('i')
 
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
@@ -832,8 +1177,11 @@ class proxied_list(object):
         buf = _likerobuffer(buf)
         return cls(buf, offs, idmap)
 
-    @cython.locals(obj_offs = cython.ulonglong, dcode = cython.char, index = cython.longlong, pindex = "unsigned long *",
-        dataoffs = cython.ulonglong, objlen = cython.longlong, xlen = cython.longlong, step = cython.longlong)
+    @cython.locals(obj_offs = cython.ulonglong, dcode = cython.char, index = cython.longlong,
+        objlen = cython.longlong, xlen = cython.longlong, step = cython.longlong,
+        lpindex = "const long *",
+        ipindex = "const int *",
+        dataoffs = cython.ulonglong)
     def _getitem(self, index):
 
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
@@ -851,8 +1199,8 @@ class proxied_list(object):
 
             index = self.elem_start + index * self.elem_step
 
-            if (self.elem_step < 0 and (index > self.elem_start or index <= self.elem_end)) or (
-                self.elem_step > 0 and (index >= self.elem_end or index < self.elem_start)):
+            if ((self.elem_step < 0 and (index > self.elem_start or index <= self.elem_end))
+                    or (self.elem_step > 0 and (index >= self.elem_end or index < self.elem_start))):
                 raise IndexError(orig_index)
 
         if index < 0:
@@ -861,17 +1209,21 @@ class proxied_list(object):
         if index >= objlen or index < 0:
             raise IndexError(orig_index)
 
-        if dcode == 't':
+        if dcode in ('t', 'T'):
             if cython.compiled:
-                pindex = cython.cast(cython.p_ulong, cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
-                obj_offs = self.offs + pindex[index]
+                if dcode == 't':
+                    lpindex = cython.cast('const long *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
+                    obj_offs = self.offs + lpindex[index]
+                elif dcode == 'T':
+                    ipindex = cython.cast('const int *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
+                    obj_offs = self.offs + ipindex[index]
             else:
                 index_offs = dataoffs + itemsize * int(index)
                 obj_offs = self.offs + _struct.unpack(self.buf[index_offs:index_offs + itemsize])[0]
         else:
             obj_offs = dataoffs + itemsize * int(index)
 
-        if dcode == 't':
+        if dcode in ('t', 'T'):
             res = mapped_object.unpack_from(self.buf, obj_offs)
         elif cython.compiled:
             if dcode == 'B':
@@ -1174,11 +1526,15 @@ class mapped_bytes(bytes):
     @cython.locals(
         offs = cython.longlong, implicit_offs = cython.longlong,
         objlen = cython.size_t, objcomplen = cython.size_t, obj = bytes, objcomp = bytes,
-        pbuf = 'char *', pybuf='Py_buffer', compressed = cython.ushort)
+        pbuf = 'char *', pybuf='Py_buffer', compressed = cython.ushort,
+        widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
-            objid = id(obj)
+            objid = shared_id(obj)
             idmap[objid] = offs + implicit_offs
+            if isinstance(idmap, StrongIdMap):
+                widmap = idmap
+                widmap.link(objid, obj)
         objlen = len(obj)
 
         if objlen > MIN_COMPRESS_THRESHOLD:
@@ -1238,10 +1594,14 @@ _mapped_bytes = cython.declare(object, mapped_bytes)
 
 class mapped_unicode(unicode):
     @classmethod
+    @cython.locals(widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
-            objid = id(obj)
+            objid = shared_id(obj)
             idmap[objid] = offs + implicit_offs
+            if isinstance(idmap, StrongIdMap):
+                widmap = idmap
+                widmap.link(objid, obj)
 
         return mapped_bytes.pack_into(obj.encode("utf8"), buf, offs, None, implicit_offs)
 
@@ -1259,11 +1619,15 @@ class mapped_decimal(Decimal):
     PACKER = struct.Struct('=q')
 
     @classmethod
-    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, exponent = cython.longlong, sign = cython.uchar)
+    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, exponent = cython.longlong,
+        sign = cython.uchar, widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
-            objid = id(obj)
+            objid = shared_id(obj)
             idmap[objid] = offs + implicit_offs
+            if isinstance(idmap, StrongIdMap):
+                widmap = idmap
+                widmap.link(objid, obj)
 
         if not isinstance(obj, (Decimal, cDecimal)):
             obj = cDecimal(obj)
@@ -1296,11 +1660,15 @@ class mapped_datetime(datetime):
     PACKER = struct.Struct('=q')
 
     @classmethod
-    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong)
+    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong,
+        widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
-            objid = id(obj)
+            objid = shared_id(obj)
             idmap[objid] = offs + implicit_offs
+            if isinstance(idmap, StrongIdMap):
+                widmap = idmap
+                widmap.link(objid, obj)
 
         packer = cls.PACKER
         timestamp = int(time.mktime(obj.timetuple()))
@@ -1327,11 +1695,15 @@ class mapped_date(date):
     PACKER = struct.Struct('=q')
 
     @classmethod
-    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong)
+    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong,
+        widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
-            objid = id(obj)
+            objid = shared_id(obj)
             idmap[objid] = offs + implicit_offs
+            if isinstance(idmap, StrongIdMap):
+                widmap = idmap
+                widmap.link(objid, obj)
 
         packer = cls.PACKER
         timestamp = int(time.mktime(obj.timetuple()))
@@ -1394,7 +1766,7 @@ class mapped_object(object):
         date : 'V',
         Decimal : 'F',
         cDecimal : 'F',
-        np.ndarray : 'n',
+        numpy.ndarray : 'n',
         buffer : 'r',
 
         dict : 'm',
@@ -1455,7 +1827,7 @@ class mapped_object(object):
             packer = cls.OBJ_PACKERS[typecode][0]
             endp = packer(obj.value, buf, endp, idmap, implicit_offs)
         else:
-            raise TypeError("Unsupported type")
+            raise TypeError("Unsupported type %r: %r" % (typecode, obj.value))
         return endp
 
     @classmethod
@@ -1496,6 +1868,16 @@ class mapped_object(object):
         PROXY_TYPES[packable] = SchemaBufferProxyProperty
         return packable
 
+    @classmethod
+    def register_subclass(cls, typ, supertyp):
+        if supertyp not in cls.TYPE_CODES:
+            raise ValueError("Superclass not registered: %r" % (supertyp,))
+
+        typecode = cls.TYPE_CODES[supertyp]
+        cls.TYPE_CODES[typ] = typecode
+        PROXY_TYPES[typ] = PROXY_TYPES[supertyp]
+        return cls.OBJ_PACKERS[typecode][2]
+
     def __init__(self, value = None, typ = None, TYPE_CODES = TYPE_CODES):
         if value is None:
             self.typecode = None
@@ -1504,6 +1886,12 @@ class mapped_object(object):
             if typ is None:
                 typ = type(value)
             typ = TYPES.get(typ, typ)
+            if typ not in TYPE_CODES and issubclass(typ, BufferProxyObject):
+                # Check bases
+                for base in typ.__bases__:
+                    if base is not object and base in TYPE_CODES:
+                        typ = base
+                        break
             self.typecode = TYPE_CODES[typ]
             self.value = value
 mapped_object.TYPE_CODES[mapped_object] = 'o'
@@ -1524,7 +1912,7 @@ VARIABLE_TYPES = {
     date : mapped_date,
     Decimal : mapped_decimal,
     cDecimal : mapped_decimal,
-    np.ndarray : proxied_ndarray,
+    numpy.ndarray : proxied_ndarray,
     buffer : proxied_buffer,
 }
 
@@ -1564,12 +1952,21 @@ del t
 @cython.cclass
 class BufferProxyObject(object):
     cython.declare(
+        __weakref__ = object,
         buf = object,
         idmap = object,
         pybuf = 'Py_buffer',
         offs = cython.ulonglong,
         none_bitmap = cython.ulonglong
     )
+
+    @property
+    def _proxy_buffer(self):
+        return self.buf
+
+    @property
+    def _proxy_offset(self):
+        return self.offs
 
     def __cinit__(self, buf, offs, none_bitmap, idmap = None):
         if cython.compiled:
@@ -2015,7 +2412,7 @@ PROXY_TYPES = {
     date : DateBufferProxyProperty,
     Decimal : DecimalBufferProxyProperty,
     cDecimal : DecimalBufferProxyProperty,
-    np.ndarray : ProxiedNDArrayBufferProxyProperty,
+    numpy.ndarray : ProxiedNDArrayBufferProxyProperty,
     buffer : ProxiedBufferBufferProxyProperty,
 }
 
@@ -2053,6 +2450,9 @@ class Schema(object):
         bitmap_size = cython.size_t,
         packer_cache = object,
         unpacker_cache = object,
+
+        prewrite_hook = object,
+        postwrite_hook = object,
 
         _Proxy = object,
         _proxy_bases = tuple,
@@ -2106,6 +2506,20 @@ class Schema(object):
     def set_proxy_bases(self, bases):
         self._proxy_bases = bases
 
+    def set_prewrite_hook(self, hook):
+        """
+        A callable that will be invoked with arguments (obj, buf, baseoffs)
+        each time an object is about to be packed into a buffer.
+        """
+        self.prewrite_hook = hook
+
+    def set_postwrite_hook(self, hook):
+        """
+        A callable that will be invoked with arguments (obj, buf, baseoffs, offs)
+        each time after an object has been packed into a buffer.
+        """
+        self.postwrite_hook = hook
+
     @cython.locals(other_schema = 'Schema')
     def compatible(self, other):
         if not isinstance(other, Schema):
@@ -2137,6 +2551,16 @@ class Schema(object):
     def set_pack_buffer_size(self, newsize):
         self.pack_buffer_size = newsize
         self._pack_buffer = bytearray(self.pack_buffer_size)
+
+    def reinitialize(self):
+        """
+        Reinitialize schema to account for newly registered types. Call after registering
+        all required types if you can't register them beforehand.
+        """
+        self.init(
+            self._map_types(self.slot_types),
+            packer_cache = self.packer_cache, unpacker_cache = self.unpacker_cache, alignment = self.alignment,
+            pack_buffer_size = self.pack_buffer_size)
 
     @cython.locals(slot_types = dict, slot_keys = tuple)
     def init(self, slot_types = None, slot_keys = None, alignment = 8, pack_buffer_size = 65536,
@@ -2308,11 +2732,16 @@ class Schema(object):
     @cython.ccall
     @cython.locals(has_bitmap = cython.ulonglong, none_bitmap = cython.ulonglong, present_bitmap = cython.ulonglong,
         i = int, size = int, alignment = int, padding = int, mask = cython.ulonglong,
-        offs = cython.longlong, implicit_offs = cython.longlong, ival_offs = cython.longlong)
+        offs = cython.longlong, implicit_offs = cython.longlong, ival_offs = cython.longlong,
+        widmap = StrongIdMap)
     @cython.returns(tuple)
     def get_packable(self, packer, padding, obj, offs = 0, buf = None, idmap = None, implicit_offs = 0):
         if idmap is None:
-            idmap = {}
+            idmap = StrongIdMap()
+        if isinstance(idmap, StrongIdMap):
+            widmap = idmap
+        else:
+            widmap = None
         baseoffs = offs
         if buf is None:
             buf = self._pack_buffer
@@ -2337,21 +2766,34 @@ class Schema(object):
                 if fixed_present & mask:
                     packable_append(val)
                 else:
-                    val_id = id(val)
-                    val_offs = idmap_get(val_id)
+                    slot_type = slot_types[slot]
+                    if slot_type is mapped_object:
+                        val_id = wrapped_id(val)
+                    else:
+                        val_id = shared_id(val)
+                    if widmap is not None:
+                        # fast-call
+                        val_offs = widmap.get(val_id)
+                    else:
+                        val_offs = idmap_get(val_id)
                     if val_offs is None:
                         idmap[val_id] = ival_offs = offs + implicit_offs
+                        if widmap is not None:
+                            widmap.link(val_id, val)
                         try:
-                            offs = slot_types[slot].pack_into(val, buf, offs, idmap, implicit_offs)
+                            offs = slot_type.pack_into(val, buf, offs, idmap, implicit_offs)
                         except Exception as e:
                             try:
                                 # Add some context. It may not work with all exception types, hence the fallback
-                                e = type(e)("%s packing attribute %s=%r of type %r" % (
-                                    e, slot, val, type(obj).__name__))
+                                vrepr = repr(val)
+                                if len(vrepr) > 200:
+                                    vrepr = vrepr[:200] + '...'
+                                e = type(e)("%s packing attribute %s=%s of type %s" % (
+                                    e, slot, vrepr, type(obj).__name__))
                             except:
                                 pass
                             else:
-                                raise e
+                                raise type(e), e, sys.exc_info()[2]
                             raise
                         padding = (offs + alignment - 1) / alignment * alignment - offs
                         offs += padding
@@ -2368,11 +2810,13 @@ class Schema(object):
     @cython.ccall
     def pack_into(self, obj, buf, offs, idmap = None, packer = None, padding = None, implicit_offs = 0):
         if idmap is None:
-            idmap = {}
+            idmap = StrongIdMap()
         if packer is None:
             packer, padding = self.get_packer(obj)
         baseoffs = offs
         packable, offs = self.get_packable(packer, padding, obj, offs, buf, idmap, implicit_offs)
+        if self.prewrite_hook is not None:
+            self.prewrite_hook(obj, buf, offs)
         try:
             packer.pack_into(buf, baseoffs, *packable)
         except struct.error as e:
@@ -2384,6 +2828,8 @@ class Schema(object):
             ))
         if offs > len(buf):
             raise RuntimeError("Buffer overflow")
+        if self.postwrite_hook is not None:
+            self.postwrite_hook(obj, buf, baseoffs, offs)
         return offs
 
     @cython.ccall
@@ -2614,6 +3060,25 @@ class _CZipMapBase(object):
     @classmethod
     def map_zipfile(cls, fileobj, offset = 0, size = None):
         return _map_zipfile(cls, fileobj, offset, size)
+
+class GenericFileMapper(_ZipMapBase):
+    @classmethod
+    def map_file(cls, fileobj, offset = 0, size = None):
+        """
+        Returns a buffer mapping the file object's requested
+        range, and the underlying mmap object as a tuple.
+        """
+        if isinstance(fileobj, zipfile.ZipExtFile):
+            return cls.map_zipfile(fileobj, offset, size)
+
+        if size is None:
+            fileobj.seek(0, os.SEEK_END)
+            size = fileobj.tell() - offset
+        fileobj.seek(offset)
+        map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
+        buf = mmap.mmap(fileobj.fileno(), size + offset - map_start,
+            access = mmap.ACCESS_READ, offset = map_start)
+        return buffer(buf, offset - map_start), buf
 
 class MappedArrayProxyBase(_ZipMapBase):
     _CURRENT_VERSION = 2
@@ -4178,14 +4643,20 @@ class ObjectIdMapper(_CZipMapBase):
         _likebuf = object,
         _file = object,
         _dtype = object,
+        _basepos = cython.ulonglong,
+        index = object,
         index_elements = cython.ulonglong,
         index_offset = cython.ulonglong,
-        index = object,
+        _dtype_bits = cython.ushort,
     )
 
     @property
     def buf(self):
         return self._buf
+
+    @property
+    def offset(self):
+        return self._basepos
 
     @property
     def fileobj(self):
@@ -4199,25 +4670,37 @@ class ObjectIdMapper(_CZipMapBase):
     def name(self):
         return self._file.name
 
+    @cython.locals(dtypemax = cython.ulonglong)
     def __init__(self, buf, offset = 0):
         # Accelerate class attributes
         self._dtype = self.dtype
 
         # Initialize buffer
-        if offset:
-            self._buf = self._likebuf = buffer(buf, offset)
-        else:
-            self._buf = buf
-            self._likebuf = _likebuffer(buf)
+        self._buf = buf
+        self._likebuf = _likebuffer(buf)
+        self._basepos = offset
 
         # Parse header and map index
-        self.index_elements, self.index_offset = self._Header.unpack_from(self._buf, 0)
+        self.index_elements, self.index_offset = self._Header.unpack_from(self._buf, offset)
 
         self.index = numpy.ndarray(
             buffer = self._buf,
-            offset = self.index_offset,
+            offset = self.index_offset + offset,
             dtype = self.dtype,
             shape = (self.index_elements, 3))
+
+        dtype = self.dtype
+        try:
+            dtypemax = ~dtype(0)
+        except:
+            try:
+                dtypemax = ~dtype.type(0)
+            except:
+                dtypemax = ~0
+        self._dtype_bits = 0
+        while dtypemax:
+            self._dtype_bits += 1
+            dtypemax >>= 1
 
     def __getitem__(self, key):
         rv = self.get(key)
@@ -4237,10 +4720,35 @@ class ObjectIdMapper(_CZipMapBase):
         self.index.max()
 
     @cython.ccall
+    @cython.locals(pos = cython.ulonglong, sindex = cython.longlong, uindex = cython.ulonglong)
     def _unpack(self, buf, index):
-        return mapped_object.unpack_from(buf, index)
+        # None is represented with an offset of 1, which is an impossible offset
+        # (it would point into the header, 0 would be the dict itself so it's valid)
+        if index == 1:
+            return None
 
-    @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer', pybuf = 'Py_buffer')
+        # Compute absolute offset out of relative index
+        pos = self._basepos
+        if not cython.compiled:
+            sindex = int(index)
+            if self._dtype_bits != 64 and (sindex & (1 << (self._dtype_bits-1))):
+                # sign-extend
+                sindex |= (~0) & ~((1 << (64 - self._dtype_bits)) - 1)
+
+            if sindex & (1 << 63):
+                # interpret two-s complement in python long arithmetic
+                sindex = -(-sindex & 0xFFFFFFFFFFFFFFFF)
+        else:
+            # reinterpret-cast
+            uindex = index
+            sindex = uindex
+            if self._dtype_bits != 64:
+                # sign-extend
+                sindex <<= 64 - self._dtype_bits
+                sindex >>= 64 - self._dtype_bits
+        return mapped_object.unpack_from(buf, pos + sindex)
+
+    @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer')
     def iterkeys(self, make_sequential = False):
         buf = self._buf
         dtype = self.dtype
@@ -4257,33 +4765,29 @@ class ObjectIdMapper(_CZipMapBase):
         if cython.compiled:
             #lint:disable
             buf = self._likebuf
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-            try:
-                if dtype is npuint64:
-                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
-                    try:
-                        if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
-                            raise ValueError("Invalid buffer state")
-                        for i in xrange(self.index_elements):
-                            yield self._unpack(self._buf,
-                                cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs])
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
-                elif dtype is npuint32:
-                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
-                    try:
-                        if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
-                            raise ValueError("Invalid buffer state")
-                        for i in xrange(self.index_elements):
-                            yield self._unpack(self._buf,
-                                cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs])
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
-                else:
+            if dtype is npuint64:
+                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
+                try:
+                    if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
+                        raise ValueError("Invalid buffer state")
                     for i in xrange(self.index_elements):
-                        yield self._unpack(self._buf, index[i])
-            finally:
-                PyBuffer_Release(cython.address(pybuf))
+                        yield self._unpack(self._buf,
+                            cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs])
+                finally:
+                    PyBuffer_Release(cython.address(indexbuf))
+            elif dtype is npuint32:
+                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
+                try:
+                    if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
+                        raise ValueError("Invalid buffer state")
+                    for i in xrange(self.index_elements):
+                        yield self._unpack(self._buf,
+                            cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs])
+                finally:
+                    PyBuffer_Release(cython.address(indexbuf))
+            else:
+                for i in xrange(self.index_elements):
+                    yield self._unpack(self._buf, index[i])
             #lint:enable
         else:
             for i in xrange(self.index_elements):
@@ -4302,7 +4806,7 @@ class ObjectIdMapper(_CZipMapBase):
         # Baaad idea
         return list(self.iterkeys())
 
-    @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer', pybuf = 'Py_buffer',
+    @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer',
         stride0 = cython.size_t, stride1 = cython.size_t, pindex = cython.p_char)
     def iteritems(self, make_sequential = False):
         buf = self._buf
@@ -4316,54 +4820,50 @@ class ObjectIdMapper(_CZipMapBase):
         if cython.compiled:
             #lint:disable
             buf = self._likebuf
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-            try:
-                if dtype is npuint64:
-                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                    try:
-                        if ( indexbuf.strides == cython.NULL
-                                or indexbuf.ndim < 2
-                                or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
-                            raise ValueError("Invalid buffer state")
-                        stride0 = indexbuf.strides[0]
-                        stride1 = indexbuf.strides[1]
-                        pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in xrange(self.index_elements):
-                            yield (
-                                self._unpack(self._buf,
-                                    cython.cast(cython.p_ulonglong, pindex + stride1)[0]),
-                                cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
-                            )
-                            pindex += stride0
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
-                elif dtype is npuint32:
-                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                    try:
-                        if ( indexbuf.strides == cython.NULL
-                                or indexbuf.ndim < 2
-                                or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
-                            raise ValueError("Invalid buffer state")
-                        stride0 = indexbuf.strides[0]
-                        stride1 = indexbuf.strides[1]
-                        pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in xrange(self.index_elements):
-                            yield (
-                                self._unpack(self._buf,
-                                    cython.cast(cython.p_uint, pindex + stride1)[0]),
-                                cython.cast(cython.p_uint, pindex + 2*stride1)[0]
-                            )
-                            pindex += stride0
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
-                else:
+            if dtype is npuint64:
+                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                try:
+                    if ( indexbuf.strides == cython.NULL
+                            or indexbuf.ndim < 2
+                            or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
+                        raise ValueError("Invalid buffer state")
+                    stride0 = indexbuf.strides[0]
+                    stride1 = indexbuf.strides[1]
+                    pindex = cython.cast(cython.p_char, indexbuf.buf)
                     for i in xrange(self.index_elements):
                         yield (
-                            self._unpack(self._buf, index[i,1]),
-                            index[i,2]
+                            self._unpack(buf,
+                                cython.cast(cython.p_ulonglong, pindex + stride1)[0]),
+                            cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
                         )
-            finally:
-                PyBuffer_Release(cython.address(pybuf))
+                        pindex += stride0
+                finally:
+                    PyBuffer_Release(cython.address(indexbuf))
+            elif dtype is npuint32:
+                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                try:
+                    if ( indexbuf.strides == cython.NULL
+                            or indexbuf.ndim < 2
+                            or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
+                        raise ValueError("Invalid buffer state")
+                    stride0 = indexbuf.strides[0]
+                    stride1 = indexbuf.strides[1]
+                    pindex = cython.cast(cython.p_char, indexbuf.buf)
+                    for i in xrange(self.index_elements):
+                        yield (
+                            self._unpack(buf,
+                                cython.cast(cython.p_uint, pindex + stride1)[0]),
+                            cython.cast(cython.p_uint, pindex + 2*stride1)[0]
+                        )
+                        pindex += stride0
+                finally:
+                    PyBuffer_Release(cython.address(indexbuf))
+            else:
+                for i in xrange(self.index_elements):
+                    yield (
+                        self._unpack(self._buf, index[i,1]),
+                        index[i,2]
+                    )
             #lint:enable
         else:
             for i in xrange(self.index_elements):
@@ -4425,10 +4925,8 @@ class ObjectIdMapper(_CZipMapBase):
     @cython.locals(
         hkey = cython.ulonglong, startpos = int, nitems = int,
         stride0 = cython.size_t, stride1 = cython.size_t,
-        indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
+        indexbuf = 'Py_buffer', pindex = cython.p_char)
     def get(self, key, default = None):
-        if not isinstance(key, basestring):
-            return default
         hkey = _stable_hash(key)
         startpos = self._search_hkey(hkey)
         nitems = self.index_elements
@@ -4438,54 +4936,50 @@ class ObjectIdMapper(_CZipMapBase):
             if cython.compiled:
                 #lint:disable
                 buf = self._likebuf
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-                try:
-                    if dtype is npuint64:
-                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                        try:
-                            if ( indexbuf.strides == cython.NULL
-                                    or indexbuf.ndim < 2
-                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
-                                raise ValueError("Invalid buffer state")
-                            stride0 = indexbuf.strides[0]
-                            stride1 = indexbuf.strides[1]
-                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
-                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
-                            while pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
-                                if self._compare_keys(self._buf,
-                                      cython.cast(cython.p_ulonglong, pindex + stride1)[0],
-                                      key):
-                                    return cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
-                                pindex += stride0
-                        finally:
-                            PyBuffer_Release(cython.address(indexbuf))
-                    elif dtype is npuint32:
-                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                        try:
-                            if ( indexbuf.strides == cython.NULL
-                                    or indexbuf.ndim < 2
-                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
-                                raise ValueError("Invalid buffer state")
-                            stride0 = indexbuf.strides[0]
-                            stride1 = indexbuf.strides[1]
-                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
-                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
-                            while pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
-                                if self._compare_keys(self._buf,
-                                         cython.cast(cython.p_uint, pindex + stride1)[0],
-                                         key):
-                                    return cython.cast(cython.p_uint, pindex + 2*stride1)[0]
-                                pindex += stride0
-                        finally:
-                            PyBuffer_Release(cython.address(indexbuf))
-                    else:
-                        index = self.index
-                        while startpos < nitems and index[startpos,0] == hkey:
-                            if self._compare_keys(self._buf, self.index[startpos,1], key):
-                                return index[startpos,2]
-                            startpos += 1
-                finally:
-                    PyBuffer_Release(cython.address(pybuf))
+                if dtype is npuint64:
+                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    try:
+                        if ( indexbuf.strides == cython.NULL
+                                or indexbuf.ndim < 2
+                                or indexbuf.len < nitems * indexbuf.strides[0] ):
+                            raise ValueError("Invalid buffer state")
+                        stride0 = indexbuf.strides[0]
+                        stride1 = indexbuf.strides[1]
+                        pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                        pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                        while pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
+                            if self._compare_keys(buf,
+                                  cython.cast(cython.p_ulonglong, pindex + stride1)[0],
+                                  key):
+                                return cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
+                            pindex += stride0
+                    finally:
+                        PyBuffer_Release(cython.address(indexbuf))
+                elif dtype is npuint32:
+                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    try:
+                        if ( indexbuf.strides == cython.NULL
+                                or indexbuf.ndim < 2
+                                or indexbuf.len < nitems * indexbuf.strides[0] ):
+                            raise ValueError("Invalid buffer state")
+                        stride0 = indexbuf.strides[0]
+                        stride1 = indexbuf.strides[1]
+                        pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                        pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                        while pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
+                            if self._compare_keys(buf,
+                                     cython.cast(cython.p_uint, pindex + stride1)[0],
+                                     key):
+                                return cython.cast(cython.p_uint, pindex + 2*stride1)[0]
+                            pindex += stride0
+                    finally:
+                        PyBuffer_Release(cython.address(indexbuf))
+                else:
+                    index = self.index
+                    while startpos < nitems and index[startpos,0] == hkey:
+                        if self._compare_keys(buf, self.index[startpos,1], key):
+                            return index[startpos,2]
+                        startpos += 1
                 #lint:enable
             else:
                 index = self.index
@@ -4498,8 +4992,10 @@ class ObjectIdMapper(_CZipMapBase):
     @classmethod
     @cython.locals(
         basepos = cython.ulonglong, curpos = cython.ulonglong, endpos = cython.ulonglong, finalpos = cython.ulonglong,
-        dtypemax = cython.ulonglong)
-    def build(cls, initializer, destfile = None, tempdir = None, return_mapper=True, min_buf_size=128):
+        dtypemax = cython.ulonglong, implicit_offs = cython.ulonglong, widmap = StrongIdMap, kpos = cython.longlong,
+        ukpos = cython.ulonglong)
+    def build(cls, initializer, destfile = None, tempdir = None, return_mapper=True, min_buf_size=128, idmap=None,
+            implicit_offs=0):
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
 
@@ -4518,6 +5014,13 @@ class ObjectIdMapper(_CZipMapBase):
         write = destfile.write
         write(cls._Header.pack(0, 0))
 
+        if idmap is None:
+            idmap = widmap = StrongIdMap()
+        elif isinstance(idmap, StrongIdMap):
+            widmap = idmap
+        else:
+            widmap = None
+
         # Build the index - the index is a matrix of the form:
         # [ [ hash, key offset, value id ], ... ]
         #
@@ -4529,7 +5032,7 @@ class ObjectIdMapper(_CZipMapBase):
         parts = []
         islice = itertools.islice
         array = numpy.array
-        curpos = basepos + cls._Header.size
+        curpos = cls._Header.size
         pack_into = mapped_object.pack_into
         valbuf = bytearray(65536)
         valbuflen = 65536
@@ -4540,27 +5043,55 @@ class ObjectIdMapper(_CZipMapBase):
             for k,i in islice(initializer, 1000):
                 # Add the index item
                 n += 1
-                # Not *quite* as correct as computing the actual length in
-                # bytes, but this is only used as a first (optimistic) estimation.
-                klen = max(min_buf_size, sys.getsizeof(k))
-                if curpos > dtypemax:
-                    raise ValueError("Cannot represent offset with requested precision")
-                part.append((_stable_hash(k), curpos, i))
 
-                while True:
-                    try:
-                        if klen + 16 > valbuflen:
-                            valbuflen = (klen + 16) * 2
-                            valbuf = bytearray(valbuflen)
-                        endpos = pack_into(k, valbuf, 0)
-                        break
-                    except (struct.error, IndexError):
-                        klen += klen
+                # None will be represented with an offset of 1, which is an impossible offset
+                # (it would point into the header, 0 would be the dict itself so it's valid)
+                if k is None:
+                    part.append((_stable_hash(k), 1, i))
+                    continue
 
-                if valbuflen < endpos:
-                    raise RuntimeError("Buffer overflow")
-                write(valbuf[:endpos])
-                curpos += endpos
+                # these are wrapped objects, not plain objects, so make sure they have distinct xid
+                kid = wrapped_id(k)
+                if kid in idmap:
+                    kpos = idmap[kid]
+                    kpos -= (basepos + implicit_offs)
+                    if kpos > dtypemax:
+                        raise ValueError("Cannot represent offset with requested precision")
+
+                    # Must cast into unsigned, since idmapper dtypes are always unsigned,
+                    # but object relative offsets might be negative
+                    ukpos = kpos
+                    if not cython.compiled:
+                        ukpos &= dtypemax
+
+                    part.append((_stable_hash(k), ukpos, i))
+                else:
+                    # Not *quite* as correct as computing the actual length in
+                    # bytes, but this is only used as a first (optimistic) estimation.
+                    klen = max(min_buf_size, sys.getsizeof(k))
+                    if curpos > dtypemax:
+                        raise ValueError("Cannot represent offset with requested precision")
+                    part.append((_stable_hash(k), curpos, i))
+
+                    while True:
+                        try:
+                            if klen + 16 > valbuflen:
+                                valbuflen = (klen + 16) * 2
+                                valbuf = bytearray(valbuflen)
+                            endpos = pack_into(k, valbuf, 0, idmap, curpos + basepos + implicit_offs)
+                            break
+                        except (struct.error, IndexError):
+                            klen += klen
+
+                    if valbuflen < endpos:
+                        raise RuntimeError("Buffer overflow")
+                    write(valbuf[:endpos])
+
+                    idmap[kid] = curpos + basepos + implicit_offs
+                    if widmap is not None:
+                        widmap.link(kid, k)
+
+                    curpos += endpos
             if part:
                 parts.append(array(part, dtype))
             else:
@@ -4583,7 +5114,7 @@ class ObjectIdMapper(_CZipMapBase):
             finalpos = destfile.tell()
 
         destfile.seek(basepos)
-        write(cls._Header.pack(nitems, indexpos - basepos))
+        write(cls._Header.pack(nitems, indexpos))
         destfile.seek(finalpos)
         destfile.flush()
 
