@@ -1054,17 +1054,18 @@ class proxied_frozenset(object):
     def __len__(self):
         return len(self.objlist)
 
-    @cython.locals(i1=cython.Py_ssize_t, i2=cython.Py_ssize_t, step=cython.Py_ssize_t)
+    @cython.locals(i1=cython.Py_ssize_t, i2=cython.Py_ssize_t,
+        step=cython.Py_ssize_t, c=cython.int)
     def __contains__(self, elem):
         i1 = 0
         i2 = len(self.objlist)
 
         while i1 < i2:
             step = (i1 + i2) >> 1
-            val = self.objlist._getitem(step)
-            if val == elem:
+            c = cmp(self.objlist._getitem(step), elem)
+            if c == 0:
                 return True
-            elif val < elem:
+            elif c < 0:
                 i1 = step + 1
             else:
                 i2 = step
@@ -1112,7 +1113,8 @@ class proxied_frozenset(object):
 
     @cython.ccall
     @cython.locals(strict_subset=cython.bint, i=cython.Py_ssize_t,
-        xlen=cython.Py_ssize_t, pfset='proxied_frozenset', seqlen=cython.Py_ssize_t)
+        xlen=cython.Py_ssize_t, pfset='proxied_frozenset',
+        seqlen=cython.Py_ssize_t, c=cython.int)
     def _subset(self, seq, strict_subset):
         i = 0
         xlen = len(self)
