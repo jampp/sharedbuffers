@@ -3312,7 +3312,8 @@ class mapped_object_with_schema(object):
 def __pyx_unpickle_mapped_object_with_schema(__pyx_type, __pyx_checksum, __pyx_state):
     # For compatibility with older pickles only
     result = mapped_object_with_schema.__new__(__pyx_type)
-    result._schema = __pyx_state[0]
+    if __pyx_state is not None:
+        result._schema = __pyx_state[0]
     return result
 
 @cython.ccall
