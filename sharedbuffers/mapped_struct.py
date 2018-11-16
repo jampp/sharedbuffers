@@ -3234,7 +3234,7 @@ class Schema(object):
                 if proxy_into is None:
                     rv = gfactory(buf, offs, none_bitmap, idmap)
                 else:
-                    if not isinstance(proxy_into, gfactory):
+                    if type(proxy_into) is not gfactory and not isinstance(proxy_into, gfactory):
                         proxy_into.__class__ = gfactory
                     if proxy_into.buf is buf:
                         proxy_into._reset_internal(offs, none_bitmap, idmap)
