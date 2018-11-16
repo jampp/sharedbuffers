@@ -1411,12 +1411,12 @@ class proxied_list(object):
     @cython.locals(fast = cython.bint, dcode = cython.char, index = cython.longlong,
         objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def getter(self, proxy_into = None, fast = False):
-        if proxy_into is None and fast:
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+
+        if proxy_into is None and fast and dcode in ('t', 'T'):
             proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
             if not cython.compiled:
                 proxy_into.buf = None
-
-        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
 
         @cython.locals(index = cython.longlong)
         def getter(index):
@@ -1600,9 +1600,12 @@ class proxied_list(object):
         dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def iter_fast(self):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
-        proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
-        if not cython.compiled:
-            proxy_into.buf = None
+        if dcode in ('t', 'T'):
+            proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
+            if not cython.compiled:
+                proxy_into.buf = None
+        else:
+            proxy_into = None
         for i in xrange(len(self)):
             yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
 
@@ -1619,9 +1622,12 @@ class proxied_list(object):
         dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def __contains__(self, item):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
-        proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
-        if not cython.compiled:
-            proxy_into.buf = None
+        if dcode in ('t', 'T'):
+            proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
+            if not cython.compiled:
+                proxy_into.buf = None
+        else:
+            proxy_into = None
         for i in xrange(len(self)):
             if self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into) == item:
                 return True
