@@ -35,3 +35,9 @@ cdef size_t _c_merge_f32(
 
 cpdef size_t index_merge(index1, index2, dest) except 0xFFFFFFFFFFFFFFFF
 cpdef unsigned long long _stable_hash(key) except? 0
+
+cdef extern from *:
+    cdef int __builtin_popcountll(unsigned long long x)
+
+cdef inline int popcount(unsigned long long x):
+    return __builtin_popcountll(x)

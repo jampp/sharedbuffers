@@ -1001,16 +1001,16 @@ if not cython.compiled:
     setattr(proxied_list, '__eq__', getattr(proxied_list, '_eq'))
     setattr(proxied_list, '__ne__', getattr(proxied_list, '_ne'))
 
-@cython.ccall
-@cython.inline
-@cython.locals(x=cython.ulonglong, i=cython.ulonglong)
-def _count_bits_set(x):
-    i = 0
-    while x != 0:
-        if (x & 1) != 0:
-            i += 1
-        x >>= 1
-    return i
+if not cython.compiled:
+    def _popcountll(x):
+        i = 0
+        while x != 0:
+            if (x & 1) != 0:
+                i += 1
+            x >>= 1
+        return i
+
+    globals()['popcount'] = _popcountll
 
 @cython.cclass
 class proxied_frozenset(object):
@@ -1025,7 +1025,7 @@ class proxied_frozenset(object):
         self.bitrep_hi = bitrep_hi
 
         if self.objlist is None:
-            self.bitlen = _count_bits_set(self.bitrep_lo) + _count_bits_set(self.bitrep_hi)
+            self.bitlen = popcount(self.bitrep_lo) + popcount(self.bitrep_hi)
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
