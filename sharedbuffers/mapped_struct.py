@@ -1094,7 +1094,7 @@ class proxied_frozenset(object):
         elif dcode == 'd':
             return _c_search_hkey_f64(elem, pindex, 8, xlen, hint)
         else:
-            raise NotImplementedError("invalid frozenset data type %s" % chr(dcode))
+            raise NotImplementedError("Unsupported data type for fast lookup: %s" % chr(dcode))
 
     @cython.locals(i1=cython.Py_ssize_t, i2=cython.Py_ssize_t,
         step=cython.Py_ssize_t, c=cython.int, dcode=cython.char,
@@ -1112,7 +1112,7 @@ class proxied_frozenset(object):
 
         if cython.compiled:
             dcode, _, _, offset, _ = self.objlist._metadata()
-            if dcode not in ('H', 'h', 't'):
+            if dcode in ('q', 'I', 'i', 'd'):
                 i1 = self._contains(elem, dcode, offset)
                 return self.objlist._getitem(i1) == elem
 
@@ -1226,14 +1226,11 @@ class proxied_frozenset(object):
                         (self.bitrep_hi & pfset.bitrep_hi) == self.bitrep_hi and (
                             not strict_subset or self.bitlen < pfset.bitlen))
                 else:
-                    try:
-                        for i in xrange(xlen):
-                            val = self.objlist._getitem(i)
-                            if val not in pfset:
-                                return False
-                        return not strict_subset or xlen < pfset.bitlen
-                    except (ValueError, TypeError):
-                        return False
+                    for i in xrange(xlen):
+                        if self.objlist._getitem(i) not in pfset:
+                            return False
+                    return not strict_subset or xlen < pfset.bitlen
+
             elif self.objlist is None:
                 bitrep = self.bitrep_lo
                 while bitrep != 0:
