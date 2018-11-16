@@ -1420,7 +1420,6 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
             self.assertNotIn(-val - 1, c)
 
     def testCmpSets(self):
-        f = self.pack([1])
         c = self.pack([1., 2., 3., 4., 5.])
         self.assertEqual(c, self.pack([5., 4., 3., 2., 1.]))
         self.assertEqual(c, set(c))
