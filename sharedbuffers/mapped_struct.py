@@ -1085,7 +1085,7 @@ class proxied_frozenset(object):
                 if eint != elem or eint >= 128 or eint < 0:
                     return False
                 return (eint < 64 and (self.bitrep_lo & (1 << eint)) != 0) or (
-                    (eint < 128 and (self.bitrep_hi & (1 << eint)) != 0))
+                    (eint < 128 and (self.bitrep_hi & (1 << (eint - 64))) != 0))
             except (ValueError, TypeError):
                 return False
 
@@ -1170,8 +1170,7 @@ class proxied_frozenset(object):
             return True
 
         for i in xrange(xlen):
-            val = self.objlist._getitem(i)
-            if val not in x:
+            if self.objlist._getitem(i) not in x:
                 return False
         return True
 
