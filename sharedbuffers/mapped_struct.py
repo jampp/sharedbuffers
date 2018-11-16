@@ -1415,8 +1415,17 @@ class proxied_list(object):
         ipindex = "const int *",
         dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def _getitem(self, index):
-
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+        return self.__getitem(index, dcode, objlen, itemsize, dataoffs, _struct)
+
+    @cython.inline
+    @cython.cfunc
+    @cython.locals(obj_offs = cython.Py_ssize_t, dcode = cython.char, index = cython.longlong,
+        objlen = cython.longlong, xlen = cython.longlong, step = cython.longlong,
+        lpindex = "const long *",
+        ipindex = "const int *",
+        dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
+    def __getitem(self, index, dcode, objlen, itemsize, dataoffs, _struct):
         xlen = objlen
         orig_index = index
 
@@ -1562,20 +1571,23 @@ class proxied_list(object):
 
     @cython.locals(i=cython.longlong)
     def __iter__(self):
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         for i in xrange(len(self)):
-            yield self._getitem(i)
+            yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct)
 
     @cython.locals(l=cython.Py_ssize_t)
     def __reversed__(self):
         l = len(self)
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         if l > 0:
             for i in xrange(l - 1, -1, -1):
-                yield self._getitem(i)
+                yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct)
 
     @cython.locals(i=cython.longlong)
     def __contains__(self, item):
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         for i in xrange(len(self)):
-            if self._getitem(i) == item:
+            if self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct) == item:
                 return True
         return False
 
