@@ -1016,8 +1016,8 @@ def _count_bits_set(x):
 class proxied_frozenset(object):
 
     cython.declare(objlist = 'proxied_list',
-      bitrep_lo=cython.ulonglong, bitrep_hi=cython.ulonglong,
-      bitlen=cython.Py_ssize_t)
+        bitrep_lo=cython.ulonglong, bitrep_hi=cython.ulonglong,
+        bitlen=cython.Py_ssize_t)
 
     def __init__(self, objlist, bitrep_lo=0, bitrep_hi=0):
         self.objlist = objlist
@@ -1052,14 +1052,16 @@ class proxied_frozenset(object):
                 # inline bitmap (64 bits)
                 if cython.compiled and offs+7 >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
-                bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs + 1)[0]
+                bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs)[0] >> 8
                 return proxied_frozenset(None, bitrep_lo, 0)
             elif pbuf[offs] == 'M':
                 # inline bitmap (128 bits)
                 if cython.compiled and offs+15 >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
-                bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs + 1)[0]
-                bitrep_hi = cython.cast(cython.p_ulonglong, pbuf + offs + 1)[1]
+                bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs)[0] >> 8
+                bitrep_hi = cython.cast(cython.p_ulonglong, pbuf + offs)[1]
+                bitrep_lo |= (bitrep_hi & 0xff) << 56
+                bitrep_hi >>= 8
                 return proxied_frozenset(None, bitrep_lo, bitrep_hi)
             else:
                 return proxied_frozenset(proxied_list(buf, offs, idmap))
