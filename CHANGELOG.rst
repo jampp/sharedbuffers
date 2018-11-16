@@ -15,7 +15,7 @@ Added
 
 - Add support for proxied buffers
 - Add support for proxied numpy arrays
-- Add support for proxied list/tuple
+- Add support for proxied list/tuple/frozenset
 - Add support for mapped dict
 - Allow specifying custom bases for proxy objects, so proxies
   can inherit their real counterparts' behavior
