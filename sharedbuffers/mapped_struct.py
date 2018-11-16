@@ -1408,12 +1408,25 @@ class proxied_list(object):
         buf = _likerobuffer(buf)
         return cls(buf, offs, idmap)
 
+    @cython.locals(fast = cython.bint, dcode = cython.char, index = cython.longlong,
+        objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
+    def getter(self, proxy_into = None, fast = False):
+        if proxy_into is None and fast:
+            proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
+            if not cython.compiled:
+                proxy_into.buf = None
+
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+
+        @cython.locals(index = cython.longlong)
+        def getter(index):
+            return self.__getitem(index, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
+
+        return getter
+
     @cython.ccall
-    @cython.locals(obj_offs = cython.Py_ssize_t, dcode = cython.char, index = cython.longlong,
-        objlen = cython.longlong, xlen = cython.longlong, step = cython.longlong,
-        lpindex = "const long *",
-        ipindex = "const int *",
-        dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
+    @cython.locals(dcode = cython.char, index = cython.longlong,
+        objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def _getitem(self, index):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         return self.__getitem(index, dcode, objlen, itemsize, dataoffs, _struct, None)
@@ -1587,7 +1600,9 @@ class proxied_list(object):
         dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def iter_fast(self):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
-        proxy_into = GenericProxy.__new__(GenericProxy, None, 0, 0)
+        proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
+        if not cython.compiled:
+            proxy_into.buf = None
         for i in xrange(len(self)):
             yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
 
@@ -1604,7 +1619,9 @@ class proxied_list(object):
         dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def __contains__(self, item):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
-        proxy_into = GenericProxy.__new__(GenericProxy, None, 0, 0)
+        proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
+        if not cython.compiled:
+            proxy_into.buf = None
         for i in xrange(len(self)):
             if self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into) == item:
                 return True
@@ -2112,9 +2129,12 @@ class mapped_object(object):
         elif typecode in cls.OBJ_PACKERS:
             offs += cpacker_size + cpadding
             unpacker_info = cls.OBJ_PACKERS[typecode]
-            if proxy_into is not None and (
-                    unpacker_info[2] is mapped_object or type(unpacker_info[2]) is mapped_object_with_schema):
-                return unpacker_info[1](buf, offs, idmap, proxy_into)
+            if proxy_into is not None:
+                typ = unpacker_info[2]
+                if typ is _mapped_object or type(typ) is mapped_object_with_schema:
+                    return unpacker_info[1](buf, offs, idmap, proxy_into)
+                else:
+                    return unpacker_info[1](buf, offs, idmap)
             else:
                 return unpacker_info[1](buf, offs, idmap)
         else:
@@ -2171,6 +2191,8 @@ class mapped_object(object):
             self.value = value
 mapped_object.TYPE_CODES[mapped_object] = 'o'
 mapped_object.OBJ_PACKERS['o'] = (mapped_object.pack_into, mapped_object.unpack_from, mapped_object)
+
+_mapped_object = cython.declare(object, mapped_object)
 
 VARIABLE_TYPES = {
     frozenset : mapped_frozenset,
@@ -2732,6 +2754,7 @@ def GenericProxyClass(slot_keys, slot_types, present_bitmap, base_offs, bases = 
 
 cython.declare(_GenericProxy = object)
 GenericProxy = _GenericProxy = GenericProxyClass([], {}, 0, 0)
+_GenericProxy_new = cython.declare(object, _GenericProxy.__new__)
 
 @cython.cclass
 class Schema(object):

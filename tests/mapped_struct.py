@@ -1704,6 +1704,47 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
             else:
                 self.assertEquals(x, l[i])
 
+    def testProxiedListGetterFast(self):
+        mapped_struct.mapped_object.TYPE_CODES.pop(SimpleStruct,None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+
+        schema = mapped_struct.Schema.from_typed_slots(SimpleStruct)
+        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, '}')
+
+        l = []
+        l.append(SimpleStruct(a=1, b=2.0))
+        l.append(SimpleStruct(a=2, b=1.0))
+        l.append(SimpleStruct(a=3, b=1.5))
+        l.append(3)
+        l.append([1,2,3])
+        l.append(frozenset([1,2,3]))
+        c = self.pack(l)
+        g = c.getter(fast=True)
+
+        oldx = None
+        for i in xrange(len(c)):
+            x = g(i)
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
+
+        oldx = None
+        for i in xrange(len(c)):
+            x = g(i)
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
+
     def testProxiedListStr(self):
         c = self.pack([1, 2.0])
         self.assertEquals(str(c), "[1,2.0]")
