@@ -50,6 +50,7 @@ Changes
   as bitmaps.
 - Offsets are Py_ssize_t now. That shouldn't be a noticeable change,
   unless you've got more storage than the universe.
+- Improved performance of binary search utilities.
 
 Bugfixes
 --------

@@ -3570,11 +3570,20 @@ if cython.compiled:
         mkey = cython.ulonglong,
         lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
         mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
-        pindex = cython.p_char, skip = cython.size_t)
+        pindex = cython.p_char, skip = cython.size_t, check_equal = cython.bint)
     @cython.returns(cython.size_t)
-    def _c_search_hkey_ui64(hkey, pindex, stride0, length, hint):
+    def _c_search_hkey_ui64(hkey, pindex, stride0, length, hint, check_equal):
         hi = length
         lo = 0
+
+        if hkey < cython.cast(cython.p_ulonglong, pindex)[0]:
+            if check_equal:
+                return hi
+            else:
+                return lo
+        elif hkey > cython.cast(cython.p_ulonglong, pindex + stride0 * (hi-1))[0]:
+            return hi
+
         if lo < hi:
             # First iteration a quick guess assuming uniform distribution of keys
             mid = min(hint, hi-1)
@@ -3621,6 +3630,9 @@ if cython.compiled:
                 while mid > lo and cython.cast(cython.p_ulonglong, pindex + stride0 * (mid-1))[0] == hkey:
                     mid -= 1
                 return mid
+        # Check equality if requested
+        if check_equal and lo < length and cython.cast(cython.p_ulonglong, pindex + stride0 * lo)[0] != hkey:
+            lo = length
         return lo
 
     @cython.cfunc
@@ -3629,11 +3641,20 @@ if cython.compiled:
         mkey = cython.longlong,
         lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
         mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
-        pindex = cython.p_char, skip = cython.size_t)
+        pindex = cython.p_char, skip = cython.size_t, check_equal = cython.bint)
     @cython.returns(cython.size_t)
-    def _c_search_hkey_i64(hkey, pindex, stride0, length, hint):
+    def _c_search_hkey_i64(hkey, pindex, stride0, length, hint, check_equal):
         hi = length
         lo = 0
+
+        if hkey < cython.cast(cython.p_longlong, pindex)[0]:
+            if check_equal:
+                return hi
+            else:
+                return lo
+        elif hkey > cython.cast(cython.p_longlong, pindex + stride0 * (hi-1))[0]:
+            return hi
+
         if lo < hi:
             # First iteration a quick guess assuming uniform distribution of keys
             mid = min(hint, hi-1)
@@ -3680,6 +3701,9 @@ if cython.compiled:
                 while mid > lo and cython.cast(cython.p_longlong, pindex + stride0 * (mid-1))[0] == hkey:
                     mid -= 1
                 return mid
+        # Check equality if requested
+        if check_equal and lo < length and cython.cast(cython.p_longlong, pindex + stride0 * lo)[0] != hkey:
+            lo = length
         return lo
 
     @cython.cfunc
@@ -3688,11 +3712,20 @@ if cython.compiled:
         mkey = cython.ulonglong, uikey = cython.uint, uimkey = cython.uint,
         lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
         mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
-        pindex = cython.p_char, skip = cython.size_t)
+        pindex = cython.p_char, skip = cython.size_t, check_equal = cython.bint)
     @cython.returns(cython.size_t)
-    def _c_search_hkey_ui32(hkey, pindex, stride0, length, hint):
+    def _c_search_hkey_ui32(hkey, pindex, stride0, length, hint, check_equal):
         hi = length
         lo = 0
+
+        if hkey < cython.cast(cython.p_uint, pindex)[0]:
+            if check_equal:
+                return hi
+            else:
+                return lo
+        elif hkey > cython.cast(cython.p_uint, pindex + stride0 * (hi-1))[0]:
+            return hi
+
         uikey = hkey
         if lo < hi:
             mid = min(hint, hi-1)
@@ -3734,6 +3767,9 @@ if cython.compiled:
                 while mid > lo and cython.cast(cython.p_uint, pindex + stride0 * (mid-1))[0] == uikey:
                     mid -= 1
                 return mid
+        # Check equality if requested
+        if check_equal and lo < length and cython.cast(cython.p_uint, pindex + stride0 * lo)[0] != uikey:
+            lo = length
         return lo
 
     @cython.cfunc
@@ -3742,11 +3778,20 @@ if cython.compiled:
         mkey = cython.longlong, ikey = cython.int, imkey = cython.int,
         lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
         mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
-        pindex = cython.p_char, skip = cython.size_t)
+        pindex = cython.p_char, skip = cython.size_t, check_equal = cython.bint)
     @cython.returns(cython.size_t)
-    def _c_search_hkey_i32(hkey, pindex, stride0, length, hint):
+    def _c_search_hkey_i32(hkey, pindex, stride0, length, hint, check_equal):
         hi = length
         lo = 0
+
+        if hkey < cython.cast(cython.p_int, pindex)[0]:
+            if check_equal:
+                return hi
+            else:
+                return lo
+        elif hkey > cython.cast(cython.p_int, pindex + stride0 * (hi-1))[0]:
+            return hi
+
         ikey = hkey
         if lo < hi:
             mid = min(hint, hi-1)
@@ -3788,6 +3833,9 @@ if cython.compiled:
                 while mid > lo and cython.cast(cython.p_int, pindex + stride0 * (mid-1))[0] == ikey:
                     mid -= 1
                 return mid
+        # Check equality if requested
+        if check_equal and lo < length and cython.cast(cython.p_int, pindex + stride0 * lo)[0] != ikey:
+            lo = length
         return lo
 
     @cython.cfunc
@@ -3796,11 +3844,20 @@ if cython.compiled:
         mkey = cython.double,
         lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
         mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
-        pindex = cython.p_char, skip = cython.size_t)
+        pindex = cython.p_char, skip = cython.size_t, check_equal = cython.bint)
     @cython.returns(cython.size_t)
-    def _c_search_hkey_f64(hkey, pindex, stride0, length, hint):
+    def _c_search_hkey_f64(hkey, pindex, stride0, length, hint, check_equal):
         hi = length
         lo = 0
+
+        if hkey < cython.cast(cython.p_double, pindex)[0]:
+            if check_equal:
+                return hi
+            else:
+                return lo
+        elif hkey > cython.cast(cython.p_double, pindex + stride0 * (hi-1))[0]:
+            return hi
+
         if lo < hi:
             # First iteration a quick guess assuming uniform distribution of keys
             mid = min(hint, hi-1)
@@ -3847,6 +3904,9 @@ if cython.compiled:
                 while mid > lo and cython.cast(cython.p_double, pindex + stride0 * (mid-1))[0] == hkey:
                     mid -= 1
                 return mid
+        # Check equality if requested
+        if check_equal and lo < length and cython.cast(cython.p_double, pindex + stride0 * lo)[0] != hkey:
+            lo = length
         return lo
 
     @cython.cfunc
@@ -3855,11 +3915,20 @@ if cython.compiled:
         mkey = cython.float,
         lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
         mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
-        pindex = cython.p_char, skip = cython.size_t)
+        pindex = cython.p_char, skip = cython.size_t, check_equal = cython.bint)
     @cython.returns(cython.size_t)
-    def _c_search_hkey_f32(hkey, pindex, stride0, length, hint):
+    def _c_search_hkey_f32(hkey, pindex, stride0, length, hint, check_equal):
         hi = length
         lo = 0
+
+        if hkey < cython.cast(cython.p_float, pindex)[0]:
+            if check_equal:
+                return hi
+            else:
+                return lo
+        elif hkey > cython.cast(cython.p_float, pindex + stride0 * (hi-1))[0]:
+            return hi
+
         if lo < hi:
             # First iteration a quick guess assuming uniform distribution of keys
             mid = min(hint, hi-1)
@@ -3906,6 +3975,9 @@ if cython.compiled:
                 while mid > lo and cython.cast(cython.p_float, pindex + stride0 * (mid-1))[0] == hkey:
                     mid -= 1
                 return mid
+        # Check equality if requested
+        if check_equal and lo < length and cython.cast(cython.p_float, pindex + stride0 * lo)[0] != hkey:
+            lo = length
         return lo
 
 if cython.compiled:
@@ -3913,17 +3985,18 @@ if cython.compiled:
     #@cython.ccall
     @cython.locals(
         lo = cython.size_t, hi = cython.size_t, hint = cython.size_t, stride0 = cython.size_t,
-        indexbuf = 'Py_buffer', pindex = cython.p_char)
+        indexbuf = 'Py_buffer', pindex = cython.p_char, check_equal = cython.bint, ix = cython.size_t)
     #@cython.returns(cython.size_t)
-    def hinted_bsearch(a, hkey, hint):
-        hi = len(a)
-        lo = 0
+    def _hinted_bsearch(a, hkey, hint, lo, hi, check_equal):
+        """
+        Does a binary search in "a" for "hkey", assuming the key is expected
+        to be found around position "hint" or at most between "lo" and "hi".
+        If check_equal is given and True, it will make sure to return exactly
+        "hi" iff "hkey" is not found in "a". Otherwise, the position where it
+        would be if it is there will be returned.
+        """
         if hi <= lo:
             return lo
-        elif hkey < a[0]:
-            return lo
-        elif hkey > a[hi-1]:
-            return hi
 
         #lint:disable
         PyObject_GetBuffer(a, cython.address(indexbuf), PyBUF_STRIDED_RO)
@@ -3937,31 +4010,57 @@ if cython.compiled:
             dtype = cython.cast('char*', a.dtype.char)[0]
             if dtype == 'L' or dtype == 'Q':
                 # TO-DO: better hints?
-                return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint)
+                ix = _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'I':
                 # TO-DO: better hints?
-                return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint)
+                ix = _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'l' or dtype == 'q':
                 # TO-DO: better hints?
-                return _c_search_hkey_i64(hkey, pindex, stride0, hi, hint)
+                ix = _c_search_hkey_i64(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'i':
                 # TO-DO: better hints?
-                return _c_search_hkey_i32(hkey, pindex, stride0, hi, hint)
+                ix = _c_search_hkey_i32(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'd':
                 # TO-DO: better hints?
-                return _c_search_hkey_f64(hkey, pindex, stride0, hi, hint)
+                ix = _c_search_hkey_f64(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'f':
                 # TO-DO: better hints?
-                return _c_search_hkey_f32(hkey, pindex, stride0, hi, hint)
+                ix = _c_search_hkey_f32(hkey, pindex, stride0, hi, hint, check_equal)
             else:
                 raise NotImplementedError("Unsupported array type %s" % (chr(dtype),))
+        except OverflowError:
+            # The conversion of hkey to either longlong or ulonglong failed
+            # The key most certainly is not in the array, that can't hold the value at all,
+            # but we must check (in python fashion to support the extended range numbers)
+            # whether it lies on the left or right side
+            if hkey < a[0]:
+                ix = lo
+            elif hkey > a[hi-1]:
+                ix = hi
+            else:
+                raise
         finally:
             PyBuffer_Release(cython.address(indexbuf)) #lint:ok
+
+        return ix
+
+    def hinted_bsearch(a, hkey, hint):
+        hi = len(a)
+        lo = 0
+        return _hinted_bsearch(a, hkey, hint, lo, hi, False)
 else:
     import bisect
-    def _hinted_bsearch(a, hkey, hint):
+
+    def _py__hinted_bsearch(a, hkey, hint, lo, hi, check_equal):
+        ix = bisect.bisect_left(a, hkey)
+        if check_equal and ix < hi and a[ix] != hkey:
+            ix = hi
+        return ix
+    globals()['_hinted_bsearch'] = _py__hinted_bsearch
+
+    def _py_hinted_bsearch(a, hkey, hint):
         return bisect.bisect_left(a, hkey)
-    globals()['hinted_bsearch'] = _hinted_bsearch
+    globals()['hinted_bsearch'] = _py_hinted_bsearch
 
 #@cython.ccall
 @cython.locals(lo = cython.size_t, hi = cython.size_t)
@@ -3969,26 +4068,23 @@ else:
 def bsearch(a, hkey):
     hi = len(a)
     lo = 0
-    return hinted_bsearch(a, hkey, (lo+hi)//2)
+    return _hinted_bsearch(a, hkey, (lo+hi)//2, lo, hi, False)
 
 #@cython.ccall
-@cython.locals(lo = cython.size_t, hi = cython.size_t, ix = cython.size_t, hint = cython.size_t)
+@cython.locals(hi = cython.size_t, ix = cython.size_t, hint = cython.size_t)
 #@cython.returns(cython.bint)
 def hinted_sorted_contains(a, hkey, hint):
     hi = len(a)
-    ix = hinted_bsearch(a, hkey, hint)
-    if ix >= hi:
-        return False
-    else:
-        return a[ix] == hkey
+    ix = _hinted_bsearch(a, hkey, hint, 0, hi, True)
+    return ix < hi
 
 #@cython.ccall
-@cython.locals(lo = cython.size_t, hi = cython.size_t)
+@cython.locals(hi = cython.size_t, ix = cython.size_t)
 #@cython.returns(cython.bint)
 def sorted_contains(a, hkey):
     hi = len(a)
-    lo = 0
-    return hinted_sorted_contains(a, hkey, (lo+hi)//2)
+    ix = _hinted_bsearch(a, hkey, hi//2, 0, hi, True)
+    return ix < hi
 
 if cython.compiled:
     #@cython.cfunc
@@ -4646,11 +4742,11 @@ class NumericIdMapper(_CZipMapBase):
                     if dtype is npuint64:
                         # TO-DO: better hints?
                         hint = (lo+hi)//2
-                        return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint)
+                        return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
                     elif dtype is npuint32:
                         # TO-DO: better hints?
                         hint = (lo+hi)//2
-                        return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint)
+                        return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
                     else:
                         raise AssertionError("Internal error")
                 finally:
@@ -5192,11 +5288,11 @@ class ObjectIdMapper(_CZipMapBase):
                     if dtype is npuint64:
                         # A quick guess assuming uniform distribution of keys over the 64-bit value range
                         hint = (((hkey >> 32) * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint)
+                        return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
                     elif dtype is npuint32:
                         # A quick guess assuming uniform distribution of keys over the 64-bit value range
                         hint = ((hkey * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint)
+                        return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
                     else:
                         raise AssertionError("Internal error")
                 finally:
@@ -5692,11 +5788,11 @@ class StringIdMapper(_CZipMapBase):
                     if dtype is npuint64:
                         # A quick guess assuming uniform distribution of keys over the 64-bit value range
                         hint = (((hkey >> 32) * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint)
+                        return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
                     elif dtype is npuint32:
                         # A quick guess assuming uniform distribution of keys over the 64-bit value range
                         hint = ((hkey * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint)
+                        return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
                     else:
                         raise AssertionError("Internal error")
                 finally:

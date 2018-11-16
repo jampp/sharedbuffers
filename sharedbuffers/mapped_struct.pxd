@@ -7,6 +7,7 @@ cdef packed struct _varstr_header:
     unsigned short shortlen
     unsigned long long biglen
 
+cpdef size_t _hinted_bsearch(a, hkey, size_t hint, size_t lo, size_t hi, bint check_equal) except 0xFFFFFFFFFFFFFFFF
 cpdef size_t hinted_bsearch(a, hkey, size_t hint) except 0xFFFFFFFFFFFFFFFF
 cpdef size_t bsearch(a, hkey) except 0xFFFFFFFFFFFFFFFF
 cpdef bint hinted_sorted_contains(a, hkey, size_t hint) except 0xFFFFFFFFFFFFFFFF
