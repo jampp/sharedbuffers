@@ -1654,6 +1654,56 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         c = self.pack([1, 2, 3])
         self.assertRaises(TypeError, c.__delitem__, 0)
 
+    def testProxiedListIter(self):
+        l = [1, 2.0]
+        c = self.pack(l)
+
+        self.assertEquals(list(c), l)
+        for i, x in enumerate(c):
+            self.assertEquals(x, l[i])
+
+        self.assertEquals(list(c.iter()), l)
+        for i, x in enumerate(c.iter()):
+            self.assertEquals(x, l[i])
+
+    def testProxiedListIterFast(self):
+        mapped_struct.mapped_object.TYPE_CODES.pop(SimpleStruct,None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+
+        schema = mapped_struct.Schema.from_typed_slots(SimpleStruct)
+        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, '}')
+
+        l = []
+        l.append(SimpleStruct(a=1, b=2.0))
+        l.append(SimpleStruct(a=2, b=1.0))
+        l.append(SimpleStruct(a=3, b=1.5))
+        l.append(3)
+        l.append([1,2,3])
+        l.append(frozenset([1,2,3]))
+        c = self.pack(l)
+
+        oldx = None
+        for i, x in enumerate(c.iter(proxy_into=schema.Proxy())):
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
+
+        oldx = None
+        for i, x in enumerate(c.iter_fast()):
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
+
     def testProxiedListStr(self):
         c = self.pack([1, 2.0])
         self.assertEquals(str(c), "[1,2.0]")

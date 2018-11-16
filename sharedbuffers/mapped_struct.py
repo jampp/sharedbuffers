@@ -1416,7 +1416,7 @@ class proxied_list(object):
         dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def _getitem(self, index):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
-        return self.__getitem(index, dcode, objlen, itemsize, dataoffs, _struct)
+        return self.__getitem(index, dcode, objlen, itemsize, dataoffs, _struct, None)
 
     @cython.inline
     @cython.cfunc
@@ -1425,7 +1425,7 @@ class proxied_list(object):
         lpindex = "const long *",
         ipindex = "const int *",
         dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
-    def __getitem(self, index, dcode, objlen, itemsize, dataoffs, _struct):
+    def __getitem(self, index, dcode, objlen, itemsize, dataoffs, _struct, proxy_into):
         xlen = objlen
         orig_index = index
 
@@ -1465,7 +1465,7 @@ class proxied_list(object):
             obj_offs = dataoffs + itemsize * cython.cast(cython.size_t, int(index))
 
         if dcode in ('t', 'T'):
-            res = mapped_object.unpack_from(self.buf, obj_offs)
+            res = mapped_object.unpack_from(self.buf, obj_offs, None, proxy_into)
         elif cython.compiled:
             if dcode == 'B':
                 res = cython.cast(cython.p_uchar,
@@ -1569,25 +1569,44 @@ class proxied_list(object):
     def __delitem__(self, index):
         raise TypeError("Proxy objects are read-only")
 
-    @cython.locals(i=cython.longlong)
+    @cython.locals(i=cython.longlong,
+        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def __iter__(self):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         for i in xrange(len(self)):
-            yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct)
+            yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, None)
 
-    @cython.locals(l=cython.Py_ssize_t)
+    @cython.locals(i=cython.longlong,
+        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
+    def iter(self, proxy_into=None):
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+        for i in xrange(len(self)):
+            yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
+
+    @cython.locals(i=cython.longlong,
+        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
+    def iter_fast(self):
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+        proxy_into = GenericProxy.__new__(GenericProxy, None, 0, 0)
+        for i in xrange(len(self)):
+            yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
+
+    @cython.locals(l=cython.Py_ssize_t,
+        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def __reversed__(self):
         l = len(self)
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         if l > 0:
             for i in xrange(l - 1, -1, -1):
-                yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct)
+                yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, None)
 
-    @cython.locals(i=cython.longlong)
+    @cython.locals(i=cython.longlong,
+        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def __contains__(self, item):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+        proxy_into = GenericProxy.__new__(GenericProxy, None, 0, 0)
         for i in xrange(len(self)):
-            if self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct) == item:
+            if self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into) == item:
                 return True
         return False
 
@@ -2079,8 +2098,9 @@ class mapped_object(object):
         return endp
 
     @classmethod
-    @cython.locals(cpadding=cython.size_t, cpacker_size=cython.size_t, offs=cython.size_t)
-    def unpack_from(cls, buf, offs, idmap = None):
+    @cython.locals(cpadding=cython.size_t, cpacker_size=cython.size_t, offs=cython.size_t,
+        unpacker_info=tuple)
+    def unpack_from(cls, buf, offs, idmap = None, proxy_into = None):
         cpadding = 7
         cpacker_size = 1
         buf = _likerobuffer(buf)
@@ -2091,8 +2111,12 @@ class mapped_object(object):
             return value
         elif typecode in cls.OBJ_PACKERS:
             offs += cpacker_size + cpadding
-            unpacker = cls.OBJ_PACKERS[typecode][1]
-            return unpacker(buf, offs, idmap)
+            unpacker_info = cls.OBJ_PACKERS[typecode]
+            if proxy_into is not None and (
+                    unpacker_info[2] is mapped_object or type(unpacker_info[2]) is mapped_object_with_schema):
+                return unpacker_info[1](buf, offs, idmap, proxy_into)
+            else:
+                return unpacker_info[1](buf, offs, idmap)
         else:
             raise ValueError("Inconsistent data")
 
@@ -2705,6 +2729,9 @@ def GenericProxyClass(slot_keys, slot_types, present_bitmap, base_offs, bases = 
         GenericProxyClass.__bases__ += bases
 
     return GenericProxyClass
+
+cython.declare(_GenericProxy = object)
+GenericProxy = _GenericProxy = GenericProxyClass([], {}, 0, 0)
 
 @cython.cclass
 class Schema(object):
@@ -3320,8 +3347,8 @@ class mapped_object_with_schema(object):
     def pack_into(self, obj, buf, offs, idmap = None, implicit_offs = 0):
         return self._schema.pack_into(obj, buf, offs, idmap, None, None, implicit_offs)
 
-    def unpack_from(self, buf, offs, idmap = None):
-        return self._schema.unpack_from(buf, offs, idmap)
+    def unpack_from(self, buf, offs, idmap = None, proxy_into = None):
+        return self._schema.unpack_from(buf, offs, idmap, None, proxy_into)
 
     def __reduce__(self):
         # WARNING: Not using setstate somehow breaks schemas with cyclic references \_(0_0)_/
