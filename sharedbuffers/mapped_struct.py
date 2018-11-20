@@ -1080,19 +1080,18 @@ class proxied_frozenset(object):
             return self.bitlen
 
     @cython.ccall
-    @cython.locals(dcode=cython.char, offset=cython.size_t)
-    def _contains(self, elem, dcode, offset):
-        xlen = len(self.objlist)
-        hint = xlen // 2
+    @cython.locals(dcode=cython.char, offset=cython.size_t,
+        start=cython.size_t, xlen=cython.size_t, hint=cython.size_t)
+    def _search_key(self, elem, dcode, offset, start, xlen, hint):
         pindex = cython.cast(cython.p_char, self.objlist.pybuf.buf) + offset
         if dcode == 'q':
-            return _c_search_hkey_i64(elem, pindex, 8, xlen, hint)
+            return _c_search_hkey_i64(elem, pindex + start * 8, 8, xlen, hint)
         elif dcode == 'I':
-            return _c_search_hkey_ui32(elem, pindex, 4, xlen, hint)
+            return _c_search_hkey_ui32(elem, pindex + start * 4, 4, xlen, hint)
         elif dcode == 'i':
-            return _c_search_hkey_i32(elem, pindex, 4, xlen, hint)
+            return _c_search_hkey_i32(elem, pindex + start * 4, 4, xlen, hint)
         elif dcode == 'd':
-            return _c_search_hkey_f64(elem, pindex, 8, xlen, hint)
+            return _c_search_hkey_f64(elem, pindex + start * 8, 8, xlen, hint)
         else:
             raise NotImplementedError("Unsupported data type for fast lookup: %s" % chr(dcode))
 
@@ -1110,24 +1109,24 @@ class proxied_frozenset(object):
             except (ValueError, TypeError):
                 return False
 
+        lo = 0
+        hi = len(self.objlist)
+
         if cython.compiled:
             dcode, _, _, offset, _ = self.objlist._metadata()
             if dcode in ('q', 'I', 'i', 'd'):
-                i1 = self._contains(elem, dcode, offset)
-                return self.objlist._getitem(i1) == elem
+                lo = self._search_key(elem, dcode, offset, lo, hi, hi // 2)
+                return self.objlist._getitem(lo) == elem
 
-        i1 = 0
-        i2 = len(self.objlist)
-
-        while i1 < i2:
-            step = (i1 + i2) >> 1
+        while lo < hi:
+            step = (lo + hi) >> 1
             c = cmp(self.objlist._getitem(step), elem)
             if c == 0:
                 return True
             elif c < 0:
-                i1 = step + 1
+                lo = step + 1
             else:
-                i2 = step
+                hi = step
         return False
 
     @cython.locals(i=cython.Py_ssize_t, val=cython.size_t, xlen=cython.Py_ssize_t)
@@ -1254,22 +1253,32 @@ class proxied_frozenset(object):
             if xlen > seqlen:
                 return False
 
-            for i in xrange(xlen):
-                val = self.objlist._getitem(i)
-                while True:
-                    c = cmp(val, pfset.objlist._getitem(j))
-                    j += 1
-                    if c == 0:
-                        break
-                    elif c > 0 or j >= seqlen:
+            dcode, _, _, offset, _ = pfset.objlist._metadata()
+            if dcode in ('q', 'I', 'i', 'd'):
+                # fast path, use the search_hkey variants
+                for i in xrange(xlen):
+                    val = self.objlist._getitem(i)
+                    j = seq._search_key(val, dcode, offset, j, seqlen - j, j)
+                    if seq.objlist._getitem(j) != val:
                         return False
-                    else:
-                        # pfset[j] < val, skip as much as we can
-                        while j < seqlen:
-                            if not pfset.objlist._getitem(j) < val:
-                                break
-                            j += 1
-
+            else:
+                for i in xrange(xlen):
+                    val = self.objlist._getitem(i)
+                    while True:
+                        c = cmp(val, pfset.objlist._getitem(j))
+                        j += 1
+                        if c == 0:
+                            break
+                        elif c > 0 or j >= seqlen:
+                            return False
+                        else:
+                            # pfset[j] < val, skip as much as we can
+                            while j < seqlen:
+                                if not pfset.objlist._getitem(j) < val:
+                                    break
+                                j += 1
+                            if j == seqlen:
+                                return False
             return not strict_subset or xlen < seqlen
         elif xlen > len(seq):
             return False
