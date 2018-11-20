@@ -1443,8 +1443,8 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
         self.assertFalse(big > big)
 
         big = self.pack([1., 1.5, 2., 2.5, 3.])
-        self.assertFalse(small < big)
-        self.assertFalse(big > small)
+        self.assertTrue(small < big)
+        self.assertTrue(big > small)
 
     def testCompressed(self):
         small = self.pack([1, 2])
@@ -1460,6 +1460,20 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
     def testMixed(self):
         small = self.pack([1, 2])
         big = self.pack([1., 2, 3., 4, 5.])
+
+        self.assertTrue(small < big)
+        self.assertTrue(small <= big)
+        self.assertFalse(small < small)
+        self.assertTrue(big > small)
+        self.assertTrue(big >= small)
+        self.assertFalse(big > big)
+
+    def testNonNumeric(self):
+        small = self.pack(["aa", "bb", "cc"])
+        big = self.pack(["aa", "ab", "bb", "bc", "cc", "cd"])
+
+        self.assertIn("aa", small)
+        self.assertNotIn("ax", small)
 
         self.assertTrue(small < big)
         self.assertTrue(small <= big)

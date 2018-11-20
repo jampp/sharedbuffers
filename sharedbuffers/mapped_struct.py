@@ -108,7 +108,7 @@ def _likerobuffer(buf):
 
 class mapped_frozenset(frozenset):
     @classmethod
-    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, sort=False):
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, sort_fn=None):
         all_int = 1
         for x in obj:
             if type(x) is not int:
@@ -131,8 +131,8 @@ class mapped_frozenset(frozenset):
                 return tup.pack_into(tup, buf, offs, idmap, implicit_offs)
         else:
             # Same representation as a tuple of items, only backed in-memory by a frozenset
-            tup = mapped_tuple(obj if sort is False else sorted(obj))
-            return tup.pack_into(tup, buf, offs, idmap, implicit_offs)
+            tup = mapped_tuple(obj)
+            return tup.pack_into(tup, buf, offs, idmap, implicit_offs, sort_fn=sort_fn)
 
     @classmethod
     @cython.locals(
@@ -172,7 +172,7 @@ class mapped_frozenset(frozenset):
 class mapped_tuple(tuple):
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
-            int = int, type = type, min = min, max = max, array = array.array, id = id):
+            int = int, type = type, min = min, max = max, array = array.array, id = id, sort_fn=None):
         all_int = 1
         all_float = 1
         baseoffs = offs
@@ -220,7 +220,7 @@ class mapped_tuple(tuple):
                 buf[offs+1:offs+8] = '\xff\xff\xff\xff\xff\xff\xff'
                 buf[offs+8:offs+12] = struct.pack('<Q', objlen)
                 offs += 12
-            a = array(dtype, obj)
+            a = array(dtype, obj if sort_fn is None else sort_fn(obj, False))
             abuf = buffer(a)
             buf[offs:offs+len(abuf)] = abuf
             offs += len(abuf)
@@ -228,7 +228,7 @@ class mapped_tuple(tuple):
             return offs
         elif all_float:
             buf[offs] = 'd'
-            a = array('d', obj)
+            a = array('d', obj if sort_fn is None else sort_fn(obj, False))
             buf[offs+1:offs+8] = struct.pack('<Q', objlen)[:7]
             offs += 8
             abuf = buffer(a)
@@ -251,7 +251,7 @@ class mapped_tuple(tuple):
             if idmap is None:
                 idmap = {}
 
-            for i,x in enumerate(obj):
+            for i,x in enumerate(obj if sort_fn is None else sort_fn(obj, True)):
                 if x is not None:
                     # these are wrapped objects, not plain objects, so make sure they have distinct xid
                     xid = id(x) | (0xFL << 64)
@@ -375,7 +375,7 @@ def _stable_hash(key):
             hval = trunc_key
         else:
             mant, expo = math.frexp(key)
-            hval = _mix_hash(expo, int(mant * 0xffffffffffff))
+            hval = _mix_hash(expo, cython.cast(cython.longlong, mant * 0xffffffffffff))
     elif isinstance(key, (tuple, frozenset, proxied_tuple, proxied_frozenset)):
         if isinstance(key, (frozenset, proxied_frozenset)):
             hval = _FSET_SEED
@@ -1029,7 +1029,16 @@ class proxied_frozenset(object):
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
-        return mapped_frozenset.pack_into(obj, buf, offs, idmap, implicit_offs, sort=True)
+        def sort(obj, generic):
+            if isinstance(obj, numpy.ndarray) and (
+                obj.dtype in (numpy.int64, numpy.int32, numpy.uint32, numpy.float64)):
+                return numpy.unique(obj)
+            elif not generic:
+                return sorted(obj)
+            else:
+                # generic objects; sort according to their stable hash
+                return sorted(obj, key=_stable_hash)
+        return mapped_frozenset.pack_into(obj, buf, offs, idmap, implicit_offs, sort_fn=sort)
 
     @classmethod
     @cython.locals(
@@ -1064,7 +1073,7 @@ class proxied_frozenset(object):
                 bitrep_hi >>= 8
                 return proxied_frozenset(None, bitrep_lo, bitrep_hi)
             else:
-                return proxied_frozenset(proxied_list(buf, offs, idmap))
+                return proxied_frozenset(proxied_list.unpack_from(buf, offs, idmap))
         finally:
             if cython.compiled:
                 if type(buf) is buffer and pybuf.buf != cython.NULL:
@@ -1079,7 +1088,7 @@ class proxied_frozenset(object):
         else:
             return self.bitlen
 
-    @cython.ccall
+    @cython.cfunc
     @cython.locals(dcode=cython.char, offset=cython.size_t,
         start=cython.size_t, xlen=cython.size_t, hint=cython.size_t)
     def _search_key(self, elem, dcode, offset, start, xlen, hint):
@@ -1095,9 +1104,9 @@ class proxied_frozenset(object):
         else:
             raise NotImplementedError("Unsupported data type for fast lookup: %s" % chr(dcode))
 
-    @cython.locals(i1=cython.Py_ssize_t, i2=cython.Py_ssize_t,
-        step=cython.Py_ssize_t, c=cython.int, dcode=cython.char,
-        offset=cython.size_t)
+    @cython.locals(lo=cython.Py_ssize_t, hi=cython.Py_ssize_t,
+        step=cython.Py_ssize_t, dcode=cython.char, offset=cython.size_t,
+        h1=cython.ulonglong, h2=cython.ulonglong)
     def __contains__(self, elem):
         if self.objlist is None:
             try:
@@ -1118,12 +1127,14 @@ class proxied_frozenset(object):
                 lo = self._search_key(elem, dcode, offset, lo, hi, hi // 2)
                 return self.objlist._getitem(lo) == elem
 
+        h2 = _stable_hash(elem)
         while lo < hi:
             step = (lo + hi) >> 1
-            c = cmp(self.objlist._getitem(step), elem)
-            if c == 0:
+            val = self.objlist._getitem(step)
+            h1 = _stable_hash(val)
+            if h1 == h2 and val == elem:
                 return True
-            elif c < 0:
+            elif h1 < h2:
                 lo = step + 1
             else:
                 hi = step
@@ -1210,7 +1221,8 @@ class proxied_frozenset(object):
     @cython.ccall
     @cython.locals(strict_subset=cython.bint, i=cython.Py_ssize_t,
         xlen=cython.Py_ssize_t, pfset='proxied_frozenset',
-        seqlen=cython.Py_ssize_t, c=cython.int, bitrep=cython.size_t)
+        seqlen=cython.Py_ssize_t, bitrep=cython.size_t, dcode=cython.char,
+        h1=cython.ulonglong, h2=cython.ulonglong)
     def _subset(self, seq, strict_subset):
         i = 0
         xlen = len(self)
@@ -1220,10 +1232,9 @@ class proxied_frozenset(object):
             if pfset.objlist is None:
                 if self.objlist is None:
                     # Both proxies use compressed representation.
-                    return self.bitlen < pfset.bitlen and (
-                        (self.bitrep_lo & pfset.bitrep_lo) == self.bitrep_lo and
-                        (self.bitrep_hi & pfset.bitrep_hi) == self.bitrep_hi and (
-                            not strict_subset or self.bitlen < pfset.bitlen))
+                    return (self.bitrep_lo & pfset.bitrep_lo) == self.bitrep_lo and (
+                        self.bitrep_hi & pfset.bitrep_hi) == self.bitrep_hi and (
+                        not strict_subset or self.bitlen < pfset.bitlen)
                 else:
                     for i in xrange(xlen):
                         if self.objlist._getitem(i) not in pfset:
@@ -1254,27 +1265,30 @@ class proxied_frozenset(object):
                 return False
 
             dcode, _, _, offset, _ = pfset.objlist._metadata()
-            if dcode in ('q', 'I', 'i', 'd'):
+            if dcode in ('q', 'I', 'i', 'd') and cython.compiled:
                 # fast path, use the search_hkey variants
                 for i in xrange(xlen):
                     val = self.objlist._getitem(i)
-                    j = seq._search_key(val, dcode, offset, j, seqlen - j, j)
-                    if seq.objlist._getitem(j) != val:
+                    j = pfset._search_key(val, dcode, offset, j, seqlen - j, j)
+                    if pfset.objlist._getitem(j) != val:
                         return False
             else:
                 for i in xrange(xlen):
                     val = self.objlist._getitem(i)
+                    h1 = _stable_hash(val)
                     while True:
-                        c = cmp(val, pfset.objlist._getitem(j))
+                        val2 = pfset.objlist._getitem(j)
+                        h2 = _stable_hash(val2)
                         j += 1
-                        if c == 0:
+
+                        if h1 == h2 and val == val2:
                             break
-                        elif c > 0 or j >= seqlen:
+                        elif h1 < h2 or j >= seqlen:
                             return False
                         else:
                             # pfset[j] < val, skip as much as we can
                             while j < seqlen:
-                                if not pfset.objlist._getitem(j) < val:
+                                if _stable_hash(pfset.objlist._getitem(j)) >= h1:
                                     break
                                 j += 1
                             if j == seqlen:
