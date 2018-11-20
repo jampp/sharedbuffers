@@ -1650,8 +1650,9 @@ class proxied_list(object):
             yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
 
     @cython.locals(i=cython.longlong,
-        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
-    def iter_fast(self):
+        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar,
+        pmask = 'bint[:]')
+    def iter_fast(self, mask=None):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         if dcode in ('t', 'T'):
             proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
@@ -1659,7 +1660,11 @@ class proxied_list(object):
                 proxy_into.buf = None
         else:
             proxy_into = None
+        if mask is not None:
+            pmask = mask
         for i in xrange(len(self)):
+            if mask is not None and not pmask[i]:
+                continue
             yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
 
     @cython.locals(l=cython.Py_ssize_t,
@@ -3588,8 +3593,8 @@ class MappedArrayProxyBase(_ZipMapBase):
         for i in xrange(len(self)):
             yield schema.unpack_from(buf, index[i], idmap, proxy_class_new)
 
-    @cython.locals(i = int, schema = Schema)
-    def iter_fast(self):
+    @cython.locals(i = int, schema = Schema, pmask = 'bint[:]')
+    def iter_fast(self, mask=None):
         # getter inlined
         schema = self.schema
         proxy_class = self.proxy_class
@@ -3602,8 +3607,13 @@ class MappedArrayProxyBase(_ZipMapBase):
         else:
             proxy_class_new = None
 
+        if mask is not None:
+            pmask = mask
+
         proxy_into = schema.Proxy()
         for i in xrange(len(self)):
+            if mask is not None and not pmask[i]:
+                continue
             yield schema.unpack_from(buf, index[i], idmap, proxy_class_new, proxy_into)
 
     def __len__(self):
@@ -6140,11 +6150,16 @@ class StringId32Mapper(StringIdMapper):
 @cython.cclass
 class NumericIdMultiMapper(NumericIdMapper):
     @cython.ccall
+    def _encode_key(self, key):
+        return key
+
+    @cython.ccall
     @cython.locals(
         hkey = cython.ulonglong, startpos = int, nitems = int,
         stride0 = cython.size_t, stride1 = cython.size_t,
         indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
     def get(self, key, default = None):
+        key = self._encode_key(key)
         if not isinstance(key, (int, long)):
             return default
         try:
@@ -6215,11 +6230,16 @@ class NumericIdMultiMapper(NumericIdMapper):
                     return rv
         return default
 
+    def __contains__(self, key):
+        return self.has_key(key)
+
+    @cython.ccall
     @cython.locals(
         hkey = cython.ulonglong, startpos = int, nitems = int,
         stride0 = cython.size_t,
         indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
-    def __contains__(self, key):
+    def has_key(self, key):
+        key = self._encode_key(key)
         if not isinstance(key, (int, long)):
             return False
         if key < 0 or key > self.dtypemax:
@@ -6281,6 +6301,7 @@ class NumericIdMultiMapper(NumericIdMapper):
         stride0 = cython.size_t, stride1 = cython.size_t,
         indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
     def get_iter(self, key):
+        key = self._encode_key(key)
         if not isinstance(key, (int, long)):
             return
         if key < 0 or key > self.dtypemax:
@@ -6623,24 +6644,11 @@ class ApproxStringIdMultiMapper(NumericIdMultiMapper):
         NumericIdMultiMapper.__init__(self, buf, offset)
 
     @cython.ccall
-    def get(self, key, default = None):
+    def _encode_key(self, key):
         if isinstance(key, (int, long)):
-            return ApproxStringIdMultiMapper.get(self, key, default)
+            return key
         else:
-            return ApproxStringIdMultiMapper.get(self, self._xxh(self._encode(key)).intdigest(), default)
-
-    @cython.ccall
-    def has_key(self, key):
-        if isinstance(key, (int, long)):
-            return ApproxStringIdMultiMapper.has_key(self, key)
-        else:
-            return ApproxStringIdMultiMapper.has_key(self, self._xxh(self._encode(key)).intdigest())
-
-    def get_iter(self, key):
-        if isinstance(key, (int, long)):
-            return ApproxStringIdMultiMapper.get_iter(self, key)
-        else:
-            return ApproxStringIdMultiMapper.get_iter(self, self._xxh(self._encode(key)).intdigest())
+            return self._xxh(self._encode(key)).intdigest()
 
     @classmethod
     def build(cls, initializer, *p, **kw):
