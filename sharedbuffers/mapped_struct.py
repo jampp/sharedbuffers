@@ -819,7 +819,7 @@ class mapped_list(list):
 
             if klass is set or klass is frozenset:
                 # Will turn recursive references into sets, but recursive references aren't
-                # really possible with frozensets, so we're cool
+                # easy to build with frozensets, so we're cool
                 idmap[baseoffs] = srv = set()
                 for i,ix in enumerate(index):
                     if ix == 1:
