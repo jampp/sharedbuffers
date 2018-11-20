@@ -55,7 +55,7 @@ Changes
 - Offsets are Py_ssize_t now. That shouldn't be a noticeable change,
   unless you've got more storage than the universe.
 - Improved performance of binary search utilities.
-- NumericId32MultiMapper and StringId32MultiMapper are now built-in
+- NumericId32[Multi]Mapper and StringId32[Multi]Mapper are now built-in
   classes when cythonized (should be relatively transparent).
 
 

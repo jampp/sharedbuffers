@@ -5142,6 +5142,7 @@ class NumericIdMapper(_CZipMapBase):
         destfile.seek(finalpos)
         return rv
 
+@cython.cclass
 class NumericId32Mapper(NumericIdMapper):
     dtype = npuint32
 
@@ -6515,11 +6516,15 @@ class StringIdMultiMapper(StringIdMapper):
                         yield index[startpos,2]
                     startpos += 1
 
+    def __contains__(self, key):
+        return self.has_key(key)
+
+    @cython.ccall
     @cython.locals(
         hkey = cython.ulonglong, startpos = int, nitems = int, bkey = bytes,
         stride0 = cython.size_t, stride1 = cython.size_t, blen = cython.size_t, pbkey = 'const char *',
         indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
-    def __contains__(self, key):
+    def has_key(self, key):
         if not isinstance(key, basestring):
             return False
         bkey = self._encode(key)
@@ -6620,21 +6625,22 @@ class ApproxStringIdMultiMapper(NumericIdMultiMapper):
     @cython.ccall
     def get(self, key, default = None):
         if isinstance(key, (int, long)):
-            return super(ApproxStringIdMultiMapper, self).get(key, default)
+            return ApproxStringIdMultiMapper.get(self, key, default)
         else:
-            return super(ApproxStringIdMultiMapper, self).get(self._xxh(self._encode(key)).intdigest(), default)
+            return ApproxStringIdMultiMapper.get(self, self._xxh(self._encode(key)).intdigest(), default)
 
-    def __contains__(self, key):
+    @cython.ccall
+    def has_key(self, key):
         if isinstance(key, (int, long)):
-            return super(ApproxStringIdMultiMapper, self).__contains__(key)
+            return ApproxStringIdMultiMapper.has_key(self, key)
         else:
-            return super(ApproxStringIdMultiMapper, self).__contains__(self._xxh(self._encode(key)).intdigest())
+            return ApproxStringIdMultiMapper.has_key(self, self._xxh(self._encode(key)).intdigest())
 
     def get_iter(self, key):
         if isinstance(key, (int, long)):
-            return super(ApproxStringIdMultiMapper, self).get_iter(key)
+            return ApproxStringIdMultiMapper.get_iter(self, key)
         else:
-            return super(ApproxStringIdMultiMapper, self).get_iter(self._xxh(self._encode(key)).intdigest())
+            return ApproxStringIdMultiMapper.get_iter(self, self._xxh(self._encode(key)).intdigest())
 
     @classmethod
     def build(cls, initializer, *p, **kw):
