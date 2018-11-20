@@ -1643,10 +1643,15 @@ class proxied_list(object):
             yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, None)
 
     @cython.locals(i=cython.longlong,
-        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
-    def iter(self, proxy_into=None):
+        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar,
+        pmask = 'bint[:]')
+    def iter(self, proxy_into=None, mask=None):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+        if mask is not None:
+            pmask = mask
         for i in xrange(len(self)):
+            if mask is not None and not pmask[i]:
+                continue
             yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
 
     @cython.locals(i=cython.longlong,

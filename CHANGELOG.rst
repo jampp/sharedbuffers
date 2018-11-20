@@ -29,8 +29,8 @@ Added
 - Add GenericFileMapper utility class to get buffers out of files
 - Add iter() and iter_fast() methods that allow optimized iteration
   through proxied_list s containing objects, by allowing proxy
-  reuse. The first one can take a proxy to use, while the second
-  one will build its own generic proxy.
+  reuse and masked iteration. The first one can take a proxy to use,
+  while the second one will build its own generic proxy.
 
 Changes
 -------
