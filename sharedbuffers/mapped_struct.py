@@ -2846,6 +2846,8 @@ class Schema(object):
         bitmap_size = cython.size_t,
         packer_cache = object,
         unpacker_cache = object,
+        fast_unpacker_cache = dict,
+        fast_unpacker_cache_size = cython.size_t,
 
         prewrite_hook = object,
         postwrite_hook = object,
@@ -3021,6 +3023,8 @@ class Schema(object):
 
         self.packer_cache = packer_cache
         self.unpacker_cache = unpacker_cache
+        self.fast_unpacker_cache = {}
+        self.fast_unpacker_cache_size = 256
         self.slot_types = slot_types
         self.slot_keys = slot_keys
         self.slot_count = len(self.slot_keys)
@@ -3091,14 +3095,17 @@ class Schema(object):
 
     @cython.ccall
     @cython.locals(has_bitmap = cython.ulonglong, none_bitmap = cython.ulonglong, present_bitmap = cython.ulonglong,
-        i = int, size = int, rv = tuple)
+        i = int, size = int, rv = tuple, packer_key = object)
     @cython.returns(tuple)
     def get_packer(self, obj):
         has_bitmap, none_bitmap, present_bitmap = self._get_bitmaps(obj)
+
         if present_bitmap <= 0x7FFFFFFFFFFFFFFF:
-            rv = self.packer_cache.get(cython.cast(cython.longlong, present_bitmap))
+            packer_key = cython.cast(cython.longlong, present_bitmap)
         else:
-            rv = self.packer_cache.get(present_bitmap)
+            packer_key = present_bitmap
+
+        rv = self.packer_cache.get(packer_key)
         if rv is None:
             packer = struct.Struct("".join([
                 self.bitmap_packer.format,
@@ -3110,21 +3117,26 @@ class Schema(object):
             alignment = self.alignment
             size = packer.size
             padding = (size + alignment - 1) / alignment * alignment - size
-            self.packer_cache[present_bitmap] = rv = (packer, padding)
+            self.packer_cache[packer_key] = rv = (packer, padding)
         return rv
 
     @cython.ccall
     @cython.locals(has_bitmap = cython.ulonglong, none_bitmap = cython.ulonglong, present_bitmap = cython.ulonglong,
-        i = int, size = int, rv = tuple)
+        i = int, size = int, rv = tuple, unpacker_key = object)
     @cython.returns(tuple)
     def get_unpacker(self, has_bitmap, none_bitmap):
         present_bitmap = has_bitmap & ~none_bitmap
         if self._last_unpacker is not None and present_bitmap == self._last_unpacker_bitmap:
             return self._last_unpacker
+
         if present_bitmap <= 0x7FFFFFFFFFFFFFFF:
-            rv = self.unpacker_cache.get(cython.cast(cython.longlong, present_bitmap))
+            unpacker_key = cython.cast(cython.longlong, present_bitmap)
         else:
-            rv = self.unpacker_cache.get(present_bitmap)
+            unpacker_key = present_bitmap
+
+        rv = self.fast_unpacker_cache.get(unpacker_key)
+        if rv is None:
+            rv = self.unpacker_cache.get(unpacker_key)
         if rv is None:
             pformat = "".join([
                 self.slot_struct_types[slot]
@@ -3139,7 +3151,10 @@ class Schema(object):
                 self.slot_keys, self.slot_types, present_bitmap, self.bitmap_size,
                 self._proxy_bases)
             rv = (unpacker, padding, pformat, gfactory)
-            self.unpacker_cache[present_bitmap] = rv
+            self.unpacker_cache[unpacker_key] = rv
+            self.fast_unpacker_cache[unpacker_key] = rv
+            if len(self.fast_unpacker_cache) > self.fast_unpacker_cache_size:
+                self.fast_unpacker_cache.clear()
         self._last_unpacker_bitmap = present_bitmap
         self._last_unpacker = rv
         return rv
