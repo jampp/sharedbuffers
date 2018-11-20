@@ -1644,7 +1644,7 @@ class proxied_list(object):
 
     @cython.locals(i=cython.longlong,
         dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar,
-        pmask = 'bint[:]')
+        pmask = 'const unsigned char[:]')
     def iter(self, proxy_into=None, mask=None):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         if mask is not None:
@@ -1656,7 +1656,7 @@ class proxied_list(object):
 
     @cython.locals(i=cython.longlong,
         dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar,
-        pmask = 'bint[:]')
+        pmask = 'const unsigned char[:]')
     def iter_fast(self, mask=None):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         if dcode in ('t', 'T'):
@@ -3598,7 +3598,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         for i in xrange(len(self)):
             yield schema.unpack_from(buf, index[i], idmap, proxy_class_new)
 
-    @cython.locals(i = int, schema = Schema, pmask = 'bint[:]')
+    @cython.locals(i = int, schema = Schema, pmask = 'const unsigned char[:]')
     def iter_fast(self, mask=None):
         # getter inlined
         schema = self.schema

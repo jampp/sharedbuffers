@@ -736,9 +736,12 @@ class MappedArrayTest(unittest.TestCase):
         self.MappedArrayClass = MappedArrayClass
         self.test_values = [ self.Struct(**kw) for kw in self.TEST_VALUES ]
 
-    def _checkValues(self, mapping, iterator):
+    def _checkValues(self, mapping, iterator, slice=None):
         self.assertEqual(len(self.test_values), len(mapping))
-        for reference, proxy in itertools.izip(self.test_values, iterator):
+        test_values = self.test_values
+        if slice is not None:
+            test_values = test_values[slice]
+        for reference, proxy in itertools.izip_longest(test_values, iterator):
             self.assertEqual(reference.fset, proxy.fset)
             self.assertEqual(reference.t, proxy.t)
             self.assertEqual(reference.l, proxy.l)
@@ -791,6 +794,14 @@ class MappedArrayTest(unittest.TestCase):
             self.MappedArrayClass.build(self.test_values, destfile = destfile, idmap = {})
             mapped = self.MappedArrayClass.map_file(destfile)
             self._checkValues(mapped, mapped.iter_fast())
+
+    def testMaskedIteration(self):
+        with tempfile.NamedTemporaryFile() as destfile:
+            self.MappedArrayClass.build(self.test_values, destfile = destfile, idmap = {})
+            mapped = self.MappedArrayClass.map_file(destfile)
+            mask = numpy.zeros(len(mapped), numpy.uint8)
+            mask[::2] = True
+            self._checkValues(mapped, mapped.iter_fast(mask=mask), slice(None, None, 2))
 
     def testFutureCompatible(self):
         with tempfile.NamedTemporaryFile() as destfile:
@@ -1666,6 +1677,13 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         for i, x in enumerate(c.iter()):
             self.assertEquals(x, l[i])
 
+        mask = numpy.zeros(len(l), numpy.uint8)
+        mask[::2] = True
+        self.assertEquals(list(c.iter(mask=mask)), l[::2])
+        for i, x in enumerate(c.iter(mask=mask)):
+            i *= 2
+            self.assertEquals(x, l[i])
+
     def testProxiedListIterFast(self):
         mapped_struct.mapped_object.TYPE_CODES.pop(SimpleStruct,None)
         mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
@@ -1695,6 +1713,20 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
 
         oldx = None
         for i, x in enumerate(c.iter_fast()):
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
+
+        mask = numpy.zeros(len(c), numpy.uint8)
+        mask[::2] = True
+        oldx = None
+        for i, x in enumerate(c.iter_fast(mask=mask)):
+            i *= 2
             if isinstance(x, mapped_struct.BufferProxyObject):
                 self.assertEquals(x.a, l[i].a)
                 self.assertEquals(x.b, l[i].b)
