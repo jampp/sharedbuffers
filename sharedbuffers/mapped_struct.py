@@ -318,7 +318,7 @@ def is_equality_key_compatible(obj):
 
 
 @cython.ccall
-@cython.locals(lobj = proxied_list, dobj = proxied_dict, oobj = BufferProxyObject)
+@cython.locals(lobj = 'proxied_list', dobj = 'proxied_dict', oobj = 'BufferProxyObject')
 def shared_id(obj):
     # (id(buf), offs) of buffer-mapped proxies
     if isinstance(obj, proxied_list):
@@ -444,7 +444,7 @@ class mapped_frozenset(frozenset):
                         for i in xrange(1, 15):
                             cbuf[offs+i] = 0
                     for ix in obj:
-                        cbuf[offs+1+ix/8] |= 1 << (ix & 7)
+                        cbuf[offs+1+ix//8] |= 1 << (ix & 7)
                 else:
                     if maxval < 56:
                         buf[offs:offs+1] = 'm'
@@ -452,8 +452,14 @@ class mapped_frozenset(frozenset):
                     else:
                         buf[offs:offs+1] = 'M'
                         buf[offs+1:offs+15] = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-                    for x in obj:
-                        buf[offs+1+x/8] |= 1 << (x & 7)
+                    if cython.compiled:
+                        # We'll use implicit casting in Cython
+                        for ix in obj:
+                            buf[offs+1+ix//8] |= 1 << (ix & 7)
+                    else:
+                        for x in obj:
+                            x = int(x)
+                            buf[offs+1+x//8] |= 1 << (x & 7)
                 if maxval < 56:
                     offs += 8
                 else:
@@ -882,6 +888,10 @@ def _stable_hash(key):
     else:
         raise TypeError("unhashable type: %s" % type(key).__name__)
 
+    if not cython.compiled:
+        # Make sure it fits in a uint64
+        hval = hval & 0xFFFFFFFFFFFFFFFF
+
     return hval if hval != 0 else 1
 
 
@@ -927,7 +937,7 @@ class proxied_dict(object):
     cython.declare(
         __weakref__=object,
         objmapper=object,
-        vlist=proxied_list,
+        vlist='proxied_list',
         buf=object,
         offs=cython.Py_ssize_t,
     )
@@ -2801,6 +2811,8 @@ class Schema(object):
 
     def __init__(self, slot_types, alignment = 8, pack_buffer_size = 65536, packer_cache = None, unpacker_cache = None,
             max_pack_buffer_size = None):
+        self.prewrite_hook = None
+        self.postwrite_hook = None
         self.init(
             self._map_types(slot_types),
             packer_cache = packer_cache, unpacker_cache = unpacker_cache, alignment = alignment,
@@ -5150,10 +5162,10 @@ class ObjectIdMapper(_CZipMapBase):
 
         dtype = self.dtype
         try:
-            dtypemax = ~dtype(0)
+            dtypemax = int(~dtype(0))
         except:
             try:
-                dtypemax = ~dtype.type(0)
+                dtypemax = int(~dtype.type(0))
             except:
                 dtypemax = ~0
         self._dtype_bits = 0
@@ -5246,11 +5258,19 @@ class ObjectIdMapper(_CZipMapBase):
                     PyBuffer_Release(cython.address(indexbuf))
             else:
                 for i in xrange(self.index_elements):
-                    yield self._unpack(self._buf, index[i])
+                    if not make_sequential:
+                        pos = index[i, offs]
+                    else:
+                        pos = index[i]
+                    yield self._unpack(self._buf, pos)
             #lint:enable
         else:
             for i in xrange(self.index_elements):
-                yield self._unpack(buf, index[i])
+                if not make_sequential:
+                    pos = index[i, offs]
+                else:
+                    pos = index[i]
+                yield self._unpack(buf, pos)
 
     def __iter__(self):
         return self.iterkeys()
@@ -5460,10 +5480,10 @@ class ObjectIdMapper(_CZipMapBase):
 
         dtype = cls.dtype
         try:
-            dtypemax = ~dtype(0)
+            dtypemax = int(~dtype(0))
         except:
             try:
-                dtypemax = ~dtype.type(0)
+                dtypemax = int(~dtype.type(0))
             except:
                 dtypemax = ~0
 
@@ -6083,9 +6103,11 @@ class NumericIdMultiMapper(NumericIdMapper):
     def get(self, key, default = None):
         if not isinstance(key, (int, long)):
             return default
-        if key < 0 or key > self.dtypemax:
-            return default
-        hkey = key
+        try:
+            hkey = key
+        except OverflowError:
+            if key < 0 or key > self.dtypemax:
+                return default
         startpos = self._search_hkey(hkey)
         nitems = self.index_elements
         if 0 <= startpos < nitems:
