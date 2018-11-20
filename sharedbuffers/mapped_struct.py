@@ -3095,7 +3095,10 @@ class Schema(object):
     @cython.returns(tuple)
     def get_packer(self, obj):
         has_bitmap, none_bitmap, present_bitmap = self._get_bitmaps(obj)
-        rv = self.packer_cache.get(present_bitmap)
+        if present_bitmap <= 0x7FFFFFFFFFFFFFFF:
+            rv = self.packer_cache.get(cython.cast(cython.longlong, present_bitmap))
+        else:
+            rv = self.packer_cache.get(present_bitmap)
         if rv is None:
             packer = struct.Struct("".join([
                 self.bitmap_packer.format,
