@@ -3100,7 +3100,7 @@ class Schema(object):
     def get_packer(self, obj):
         has_bitmap, none_bitmap, present_bitmap = self._get_bitmaps(obj)
 
-        if present_bitmap <= 0x7FFFFFFFFFFFFFFF:
+        if present_bitmap <= cython.cast(cython.ulonglong, 0x7FFFFFFFFFFFFFFF):
             packer_key = cython.cast(cython.longlong, present_bitmap)
         else:
             packer_key = present_bitmap
@@ -3129,7 +3129,7 @@ class Schema(object):
         if self._last_unpacker is not None and present_bitmap == self._last_unpacker_bitmap:
             return self._last_unpacker
 
-        if present_bitmap <= 0x7FFFFFFFFFFFFFFF:
+        if present_bitmap <= cython.cast(cython.ulonglong, 0x7FFFFFFFFFFFFFFF):
             unpacker_key = cython.cast(cython.longlong, present_bitmap)
         else:
             unpacker_key = present_bitmap
