@@ -512,7 +512,7 @@ class mapped_frozenset(frozenset):
                 return frozenset(rv)
             else:
                 # unpack a list, build a set from it
-                return frozenset(mapped_list.unpack_from(buf, offs, idmap))
+                return mapped_list.unpack_from(buf, offs, idmap, klass=frozenset)
         finally:
             if cython.compiled:
                 if type(buf) is buffer:
@@ -752,7 +752,7 @@ class mapped_tuple(tuple):
             idmap = {}
         if offs in idmap:
             return idmap[offs]
-        rv = idmap[offs] = tuple(mapped_list.unpack_from(buf, offs, idmap))
+        rv = idmap[offs] = mapped_list.unpack_from(buf, offs, idmap, klass=tuple)
         return rv
 
 class mapped_list(list):
@@ -766,11 +766,12 @@ class mapped_list(list):
         return mapped_tuple.pack_into(obj, buf, offs, idmap, implicit_offs)
 
     @classmethod
-    @cython.locals(rv = list)
+    @cython.locals(lrv = list)
     def unpack_from(cls, buf, offs, idmap = None, array = array.array, itemsizes = {
                 dtype : array.array(dtype, []).itemsize
                 for dtype in ('B','b','H','h','I','i','l','L','d')
-            } ):
+            },
+            klass = list):
         if idmap is not None and offs in idmap:
             return idmap[offs]
 
@@ -784,7 +785,7 @@ class mapped_list(list):
             if objlen == 0xFFFFFF:
                 objlen = _struct_l_Q.unpack_from(buf, offs)
                 offs += 8
-            rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
+            rv = array(dtype, buf[offs:offs+itemsizes[dtype]*objlen])
         elif dcode == 'q' or dcode == 'Q':
             if dcode == 'q':
                 dtype = 'l'
@@ -794,12 +795,12 @@ class mapped_list(list):
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
             objlen, = _struct_l_Q.unpack(buf[offs+1:offs+8] + '\x00')
             offs += 8
-            rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
+            rv = array(dtype, buf[offs:offs+itemsizes[dtype]*objlen])
         elif dcode == 'd':
             dtype = 'd'
             objlen, = _struct_l_Q.unpack(buf[offs+1:offs+8] + '\x00')
             offs += 8
-            rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
+            rv = array(dtype, buf[offs:offs+itemsizes[dtype]*objlen])
         elif dcode == 't' or dcode == 'T':
             if dcode == 't':
                 dtype = 'l'
@@ -815,16 +816,58 @@ class mapped_list(list):
 
             if idmap is None:
                 idmap = {}
-            idmap[baseoffs] = rv = ([None] * objlen)
-            for i,ix in enumerate(index):
-                if ix != 1:
-                    absix = ix + baseoffs
-                    if absix in idmap:
-                        rv[i] = idmap[absix]
+
+            if klass is set or klass is frozenset:
+                # Will turn recursive references into sets, but recursive references aren't
+                # really possible with frozensets, so we're cool
+                idmap[baseoffs] = srv = set()
+                for i,ix in enumerate(index):
+                    if ix == 1:
+                        srv.add(None)
                     else:
-                        rv[i] = idmap[absix] = mapped_object.unpack_from(buf, absix, idmap)
+                        absix = ix + baseoffs
+                        if absix in idmap:
+                            obj = idmap[absix]
+                        else:
+                            obj = mapped_object.unpack_from(buf, absix, idmap)
+                            idmap[absix] = obj
+                        srv.add(obj)
+                if klass is frozenset:
+                    rv = frozenset(srv)
+                else:
+                    rv = srv
+                return rv
+            else:
+                # Can't make perfect recursive references here, we'll do what we can
+                idmap[baseoffs] = lrv = ([None] * objlen)
+                for i,ix in enumerate(index):
+                    if ix != 1:
+                        absix = ix + baseoffs
+                        if absix in idmap:
+                            lrv[i] = idmap[absix]
+                        else:
+                            lrv[i] = idmap[absix] = mapped_object.unpack_from(buf, absix, idmap)
+                if klass is tuple:
+                    rv = tuple(lrv)
+                elif klass is list:
+                    rv = lrv
+                else:
+                    rv = klass(lrv)
+                return rv
         else:
             raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+        if type(rv) is not klass:
+            # Cython can specialize each conversion, so we do this ugly switch
+            if klass is list:
+                rv = list(rv)
+            elif klass is tuple:
+                rv = tuple(rv)
+            elif klass is frozenset:
+                rv = frozenset(rv)
+            elif klass is set:
+                rv = set(rv)
+            else:
+                rv = klass(rv)
         return rv
 
 class mapped_dict(dict):
