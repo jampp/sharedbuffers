@@ -592,12 +592,12 @@ class mapped_tuple(tuple):
                     elif -0x8000 <= iminval and imaxval <= 0x7FFF:
                         # inline signed shorts
                         buf[offs] = dtype = 'h'
-                    elif 0 <= iminval and imaxval <= cython.cast(cython.longlong, 0xFFFFFFFF):
-                        # inline unsigned ints
-                        buf[offs] = dtype = 'I'
                     elif -0x80000000 <= iminval and imaxval <= 0x7FFFFFFF:
                         # inline signed ints
                         buf[offs] = dtype = 'i'
+                    elif 0 <= iminval and imaxval <= cython.cast(cython.longlong, 0xFFFFFFFF):
+                        # inline unsigned ints
+                        buf[offs] = dtype = 'I'
                     elif (cython.cast(cython.longlong, -0x8000000000000000L) <= iminval
                             and imaxval <= cython.cast(cython.longlong, 0x7FFFFFFFFFFFFFFFL)):
                         # inline signed int64 list
