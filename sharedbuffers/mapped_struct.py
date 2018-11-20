@@ -2191,13 +2191,16 @@ class mapped_object(object):
         cpacker_size = 1
         buf = _likerobuffer(buf)
         typecode = buf[offs]
-        if typecode in cls.PACKERS:
-            packer, padding = cls.PACKERS[typecode]
+
+        unpacker_info = _mapped_object_PACKERS.get(typecode)
+        if unpacker_info is not None:
+            packer, padding = unpacker_info
             typecode, value = packer.unpack_from(buf, offs)
             return value
-        elif typecode in cls.OBJ_PACKERS:
+
+        unpacker_info = _mapped_object_OBJ_PACKERS.get(typecode)
+        if unpacker_info is not None:
             offs += cpacker_size + cpadding
-            unpacker_info = cls.OBJ_PACKERS[typecode]
             if proxy_into is not None:
                 typ = unpacker_info[2]
                 if typ is _mapped_object or type(typ) is mapped_object_with_schema:
@@ -2242,7 +2245,7 @@ class mapped_object(object):
         PROXY_TYPES[typ] = PROXY_TYPES[supertyp]
         return cls.OBJ_PACKERS[typecode][2]
 
-    def __init__(self, value = None, typ = None, TYPE_CODES = TYPE_CODES):
+    def __init__(self, value = None, typ = None):
         if value is None:
             self.typecode = None
             self.value = None
@@ -2250,18 +2253,21 @@ class mapped_object(object):
             if typ is None:
                 typ = type(value)
             typ = TYPES.get(typ, typ)
-            if typ not in TYPE_CODES and issubclass(typ, BufferProxyObject):
+            if typ not in _mapped_object_TYPE_CODES and issubclass(typ, BufferProxyObject):
                 # Check bases
                 for base in typ.__bases__:
-                    if base is not object and base in TYPE_CODES:
+                    if base is not object and base in _mapped_object_TYPE_CODES:
                         typ = base
                         break
-            self.typecode = TYPE_CODES[typ]
+            self.typecode = _mapped_object_TYPE_CODES[typ]
             self.value = value
 mapped_object.TYPE_CODES[mapped_object] = 'o'
 mapped_object.OBJ_PACKERS['o'] = (mapped_object.pack_into, mapped_object.unpack_from, mapped_object)
 
 _mapped_object = cython.declare(object, mapped_object)
+_mapped_object_PACKERS = cython.declare(dict, _mapped_object.PACKERS)
+_mapped_object_OBJ_PACKERS = cython.declare(dict, _mapped_object.OBJ_PACKERS)
+_mapped_object_TYPE_CODES = cython.declare(dict, _mapped_object.TYPE_CODES)
 
 VARIABLE_TYPES = {
     frozenset : mapped_frozenset,
@@ -3299,7 +3305,7 @@ class Schema(object):
                 if proxy_into is None:
                     rv = gfactory(buf, offs, none_bitmap, idmap)
                 else:
-                    if type(proxy_into) is not gfactory and not isinstance(proxy_into, gfactory):
+                    if type(proxy_into) is not gfactory:
                         proxy_into.__class__ = gfactory
                     if proxy_into.buf is buf:
                         proxy_into._reset_internal(offs, none_bitmap, idmap)
