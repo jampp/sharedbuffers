@@ -3118,7 +3118,10 @@ class Schema(object):
         present_bitmap = has_bitmap & ~none_bitmap
         if self._last_unpacker is not None and present_bitmap == self._last_unpacker_bitmap:
             return self._last_unpacker
-        rv = self.unpacker_cache.get(present_bitmap)
+        if present_bitmap <= 0x7FFFFFFFFFFFFFFF:
+            rv = self.unpacker_cache.get(cython.cast(cython.longlong, present_bitmap))
+        else:
+            rv = self.unpacker_cache.get(present_bitmap)
         if rv is None:
             pformat = "".join([
                 self.slot_struct_types[slot]
