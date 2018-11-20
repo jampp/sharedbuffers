@@ -6276,6 +6276,7 @@ class NumericIdMultiMapper(NumericIdMapper):
                     yield index[startpos,1]
                     startpos += 1
 
+@cython.cclass
 class NumericId32MultiMapper(NumericIdMultiMapper):
     dtype = npuint32
 
@@ -6530,6 +6531,7 @@ class StringIdMultiMapper(StringIdMapper):
                     startpos += 1
         return False
 
+@cython.cclass
 class StringId32MultiMapper(StringIdMultiMapper):
     dtype = npuint32
     xxh = xxhash.xxh32
