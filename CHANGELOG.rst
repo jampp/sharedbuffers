@@ -24,6 +24,13 @@ Added
 - Add support for mapping from uncompressed zip files
 - Treat long as int
 - More informative packing error messages
+- Add pool module with dynamic object pool implementations, allowing
+  incremental build of large object heirarchies/collections.
+- Add GenericFileMapper utility class to get buffers out of files
+- Add iter() and iter_fast() methods that allow optimized iteration
+  through proxied_list s containing objects, by allowing proxy
+  reuse and masked iteration. The first one can take a proxy to use,
+  while the second one will build its own generic proxy.
 
 Changes
 -------
@@ -31,6 +38,26 @@ Changes
 - Allow building with Cython 0.28 and above
 - Use `v` prefix on releases to have fixed links for this document
 - mapped_list now returns actual lists and not a subclass
+- Use a strong-referencing id map by default, making it safer for cases
+  with nonstandard or unmanaged object lifetimes
+- Support packing proxies as if they were the original thing in most
+  cases. Nested uses require schema registration. This allows constructing
+  shared buffers out of other shared buffers.
+- Improved idmap handling for the case of repacking proxies. It still may
+  fail to recognize primitive object identity properly since proxies will
+  return a unique object on each access, inflating the resulting buffer
+  perhaps considerably. Proper identity was implemented for proxied
+  containers though.
+- Shrink some buffers by employing narrow pointers where possible
+- Optimized sequence packing
+- New wide bitmap frozenset format allows more frozensets to be packed
+  as bitmaps.
+- Offsets are Py_ssize_t now. That shouldn't be a noticeable change,
+  unless you've got more storage than the universe.
+- Improved performance of binary search utilities.
+- NumericId32[Multi]Mapper and StringId32[Multi]Mapper are now built-in
+  classes when cythonized (should be relatively transparent).
+
 
 Bugfixes
 --------

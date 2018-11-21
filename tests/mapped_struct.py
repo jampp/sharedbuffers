@@ -153,6 +153,8 @@ class NDArrayStruct(TestStruct):
 
 class ObjectStruct(TestStruct):
     __slot_types__ = {
+        'b' : bytes,
+        'q' : bytes,
         'o' : object,
     }
 
@@ -281,6 +283,40 @@ class BasePackingTestMixin(object):
                 if k not in TEST_VALUES:
                     self.assertFalse(hasattr(dx, k))
 
+    def testPackUnpackIdmap(self):
+        for TEST_VALUES in self.TEST_VALUES:
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            pack_idmap = {}
+            unpack_idmap = {}
+            dx = self.schema.unpack(self.schema.pack(x, pack_idmap), unpack_idmap)
+            for k,v in TEST_VALUES.iteritems():
+                unpack_idmap.clear()
+                self.assertTrue(hasattr(dx, k))
+                self.assertEqual(getattr(dx, k), v)
+            for k in self.Struct.__slots__:
+                unpack_idmap.clear()
+                if k not in TEST_VALUES:
+                    self.assertFalse(hasattr(dx, k))
+
+    def testPackMultiple(self):
+        for TEST_VALUES in self.TEST_VALUES:
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+
+            buf = bytearray(16<<20)
+            offsets = []
+            endp = 0
+            for i in xrange(10):
+                offsets.append(endp)
+                endp = self.schema.pack_into(x, buf, endp)
+            for offs in offsets:
+                dx = self.schema.unpack_from(buf, offs)
+                for k,v in TEST_VALUES.iteritems():
+                    self.assertTrue(hasattr(dx, k))
+                    self.assertEqual(getattr(dx, k), v)
+                for k in self.Struct.__slots__:
+                    if k not in TEST_VALUES:
+                        self.assertFalse(hasattr(dx, k))
+
     def testPackPickleUnpack(self):
         for TEST_VALUES in self.TEST_VALUES:
             x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
@@ -305,6 +341,19 @@ class BasePackingTestMixin(object):
             for k in self.Struct.__slots__:
                 if k not in TEST_VALUES:
                     self.assertFalse(hasattr(dx, k))
+
+    def testPackRepack(self):
+        for TEST_VALUES in self.TEST_VALUES:
+            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            dx = self.schema.unpack(self.schema.pack(x))
+            dx = self.schema.unpack(self.schema.pack(dx))
+            for k,v in TEST_VALUES.iteritems():
+                self.assertTrue(hasattr(dx, k))
+                self.assertEqual(getattr(dx, k), v)
+            for k in self.Struct.__slots__:
+                if k not in TEST_VALUES:
+                    self.assertFalse(hasattr(dx, k))
+
 
 class SimplePackingTest(BasePackingTestMixin, unittest.TestCase):
     Struct = SimpleStruct
@@ -429,6 +478,53 @@ class NestedContainerPackingTest(SimplePackingTest):
         'pl' : [[1],[2,3],(3,4)],
     }]
 
+class NumpyCastingContainerPackingTest(SimplePackingTest):
+    Struct = ContainerStruct
+    TEST_VALUES = [{
+        'fset' : numpy.array([1,3,7], dt),
+        't' : numpy.array([3,6,7], dt),
+        'l' : numpy.array([1,2,3], dt),
+        'pt' : numpy.array([3,6,7], dt),
+        'pl' : numpy.array([1,2,3], dt),
+    } for dt in (
+        numpy.int8,
+        numpy.uint8,
+        numpy.int16,
+        numpy.uint8,
+        numpy.int32,
+        numpy.uint32,
+        numpy.int64,
+        numpy.uint64,
+        numpy.float,
+        numpy.double,
+    )]
+
+    def assertEqual(self, a, b, *p, **kw):
+        if type(a) is not type(b):
+            typemap = {
+                mapped_struct.proxied_list : list,
+                mapped_struct.proxied_tuple : tuple,
+            }
+            if isinstance(a, numpy.ndarray):
+                btype = type(b)
+                btype = typemap.get(btype, btype)
+                a = btype(a)
+            elif isinstance(b, numpy.ndarray):
+                atype = type(a)
+                atype = typemap.get(atype, atype)
+                b = atype(b)
+        return super(NumpyCastingContainerPackingTest, self).assertEqual(a, b, *p, **kw)
+
+class DictContainerPackingTest(SimplePackingTest):
+    Struct = ContainerStruct
+    TEST_VALUES = [{
+        'fset' : frozenset([1,3,7]),
+        't' : ({'a':frozenset([1,3,4])},{'b':(1,3,4)},{'c':[1,3,4]}),
+        'l' : [{'a':frozenset([1,3,4])},{'b':(1,3,4)},{'c':[1,3,4]}],
+        'pt' : ({'a':frozenset([1,3,4])},{'b':(1,3,4)},{'c':[1,3,4]}),
+        'pl' : [{'a':frozenset([1,3,4])},{'b':(1,3,4)},{'c':[1,3,4]}],
+    }]
+
 class ObjectPackagingTest(SimplePackingTest):
     Struct = ObjectStruct
     TEST_VALUES = [
@@ -442,7 +538,10 @@ class ObjectPackagingTest(SimplePackingTest):
         { 'o' : u"bláblá€" },
         { 'o' : datetime.now() },
         { 'o' : date.today() },
-        { 'o' : buffer(bytearray(xrange(100)))}
+        { 'o' : buffer(bytearray(xrange(100)))},
+        { 'b' : "blabla", 'o' : "blabla" },
+        { 'q' : "blabla", 'o' : "blabla" },
+        { 'b' : "blabla", 'o' : "blabla", 'q' : "blabla" },
     ]
 
 class ObjectNDArrayPackagingTest(SimplePackingTest):
@@ -501,6 +600,9 @@ class NestedObjectPackagingTest(SimplePackingTest):
         else:
             return super(NestedObjectPackagingTest, self).assertEqual(value, expected, *p, **kw)
 
+    # Not supported without a registered schema
+    testPackRepack = None
+
 class NestedTypedObjectPackagingTest(NestedObjectPackagingTest):
     SubStruct = ContainerStruct
     subschema = mapped_struct.Schema.from_typed_slots(SubStruct)
@@ -517,6 +619,9 @@ class NestedTypedObjectPackagingTest(NestedObjectPackagingTest):
             }),
         },
     ]
+
+    # Reinstate testPackRepack
+    testPackRepack = SimplePackingTest.testPackRepack
 
     def setUp(self):
         class ContainerObjectStruct(object):
@@ -631,9 +736,12 @@ class MappedArrayTest(unittest.TestCase):
         self.MappedArrayClass = MappedArrayClass
         self.test_values = [ self.Struct(**kw) for kw in self.TEST_VALUES ]
 
-    def _checkValues(self, mapping, iterator):
+    def _checkValues(self, mapping, iterator, slice=None):
         self.assertEqual(len(self.test_values), len(mapping))
-        for reference, proxy in itertools.izip(self.test_values, iterator):
+        test_values = self.test_values
+        if slice is not None:
+            test_values = test_values[slice]
+        for reference, proxy in itertools.izip_longest(test_values, iterator):
             self.assertEqual(reference.fset, proxy.fset)
             self.assertEqual(reference.t, proxy.t)
             self.assertEqual(reference.l, proxy.l)
@@ -687,6 +795,14 @@ class MappedArrayTest(unittest.TestCase):
             mapped = self.MappedArrayClass.map_file(destfile)
             self._checkValues(mapped, mapped.iter_fast())
 
+    def testMaskedIteration(self):
+        with tempfile.NamedTemporaryFile() as destfile:
+            self.MappedArrayClass.build(self.test_values, destfile = destfile, idmap = {})
+            mapped = self.MappedArrayClass.map_file(destfile)
+            mask = numpy.zeros(len(mapped), numpy.uint8)
+            mask[::2] = True
+            self._checkValues(mapped, mapped.iter_fast(mask=mask), slice(None, None, 2))
+
     def testFutureCompatible(self):
         with tempfile.NamedTemporaryFile() as destfile:
             class FutureClass(self.MappedArrayClass):
@@ -733,6 +849,32 @@ class IdMapperTest(unittest.TestCase):
             if rvv != v:
                 self.assertEquals(rvv, v)
 
+    def testBuildInMem(self):
+        self._testBuild(2010, None)
+
+    def testBuildInMemReversed(self):
+        self._testBuild(2010, None, reversed = True)
+
+    def testBuildInMemShuffled(self):
+        self._testBuild(2010, None, shuffled = True)
+
+    def testBuildInMemDiscardDuplicates(self):
+        self._testBuild(2010, None, build_kwargs = dict(discard_duplicates = True),
+            gen_dupes = True)
+
+    def testBuildOnDisk(self):
+        self._testBuild(10107, tempfile.gettempdir())
+
+    def testBuildOnDiskReversed(self):
+        self._testBuild(10107, tempfile.gettempdir(), reversed=True)
+
+    def testBuildOnDiskShuffled(self):
+        self._testBuild(10107, tempfile.gettempdir(), shuffled=True)
+
+    def testBuildOnDiskDiscardDuplicates(self):
+        self._testBuild(10107, tempfile.gettempdir(), build_kwargs = dict(discard_duplicates = True),
+            gen_dupes = True)
+
     @unittest.skipIf(SKIP_HUGE, 'SKIP_HUGE is set')
     def testBuildHugeInMem(self):
         self._testBuild(2010530, None)
@@ -769,6 +911,27 @@ class IdMapperTest(unittest.TestCase):
 
 class Id32MapperTest(IdMapperTest):
     IdMapperClass = mapped_struct.NumericId32Mapper
+
+class ObjectIdMapperTest(IdMapperTest):
+    IdMapperClass = mapped_struct.ObjectIdMapper
+
+    def gen_values(self, *p, **kw):
+        str_ = str
+        for k, v in super(ObjectIdMapperTest, self).gen_values(*p, **kw):
+            yield k, v
+            yield str_(k), v
+            yield (k,), v
+
+    # Not supported by ObjectIdMapper
+    testBuildInMemDiscardDuplicates = None
+    testBuildOnDiskDiscardDuplicates = None
+    testBuildHugeInMemDiscardDuplicates = None
+    testBuildHugeOnDiskDiscardDuplicates = None
+
+    # Too much memory
+    testBuildHugeOnDisk = None
+    testBuildHugeOnDiskReversed = None
+    testBuildHugeOnDiskShuffled = None
 
 class ApproxStringIdMultiMapperTest(IdMapperTest):
     IdMapperClass = mapped_struct.ApproxStringIdMultiMapper
@@ -1507,6 +1670,19 @@ class MappedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest)
         b = buffer("m")
         self.assertRaises(IndexError, self.PACKING_CLASS.unpack_from, b, 0)
 
+    def testBitmapSets(self):
+        a = bytearray(16)
+        bitmap_values = [
+            frozenset([1,3,6]),
+            frozenset([10,30,60]),
+            frozenset([69,99]),
+            frozenset([1,5,7,38,49,67,99,105,119]),
+            frozenset([119]),
+        ]
+        for fs in bitmap_values:
+            mapped_struct.mapped_frozenset.pack_into(fs, a, 0)
+            self.assertEqual(mapped_struct.mapped_frozenset.unpack_from(a, 0), fs)
+
 class MappedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, IndexedCollectionPackingTest):
     PACKING_CLASS = mapped_struct.mapped_list
     COLLECTION_CLASS = list
@@ -1563,6 +1739,118 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
     def testProxiedListDelItem(self):
         c = self.pack([1, 2, 3])
         self.assertRaises(TypeError, c.__delitem__, 0)
+
+    def testProxiedListIter(self):
+        l = [1, 2.0]
+        c = self.pack(l)
+
+        self.assertEquals(list(c), l)
+        for i, x in enumerate(c):
+            self.assertEquals(x, l[i])
+
+        self.assertEquals(list(c.iter()), l)
+        for i, x in enumerate(c.iter()):
+            self.assertEquals(x, l[i])
+
+        mask = numpy.zeros(len(l), numpy.uint8)
+        mask[::2] = True
+        self.assertEquals(list(c.iter(mask=mask)), l[::2])
+        for i, x in enumerate(c.iter(mask=mask)):
+            i *= 2
+            self.assertEquals(x, l[i])
+
+    def testProxiedListIterFast(self):
+        mapped_struct.mapped_object.TYPE_CODES.pop(SimpleStruct,None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+
+        schema = mapped_struct.Schema.from_typed_slots(SimpleStruct)
+        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, '}')
+
+        l = []
+        l.append(SimpleStruct(a=1, b=2.0))
+        l.append(SimpleStruct(a=2, b=1.0))
+        l.append(SimpleStruct(a=3, b=1.5))
+        l.append(3)
+        l.append([1,2,3])
+        l.append(frozenset([1,2,3]))
+        c = self.pack(l)
+
+        oldx = None
+        for i, x in enumerate(c.iter(proxy_into=schema.Proxy())):
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
+
+        oldx = None
+        for i, x in enumerate(c.iter_fast()):
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
+
+        mask = numpy.zeros(len(c), numpy.uint8)
+        mask[::2] = True
+        oldx = None
+        for i, x in enumerate(c.iter_fast(mask=mask)):
+            i *= 2
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
+
+    def testProxiedListGetterFast(self):
+        mapped_struct.mapped_object.TYPE_CODES.pop(SimpleStruct,None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+
+        schema = mapped_struct.Schema.from_typed_slots(SimpleStruct)
+        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, '}')
+
+        l = []
+        l.append(SimpleStruct(a=1, b=2.0))
+        l.append(SimpleStruct(a=2, b=1.0))
+        l.append(SimpleStruct(a=3, b=1.5))
+        l.append(3)
+        l.append([1,2,3])
+        l.append(frozenset([1,2,3]))
+        c = self.pack(l)
+        g = c.getter(fast=True)
+
+        oldx = None
+        for i in xrange(len(c)):
+            x = g(i)
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
+
+        oldx = None
+        for i in xrange(len(c)):
+            x = g(i)
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
 
     def testProxiedListStr(self):
         c = self.pack([1, 2.0])
@@ -1700,7 +1988,9 @@ class DictPackingCommonTest(object):
 
         d = {
             'a': SimpleStruct(a=1, b=2.0),
-            'b': SimpleStruct(a=2, b=None)
+            'b': SimpleStruct(a=2, b=None),
+            None: SimpleStruct(a=3, b=1.0),
+            (): SimpleStruct(a=4, b=1.5),
         }
         c = self.pack(d)
 
@@ -1708,6 +1998,10 @@ class DictPackingCommonTest(object):
         self.assertEquals(c['a'].b, 2.0)
         self.assertEquals(c['b'].a, 2)
         self.assertEquals(c['b'].b, None)
+        self.assertEquals(c[None].a, 3)
+        self.assertEquals(c[None].b, 1.0)
+        self.assertEquals(c[()].a, 4)
+        self.assertEquals(c[()].b, 1.5)
 
     def testMappedDictKeys(self):
         for d in self.TEST_DICTS:
@@ -1741,6 +2035,9 @@ class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Dic
         {1.0: 10.0, 2.0: 2.2, 3.0: 3.3},
         {frozenset([1]): frozenset(['a']), frozenset([2]): frozenset(['b'])},
         {'a': 1, 1: 'a', frozenset(): 1.0, (1, 2): 80000 },
+        {None: 3},
+        {(1,2,3): 4, (-1,3): 7},
+        {frozenset([1,2,3]): 4, frozenset([-1,3]): 7},
     ]
 
 class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, DictPackingCommonTest):
@@ -1754,7 +2051,10 @@ class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Di
         {'a': frozenset(), 'b': (1, 2), 'c': 1.0, 'd': [1, 2], 'e': dict(a=1) },
         {0: 42, 'a1_@!': 69, 3.5: 'uhhhh', (1, 2, 3): "four-five-six"},
         {frozenset([1, 2]) : 97.9},
-        {1.0: "test floats equivalent to integers"}
+        {1.0: "test floats equivalent to integers"},
+        {None: 3},
+        {(1,2,3): 4, (-1,3): 7},
+        {frozenset([1,2,3]): 4, frozenset([-1,3]): 7},
     ]
 
 class MappedDatetimePackingTest(unittest.TestCase):
