@@ -441,17 +441,15 @@ class mapped_frozenset(frozenset):
                             cbuf[offs+i] = 0
                     else:
                         cbuf[offs] = 'M'
-                        for i in xrange(1, 15):
+                        for i in xrange(1, 16):
                             cbuf[offs+i] = 0
                     for ix in obj:
                         cbuf[offs+1+ix//8] |= 1 << (ix & 7)
                 else:
                     if maxval < 56:
-                        buf[offs:offs+1] = 'm'
-                        buf[offs+1:offs+8] = '\x00\x00\x00\x00\x00\x00\x00'
+                        buf[offs:offs+8] = 'm\x00\x00\x00\x00\x00\x00\x00'
                     else:
-                        buf[offs:offs+1] = 'M'
-                        buf[offs+1:offs+15] = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+                        buf[offs:offs+16] = 'M\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
                     if cython.compiled:
                         # We'll use implicit casting in Cython
                         for ix in obj:
@@ -463,7 +461,7 @@ class mapped_frozenset(frozenset):
                 if maxval < 56:
                     offs += 8
                 else:
-                    offs += 15
+                    offs += 16
                 return offs
             else:
                 # Else, same representation as a tuple of sorted items, only backed in-memory by a frozenset
