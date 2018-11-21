@@ -45,6 +45,11 @@ Changes
   perhaps considerably. Proper identity was implemented for proxied
   containers though.
 - Shrink some buffers by employing narrow pointers where possible
+- Optimized sequence packing
+- New wide bitmap frozenset format allows more frozensets to be packed
+  as bitmaps.
+- Offsets are Py_ssize_t now. That shouldn't be a noticeable change,
+  unless you've got more storage than the universe.
 - Improved performance of binary search utilities.
 
 Bugfixes
