@@ -405,7 +405,7 @@ def get_wrapped_key(obj):
 class mapped_frozenset(frozenset):
     @classmethod
     @cython.locals(cbuf = 'unsigned char[:]', i=int, ix=int, offs=cython.longlong)
-    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, sort_fn = None):
         if isinstance(obj, npndarray):
             all_int = 0
             obj_dtype = obj.dtype
@@ -472,7 +472,7 @@ class mapped_frozenset(frozenset):
                 return mapped_tuple.pack_into(tup, buf, offs, idmap, implicit_offs)
         else:
             # Same representation as a tuple of items, only backed in-memory by a frozenset
-            return mapped_tuple.pack_into(obj, buf, offs, idmap, implicit_offs)
+            return mapped_tuple.pack_into(obj, buf, offs, idmap, implicit_offs, sort_fn=sort_fn)
 
     @classmethod
     @cython.locals(
@@ -530,7 +530,7 @@ class mapped_tuple(tuple):
         offs = cython.Py_ssize_t, implicit_offs = cython.Py_ssize_t, val_offs = cython.Py_ssize_t,
         i = cython.Py_ssize_t, iminval = cython.longlong, imaxval = cython.longlong)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
-            int = int, type = type, min = min, max = max, array = array.array, id = id, array=array.array):
+            int = int, type = type, min = min, max = max, array = array.array, id = id, sort_fn = None):
         baseoffs = offs
         objlen = len(obj)
         if isinstance(obj, npndarray):
@@ -626,6 +626,10 @@ class mapped_tuple(tuple):
                 buf[offs+1:offs+8] = '\xff\xff\xff\xff\xff\xff\xff'
                 buf[offs+8:offs+12] = _struct_l_Q.pack(objlen)
                 offs += 12
+
+            if sort_fn is not None:
+                obj = sort_fn(obj, False)
+
             if isinstance(obj, npndarray):
                 a = obj
             else:
@@ -636,6 +640,9 @@ class mapped_tuple(tuple):
             offs = (offs + 7) / 8 * 8
             return offs
         elif all_float:
+            if sort_fn is not None:
+                obj = sort_fn(obj, False)
+
             if isinstance(obj, npndarray):
                 a = obj
                 # dtype already set when inspecting obj's dtype
@@ -651,6 +658,9 @@ class mapped_tuple(tuple):
             return offs
         else:
             # inline object tuple
+            if sort_fn is not None:
+                obj = sort_fn(obj, True)
+
             use_narrow = False
             buf[offs] = 't'
             buf[offs+1:offs+8] = _struct_l_Q.pack(objlen)[:7]
@@ -1808,17 +1818,17 @@ class proxied_frozenset(object):
 
     @cython.cfunc
     @cython.locals(dcode=cython.char, offset=cython.size_t,
-        start=cython.size_t, xlen=cython.size_t, hint=cython.size_t)
-    def _search_key(self, elem, dcode, offset, start, xlen, hint):
+        start=cython.size_t, xlen=cython.size_t, hint=cython.size_t, equal=cython.bint)
+    def _search_key(self, elem, dcode, offset, start, xlen, hint, equal=False):
         pindex = cython.cast(cython.p_char, self.objlist.pybuf.buf) + offset
         if dcode == 'q':
-            return _c_search_hkey_i64(elem, pindex + start * 8, 8, xlen, hint)
+            return _c_search_hkey_i64(elem, pindex + start * 8, 8, xlen, hint, equal)
         elif dcode == 'I':
-            return _c_search_hkey_ui32(elem, pindex + start * 4, 4, xlen, hint)
+            return _c_search_hkey_ui32(elem, pindex + start * 4, 4, xlen, hint, equal)
         elif dcode == 'i':
-            return _c_search_hkey_i32(elem, pindex + start * 4, 4, xlen, hint)
+            return _c_search_hkey_i32(elem, pindex + start * 4, 4, xlen, hint, equal)
         elif dcode == 'd':
-            return _c_search_hkey_f64(elem, pindex + start * 8, 8, xlen, hint)
+            return _c_search_hkey_f64(elem, pindex + start * 8, 8, xlen, hint, equal)
         else:
             raise NotImplementedError("Unsupported data type for fast lookup: %s" % chr(dcode))
 
@@ -1842,8 +1852,7 @@ class proxied_frozenset(object):
         if cython.compiled:
             dcode, _, _, offset, _ = self.objlist._metadata()
             if dcode in ('q', 'I', 'i', 'd'):
-                lo = self._search_key(elem, dcode, offset, lo, hi, hi // 2)
-                return self.objlist._getitem(lo) == elem
+                return self._search_key(elem, dcode, offset, lo, hi, hi // 2, True) < hi
 
         h2 = _stable_hash(elem)
         while lo < hi:
