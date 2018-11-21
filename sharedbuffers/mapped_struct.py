@@ -766,57 +766,72 @@ class mapped_list(list):
         return mapped_tuple.pack_into(obj, buf, offs, idmap, implicit_offs)
 
     @classmethod
-    @cython.locals(lrv = list)
-    def unpack_from(cls, buf, offs, idmap = None, array = array.array, itemsizes = {
-                dtype : array.array(dtype, []).itemsize
-                for dtype in ('B','b','H','h','I','i','l','L','d')
-            },
-            klass = list):
+    @cython.locals(lrv = list, dchar = cython.char, objlen = cython.Py_ssize_t, absix = object,
+        offs = cython.Py_ssize_t, baseoffs = cython.Py_ssize_t, ix = cython.Py_ssize_t)
+    def unpack_from(cls, buf, offs, idmap = None, array = array.array, klass = list):
         if idmap is not None and offs in idmap:
             return idmap[offs]
 
         baseoffs = offs
         buf = _likerobuffer(buf)
         dcode = buf[offs]
-        if dcode in ('B','b','H','h','I','i'):
+        dchar = cython.cast('const char*', dcode)[0]
+
+        if dchar in ('B', 'b'):
+            itemsize = 1
+        elif dchar in ('H', 'h'):
+            itemsize = 2
+        elif dchar in ('I', 'i', 'T'):
+            itemsize = 4
+        elif dchar in ('Q', 'q', 'd', 't'):
+            itemsize = 8
+        else:
+            raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+
+        if dchar in ('B','b','H','h','I','i'):
             dtype = dcode
-            objlen, = _struct_l_I.unpack(buf[offs+1:offs+4] + '\x00')
+            objlen, = _struct_l_I.unpack(buf[offs:offs+4])
+            objlen >>= 8
             offs += 4
             if objlen == 0xFFFFFF:
                 objlen = _struct_l_Q.unpack_from(buf, offs)
                 offs += 8
-            rv = array(dtype, buf[offs:offs+itemsizes[dtype]*objlen])
-        elif dcode == 'q' or dcode == 'Q':
-            if dcode == 'q':
+            rv = array(dtype, buf[offs:offs+itemsize*objlen])
+        elif dchar == 'q' or dchar == 'Q':
+            if dchar == 'q':
                 dtype = 'l'
-            elif dcode == 'Q':
+            elif dchar == 'Q':
                 dtype = 'L'
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
-            objlen, = _struct_l_Q.unpack(buf[offs+1:offs+8] + '\x00')
+            objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
+            objlen >>= 8
             offs += 8
-            rv = array(dtype, buf[offs:offs+itemsizes[dtype]*objlen])
-        elif dcode == 'd':
+            rv = array(dtype, buf[offs:offs+itemsize*objlen])
+        elif dchar == 'd':
             dtype = 'd'
-            objlen, = _struct_l_Q.unpack(buf[offs+1:offs+8] + '\x00')
+            objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
+            objlen >>= 8
             offs += 8
-            rv = array(dtype, buf[offs:offs+itemsizes[dtype]*objlen])
-        elif dcode == 't' or dcode == 'T':
-            if dcode == 't':
+            rv = array(dtype, buf[offs:offs+itemsize*objlen])
+        elif dchar == 't' or dchar == 'T':
+            if dchar == 't':
                 dtype = 'l'
-            elif dcode == 'T':
+            elif dchar == 'T':
                 dtype = 'i'
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
 
-            objlen, = _struct_l_Q.unpack(buf[offs+1:offs+8] + '\x00')
+            objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
+            objlen >>= 8
             offs += 8
 
-            index = array(dtype, buf[offs:offs+itemsizes[dtype]*objlen])
+            index = array(dtype, buf[offs:offs+itemsize*objlen])
 
             if idmap is None:
                 idmap = {}
 
+            unpack_from = _mapped_object.unpack_from
             if klass is set or klass is frozenset:
                 # Will turn recursive references into sets, but recursive references aren't
                 # easy to build with frozensets, so we're cool
@@ -829,7 +844,7 @@ class mapped_list(list):
                         if absix in idmap:
                             obj = idmap[absix]
                         else:
-                            obj = mapped_object.unpack_from(buf, absix, idmap)
+                            obj = unpack_from(buf, absix, idmap)
                             idmap[absix] = obj
                         srv.add(obj)
                 if klass is frozenset:
@@ -846,7 +861,7 @@ class mapped_list(list):
                         if absix in idmap:
                             lrv[i] = idmap[absix]
                         else:
-                            lrv[i] = idmap[absix] = mapped_object.unpack_from(buf, absix, idmap)
+                            lrv[i] = idmap[absix] = unpack_from(buf, absix, idmap)
                 if klass is tuple:
                     rv = tuple(lrv)
                 elif klass is list:
