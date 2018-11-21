@@ -1015,7 +1015,7 @@ if not cython.compiled:
 @cython.cclass
 class proxied_frozenset(object):
 
-    cython.declare(objlist = 'proxied_list',
+    cython.declare(objlist='proxied_list',
         bitrep_lo=cython.ulonglong, bitrep_hi=cython.ulonglong,
         bitlen=cython.Py_ssize_t)
 
@@ -1033,7 +1033,7 @@ class proxied_frozenset(object):
             if isinstance(obj, numpy.ndarray) and (
                 obj.dtype in (numpy.int64, numpy.int32, numpy.uint32, numpy.float64)):
                 return numpy.unique(obj)
-            elif not generic:
+            elif not generic and cython.compiled:
                 return sorted(obj)
             else:
                 # generic objects; sort according to their stable hash
@@ -1210,7 +1210,6 @@ class proxied_frozenset(object):
             if self.objlist._getitem(i) not in x:
                 return False
         return True
-
 
     def __eq__(self, seq):
         if isinstance(self, proxied_frozenset):
