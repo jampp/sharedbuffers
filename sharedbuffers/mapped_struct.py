@@ -3214,7 +3214,7 @@ class Schema(object):
                     packable_append(val)
                 else:
                     slot_type = slot_types[slot]
-                    if slot_type is mapped_object:
+                    if slot_type is _mapped_object:
                         val_id = wrapped_id(val)
                     else:
                         val_id = shared_id(val)
