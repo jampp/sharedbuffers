@@ -736,9 +736,12 @@ class MappedArrayTest(unittest.TestCase):
         self.MappedArrayClass = MappedArrayClass
         self.test_values = [ self.Struct(**kw) for kw in self.TEST_VALUES ]
 
-    def _checkValues(self, mapping, iterator):
+    def _checkValues(self, mapping, iterator, slice=None):
         self.assertEqual(len(self.test_values), len(mapping))
-        for reference, proxy in itertools.izip(self.test_values, iterator):
+        test_values = self.test_values
+        if slice is not None:
+            test_values = test_values[slice]
+        for reference, proxy in itertools.izip_longest(test_values, iterator):
             self.assertEqual(reference.fset, proxy.fset)
             self.assertEqual(reference.t, proxy.t)
             self.assertEqual(reference.l, proxy.l)
@@ -791,6 +794,14 @@ class MappedArrayTest(unittest.TestCase):
             self.MappedArrayClass.build(self.test_values, destfile = destfile, idmap = {})
             mapped = self.MappedArrayClass.map_file(destfile)
             self._checkValues(mapped, mapped.iter_fast())
+
+    def testMaskedIteration(self):
+        with tempfile.NamedTemporaryFile() as destfile:
+            self.MappedArrayClass.build(self.test_values, destfile = destfile, idmap = {})
+            mapped = self.MappedArrayClass.map_file(destfile)
+            mask = numpy.zeros(len(mapped), numpy.uint8)
+            mask[::2] = True
+            self._checkValues(mapped, mapped.iter_fast(mask=mask), slice(None, None, 2))
 
     def testFutureCompatible(self):
         with tempfile.NamedTemporaryFile() as destfile:
@@ -1653,6 +1664,118 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
     def testProxiedListDelItem(self):
         c = self.pack([1, 2, 3])
         self.assertRaises(TypeError, c.__delitem__, 0)
+
+    def testProxiedListIter(self):
+        l = [1, 2.0]
+        c = self.pack(l)
+
+        self.assertEquals(list(c), l)
+        for i, x in enumerate(c):
+            self.assertEquals(x, l[i])
+
+        self.assertEquals(list(c.iter()), l)
+        for i, x in enumerate(c.iter()):
+            self.assertEquals(x, l[i])
+
+        mask = numpy.zeros(len(l), numpy.uint8)
+        mask[::2] = True
+        self.assertEquals(list(c.iter(mask=mask)), l[::2])
+        for i, x in enumerate(c.iter(mask=mask)):
+            i *= 2
+            self.assertEquals(x, l[i])
+
+    def testProxiedListIterFast(self):
+        mapped_struct.mapped_object.TYPE_CODES.pop(SimpleStruct,None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+
+        schema = mapped_struct.Schema.from_typed_slots(SimpleStruct)
+        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, '}')
+
+        l = []
+        l.append(SimpleStruct(a=1, b=2.0))
+        l.append(SimpleStruct(a=2, b=1.0))
+        l.append(SimpleStruct(a=3, b=1.5))
+        l.append(3)
+        l.append([1,2,3])
+        l.append(frozenset([1,2,3]))
+        c = self.pack(l)
+
+        oldx = None
+        for i, x in enumerate(c.iter(proxy_into=schema.Proxy())):
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
+
+        oldx = None
+        for i, x in enumerate(c.iter_fast()):
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
+
+        mask = numpy.zeros(len(c), numpy.uint8)
+        mask[::2] = True
+        oldx = None
+        for i, x in enumerate(c.iter_fast(mask=mask)):
+            i *= 2
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
+
+    def testProxiedListGetterFast(self):
+        mapped_struct.mapped_object.TYPE_CODES.pop(SimpleStruct,None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+
+        schema = mapped_struct.Schema.from_typed_slots(SimpleStruct)
+        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, '}')
+
+        l = []
+        l.append(SimpleStruct(a=1, b=2.0))
+        l.append(SimpleStruct(a=2, b=1.0))
+        l.append(SimpleStruct(a=3, b=1.5))
+        l.append(3)
+        l.append([1,2,3])
+        l.append(frozenset([1,2,3]))
+        c = self.pack(l)
+        g = c.getter(fast=True)
+
+        oldx = None
+        for i in xrange(len(c)):
+            x = g(i)
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
+
+        oldx = None
+        for i in xrange(len(c)):
+            x = g(i)
+            if isinstance(x, mapped_struct.BufferProxyObject):
+                self.assertEquals(x.a, l[i].a)
+                self.assertEquals(x.b, l[i].b)
+                if oldx is not None:
+                    self.assertIs(x, oldx)
+                oldx = x
+            else:
+                self.assertEquals(x, l[i])
 
     def testProxiedListStr(self):
         c = self.pack([1, 2.0])

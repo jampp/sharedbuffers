@@ -318,7 +318,7 @@ def is_equality_key_compatible(obj):
 
 
 @cython.ccall
-@cython.locals(lobj = proxied_list, dobj = proxied_dict, oobj = BufferProxyObject)
+@cython.locals(lobj = 'proxied_list', dobj = 'proxied_dict', oobj = 'BufferProxyObject')
 def shared_id(obj):
     # (id(buf), offs) of buffer-mapped proxies
     if isinstance(obj, proxied_list):
@@ -444,7 +444,7 @@ class mapped_frozenset(frozenset):
                         for i in xrange(1, 15):
                             cbuf[offs+i] = 0
                     for ix in obj:
-                        cbuf[offs+1+ix/8] |= 1 << (ix & 7)
+                        cbuf[offs+1+ix//8] |= 1 << (ix & 7)
                 else:
                     if maxval < 56:
                         buf[offs:offs+1] = 'm'
@@ -452,8 +452,14 @@ class mapped_frozenset(frozenset):
                     else:
                         buf[offs:offs+1] = 'M'
                         buf[offs+1:offs+15] = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-                    for x in obj:
-                        buf[offs+1+x/8] |= 1 << (x & 7)
+                    if cython.compiled:
+                        # We'll use implicit casting in Cython
+                        for ix in obj:
+                            buf[offs+1+ix//8] |= 1 << (ix & 7)
+                    else:
+                        for x in obj:
+                            x = int(x)
+                            buf[offs+1+x//8] |= 1 << (x & 7)
                 if maxval < 56:
                     offs += 8
                 else:
@@ -506,7 +512,7 @@ class mapped_frozenset(frozenset):
                 return frozenset(rv)
             else:
                 # unpack a list, build a set from it
-                return frozenset(mapped_list.unpack_from(buf, offs, idmap))
+                return mapped_list.unpack_from(buf, offs, idmap, klass=frozenset)
         finally:
             if cython.compiled:
                 if type(buf) is buffer:
@@ -586,12 +592,12 @@ class mapped_tuple(tuple):
                     elif -0x8000 <= iminval and imaxval <= 0x7FFF:
                         # inline signed shorts
                         buf[offs] = dtype = 'h'
-                    elif 0 <= iminval and imaxval <= cython.cast(cython.longlong, 0xFFFFFFFF):
-                        # inline unsigned ints
-                        buf[offs] = dtype = 'I'
                     elif -0x80000000 <= iminval and imaxval <= 0x7FFFFFFF:
                         # inline signed ints
                         buf[offs] = dtype = 'i'
+                    elif 0 <= iminval and imaxval <= cython.cast(cython.longlong, 0xFFFFFFFF):
+                        # inline unsigned ints
+                        buf[offs] = dtype = 'I'
                     elif (cython.cast(cython.longlong, -0x8000000000000000L) <= iminval
                             and imaxval <= cython.cast(cython.longlong, 0x7FFFFFFFFFFFFFFFL)):
                         # inline signed int64 list
@@ -746,7 +752,7 @@ class mapped_tuple(tuple):
             idmap = {}
         if offs in idmap:
             return idmap[offs]
-        rv = idmap[offs] = tuple(mapped_list.unpack_from(buf, offs, idmap))
+        rv = idmap[offs] = mapped_list.unpack_from(buf, offs, idmap, klass=tuple)
         return rv
 
 class mapped_list(list):
@@ -760,65 +766,123 @@ class mapped_list(list):
         return mapped_tuple.pack_into(obj, buf, offs, idmap, implicit_offs)
 
     @classmethod
-    @cython.locals(rv = list)
-    def unpack_from(cls, buf, offs, idmap = None, array = array.array, itemsizes = {
-                dtype : array.array(dtype, []).itemsize
-                for dtype in ('B','b','H','h','I','i','l','L','d')
-            } ):
+    @cython.locals(lrv = list, dchar = cython.char, objlen = cython.Py_ssize_t, absix = object,
+        offs = cython.Py_ssize_t, baseoffs = cython.Py_ssize_t, ix = cython.Py_ssize_t)
+    def unpack_from(cls, buf, offs, idmap = None, array = array.array, klass = list):
         if idmap is not None and offs in idmap:
             return idmap[offs]
 
         baseoffs = offs
         buf = _likerobuffer(buf)
         dcode = buf[offs]
-        if dcode in ('B','b','H','h','I','i'):
+        dchar = cython.cast('const char*', dcode)[0]
+
+        if dchar in ('B', 'b'):
+            itemsize = 1
+        elif dchar in ('H', 'h'):
+            itemsize = 2
+        elif dchar in ('I', 'i', 'T'):
+            itemsize = 4
+        elif dchar in ('Q', 'q', 'd', 't'):
+            itemsize = 8
+        else:
+            raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+
+        if dchar in ('B','b','H','h','I','i'):
             dtype = dcode
-            objlen, = _struct_l_I.unpack(buf[offs+1:offs+4] + '\x00')
+            objlen, = _struct_l_I.unpack(buf[offs:offs+4])
+            objlen >>= 8
             offs += 4
             if objlen == 0xFFFFFF:
                 objlen = _struct_l_Q.unpack_from(buf, offs)
                 offs += 8
-            rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
-        elif dcode == 'q' or dcode == 'Q':
-            if dcode == 'q':
+            rv = array(dtype, buf[offs:offs+itemsize*objlen])
+        elif dchar == 'q' or dchar == 'Q':
+            if dchar == 'q':
                 dtype = 'l'
-            elif dcode == 'Q':
+            elif dchar == 'Q':
                 dtype = 'L'
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
-            objlen, = _struct_l_Q.unpack(buf[offs+1:offs+8] + '\x00')
+            objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
+            objlen >>= 8
             offs += 8
-            rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
-        elif dcode == 'd':
+            rv = array(dtype, buf[offs:offs+itemsize*objlen])
+        elif dchar == 'd':
             dtype = 'd'
-            objlen, = _struct_l_Q.unpack(buf[offs+1:offs+8] + '\x00')
+            objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
+            objlen >>= 8
             offs += 8
-            rv = list(array(dtype, buf[offs:offs+itemsizes[dtype]*objlen]))
-        elif dcode == 't' or dcode == 'T':
-            if dcode == 't':
+            rv = array(dtype, buf[offs:offs+itemsize*objlen])
+        elif dchar == 't' or dchar == 'T':
+            if dchar == 't':
                 dtype = 'l'
-            elif dcode == 'T':
+            elif dchar == 'T':
                 dtype = 'i'
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
 
-            objlen, = _struct_l_Q.unpack(buf[offs+1:offs+8] + '\x00')
+            objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
+            objlen >>= 8
             offs += 8
 
-            index = array(dtype, buf[offs:offs+itemsizes[dtype]*objlen])
+            index = array(dtype, buf[offs:offs+itemsize*objlen])
 
             if idmap is None:
                 idmap = {}
-            idmap[baseoffs] = rv = ([None] * objlen)
-            for i,ix in enumerate(index):
-                if ix != 1:
-                    absix = ix + baseoffs
-                    if absix in idmap:
-                        rv[i] = idmap[absix]
+
+            unpack_from = _mapped_object.unpack_from
+            if klass is set or klass is frozenset:
+                # Will turn recursive references into sets, but recursive references aren't
+                # easy to build with frozensets, so we're cool
+                idmap[baseoffs] = srv = set()
+                for i,ix in enumerate(index):
+                    if ix == 1:
+                        srv.add(None)
                     else:
-                        rv[i] = idmap[absix] = mapped_object.unpack_from(buf, absix, idmap)
+                        absix = ix + baseoffs
+                        if absix in idmap:
+                            obj = idmap[absix]
+                        else:
+                            obj = unpack_from(buf, absix, idmap)
+                            idmap[absix] = obj
+                        srv.add(obj)
+                if klass is frozenset:
+                    rv = frozenset(srv)
+                else:
+                    rv = srv
+                return rv
+            else:
+                # Can't make perfect recursive references here, we'll do what we can
+                idmap[baseoffs] = lrv = ([None] * objlen)
+                for i,ix in enumerate(index):
+                    if ix != 1:
+                        absix = ix + baseoffs
+                        if absix in idmap:
+                            lrv[i] = idmap[absix]
+                        else:
+                            lrv[i] = idmap[absix] = unpack_from(buf, absix, idmap)
+                if klass is tuple:
+                    rv = tuple(lrv)
+                elif klass is list:
+                    rv = lrv
+                else:
+                    rv = klass(lrv)
+                return rv
         else:
             raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+        if type(rv) is not klass:
+            # Cython can specialize each conversion, so we do this ugly switch
+            if klass is list:
+                rv = list(rv)
+            elif klass is tuple:
+                rv = tuple(rv)
+            elif klass is frozenset:
+                rv = frozenset(rv)
+            elif klass is set:
+                rv = set(rv)
+            else:
+                rv = klass(rv)
         return rv
 
 class mapped_dict(dict):
@@ -882,6 +946,10 @@ def _stable_hash(key):
     else:
         raise TypeError("unhashable type: %s" % type(key).__name__)
 
+    if not cython.compiled:
+        # Make sure it fits in a uint64
+        hval = hval & 0xFFFFFFFFFFFFFFFF
+
     return hval if hval != 0 else 1
 
 
@@ -927,7 +995,7 @@ class proxied_dict(object):
     cython.declare(
         __weakref__=object,
         objmapper=object,
-        vlist=proxied_list,
+        vlist='proxied_list',
         buf=object,
         offs=cython.Py_ssize_t,
     )
@@ -1408,15 +1476,37 @@ class proxied_list(object):
         buf = _likerobuffer(buf)
         return cls(buf, offs, idmap)
 
+    @cython.locals(fast = cython.bint, dcode = cython.char, index = cython.longlong,
+        objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
+    def getter(self, proxy_into = None, fast = False):
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+
+        if proxy_into is None and fast and dcode in ('t', 'T'):
+            proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
+            if not cython.compiled:
+                proxy_into.buf = None
+
+        @cython.locals(index = cython.longlong)
+        def getter(index):
+            return self.__getitem(index, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
+
+        return getter
+
     @cython.ccall
+    @cython.locals(dcode = cython.char, index = cython.longlong,
+        objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
+    def _getitem(self, index):
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+        return self.__getitem(index, dcode, objlen, itemsize, dataoffs, _struct, None)
+
+    @cython.inline
+    @cython.cfunc
     @cython.locals(obj_offs = cython.Py_ssize_t, dcode = cython.char, index = cython.longlong,
         objlen = cython.longlong, xlen = cython.longlong, step = cython.longlong,
         lpindex = "const long *",
         ipindex = "const int *",
         dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
-    def _getitem(self, index):
-
-        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+    def __getitem(self, index, dcode, objlen, itemsize, dataoffs, _struct, proxy_into):
         xlen = objlen
         orig_index = index
 
@@ -1456,7 +1546,7 @@ class proxied_list(object):
             obj_offs = dataoffs + itemsize * cython.cast(cython.size_t, int(index))
 
         if dcode in ('t', 'T'):
-            res = mapped_object.unpack_from(self.buf, obj_offs)
+            res = mapped_object.unpack_from(self.buf, obj_offs, None, proxy_into)
         elif cython.compiled:
             if dcode == 'B':
                 res = cython.cast(cython.p_uchar,
@@ -1560,22 +1650,64 @@ class proxied_list(object):
     def __delitem__(self, index):
         raise TypeError("Proxy objects are read-only")
 
-    @cython.locals(i=cython.longlong)
+    @cython.locals(i=cython.longlong,
+        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def __iter__(self):
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         for i in xrange(len(self)):
-            yield self._getitem(i)
+            yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, None)
 
-    @cython.locals(l=cython.Py_ssize_t)
+    @cython.locals(i=cython.longlong,
+        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar,
+        pmask = 'const unsigned char[:]')
+    def iter(self, proxy_into=None, mask=None):
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+        if mask is not None:
+            pmask = mask
+        for i in xrange(len(self)):
+            if mask is not None and not pmask[i]:
+                continue
+            yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
+
+    @cython.locals(i=cython.longlong,
+        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar,
+        pmask = 'const unsigned char[:]')
+    def iter_fast(self, mask=None):
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+        if dcode in ('t', 'T'):
+            proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
+            if not cython.compiled:
+                proxy_into.buf = None
+        else:
+            proxy_into = None
+        if mask is not None:
+            pmask = mask
+        for i in xrange(len(self)):
+            if mask is not None and not pmask[i]:
+                continue
+            yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
+
+    @cython.locals(l=cython.Py_ssize_t,
+        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def __reversed__(self):
         l = len(self)
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         if l > 0:
             for i in xrange(l - 1, -1, -1):
-                yield self._getitem(i)
+                yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, None)
 
-    @cython.locals(i=cython.longlong)
+    @cython.locals(i=cython.longlong,
+        dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def __contains__(self, item):
+        dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
+        if dcode in ('t', 'T'):
+            proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
+            if not cython.compiled:
+                proxy_into.buf = None
+        else:
+            proxy_into = None
         for i in xrange(len(self)):
-            if self._getitem(i) == item:
+            if self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into) == item:
                 return True
         return False
 
@@ -2067,20 +2199,31 @@ class mapped_object(object):
         return endp
 
     @classmethod
-    @cython.locals(cpadding=cython.size_t, cpacker_size=cython.size_t, offs=cython.size_t)
-    def unpack_from(cls, buf, offs, idmap = None):
+    @cython.locals(cpadding=cython.size_t, cpacker_size=cython.size_t, offs=cython.size_t,
+        unpacker_info=tuple)
+    def unpack_from(cls, buf, offs, idmap = None, proxy_into = None):
         cpadding = 7
         cpacker_size = 1
         buf = _likerobuffer(buf)
         typecode = buf[offs]
-        if typecode in cls.PACKERS:
-            packer, padding = cls.PACKERS[typecode]
+
+        unpacker_info = _mapped_object_PACKERS.get(typecode)
+        if unpacker_info is not None:
+            packer, padding = unpacker_info
             typecode, value = packer.unpack_from(buf, offs)
             return value
-        elif typecode in cls.OBJ_PACKERS:
+
+        unpacker_info = _mapped_object_OBJ_PACKERS.get(typecode)
+        if unpacker_info is not None:
             offs += cpacker_size + cpadding
-            unpacker = cls.OBJ_PACKERS[typecode][1]
-            return unpacker(buf, offs, idmap)
+            if proxy_into is not None:
+                typ = unpacker_info[2]
+                if typ is _mapped_object or type(typ) is mapped_object_with_schema:
+                    return unpacker_info[1](buf, offs, idmap, proxy_into)
+                else:
+                    return unpacker_info[1](buf, offs, idmap)
+            else:
+                return unpacker_info[1](buf, offs, idmap)
         else:
             raise ValueError("Inconsistent data")
 
@@ -2117,7 +2260,7 @@ class mapped_object(object):
         PROXY_TYPES[typ] = PROXY_TYPES[supertyp]
         return cls.OBJ_PACKERS[typecode][2]
 
-    def __init__(self, value = None, typ = None, TYPE_CODES = TYPE_CODES):
+    def __init__(self, value = None, typ = None):
         if value is None:
             self.typecode = None
             self.value = None
@@ -2125,16 +2268,21 @@ class mapped_object(object):
             if typ is None:
                 typ = type(value)
             typ = TYPES.get(typ, typ)
-            if typ not in TYPE_CODES and issubclass(typ, BufferProxyObject):
+            if typ not in _mapped_object_TYPE_CODES and issubclass(typ, BufferProxyObject):
                 # Check bases
                 for base in typ.__bases__:
-                    if base is not object and base in TYPE_CODES:
+                    if base is not object and base in _mapped_object_TYPE_CODES:
                         typ = base
                         break
-            self.typecode = TYPE_CODES[typ]
+            self.typecode = _mapped_object_TYPE_CODES[typ]
             self.value = value
 mapped_object.TYPE_CODES[mapped_object] = 'o'
 mapped_object.OBJ_PACKERS['o'] = (mapped_object.pack_into, mapped_object.unpack_from, mapped_object)
+
+_mapped_object = cython.declare(object, mapped_object)
+_mapped_object_PACKERS = cython.declare(dict, _mapped_object.PACKERS)
+_mapped_object_OBJ_PACKERS = cython.declare(dict, _mapped_object.OBJ_PACKERS)
+_mapped_object_TYPE_CODES = cython.declare(dict, _mapped_object.TYPE_CODES)
 
 VARIABLE_TYPES = {
     frozenset : mapped_frozenset,
@@ -2694,6 +2842,10 @@ def GenericProxyClass(slot_keys, slot_types, present_bitmap, base_offs, bases = 
 
     return GenericProxyClass
 
+cython.declare(_GenericProxy = object)
+GenericProxy = _GenericProxy = GenericProxyClass([], {}, 0, 0)
+_GenericProxy_new = cython.declare(object, _GenericProxy.__new__)
+
 @cython.cclass
 class Schema(object):
     cython.declare(
@@ -2709,6 +2861,8 @@ class Schema(object):
         bitmap_size = cython.size_t,
         packer_cache = object,
         unpacker_cache = object,
+        fast_unpacker_cache = dict,
+        fast_unpacker_cache_size = cython.size_t,
 
         prewrite_hook = object,
         postwrite_hook = object,
@@ -2733,6 +2887,8 @@ class Schema(object):
 
     def __init__(self, slot_types, alignment = 8, pack_buffer_size = 65536, packer_cache = None, unpacker_cache = None,
             max_pack_buffer_size = None):
+        self.prewrite_hook = None
+        self.postwrite_hook = None
         self.init(
             self._map_types(slot_types),
             packer_cache = packer_cache, unpacker_cache = unpacker_cache, alignment = alignment,
@@ -2882,6 +3038,8 @@ class Schema(object):
 
         self.packer_cache = packer_cache
         self.unpacker_cache = unpacker_cache
+        self.fast_unpacker_cache = {}
+        self.fast_unpacker_cache_size = 256
         self.slot_types = slot_types
         self.slot_keys = slot_keys
         self.slot_count = len(self.slot_keys)
@@ -2952,11 +3110,17 @@ class Schema(object):
 
     @cython.ccall
     @cython.locals(has_bitmap = cython.ulonglong, none_bitmap = cython.ulonglong, present_bitmap = cython.ulonglong,
-        i = int, size = int, rv = tuple)
+        i = int, size = int, rv = tuple, packer_key = object)
     @cython.returns(tuple)
     def get_packer(self, obj):
         has_bitmap, none_bitmap, present_bitmap = self._get_bitmaps(obj)
-        rv = self.packer_cache.get(present_bitmap)
+
+        if present_bitmap <= cython.cast(cython.ulonglong, 0x7FFFFFFFFFFFFFFF):
+            packer_key = cython.cast(cython.longlong, present_bitmap)
+        else:
+            packer_key = present_bitmap
+
+        rv = self.packer_cache.get(packer_key)
         if rv is None:
             packer = struct.Struct("".join([
                 self.bitmap_packer.format,
@@ -2968,18 +3132,26 @@ class Schema(object):
             alignment = self.alignment
             size = packer.size
             padding = (size + alignment - 1) / alignment * alignment - size
-            self.packer_cache[present_bitmap] = rv = (packer, padding)
+            self.packer_cache[packer_key] = rv = (packer, padding)
         return rv
 
     @cython.ccall
     @cython.locals(has_bitmap = cython.ulonglong, none_bitmap = cython.ulonglong, present_bitmap = cython.ulonglong,
-        i = int, size = int, rv = tuple)
+        i = int, size = int, rv = tuple, unpacker_key = object)
     @cython.returns(tuple)
     def get_unpacker(self, has_bitmap, none_bitmap):
         present_bitmap = has_bitmap & ~none_bitmap
         if self._last_unpacker is not None and present_bitmap == self._last_unpacker_bitmap:
             return self._last_unpacker
-        rv = self.unpacker_cache.get(present_bitmap)
+
+        if present_bitmap <= cython.cast(cython.ulonglong, 0x7FFFFFFFFFFFFFFF):
+            unpacker_key = cython.cast(cython.longlong, present_bitmap)
+        else:
+            unpacker_key = present_bitmap
+
+        rv = self.fast_unpacker_cache.get(unpacker_key)
+        if rv is None:
+            rv = self.unpacker_cache.get(unpacker_key)
         if rv is None:
             pformat = "".join([
                 self.slot_struct_types[slot]
@@ -2994,7 +3166,10 @@ class Schema(object):
                 self.slot_keys, self.slot_types, present_bitmap, self.bitmap_size,
                 self._proxy_bases)
             rv = (unpacker, padding, pformat, gfactory)
-            self.unpacker_cache[present_bitmap] = rv
+            self.unpacker_cache[unpacker_key] = rv
+            self.fast_unpacker_cache[unpacker_key] = rv
+            if len(self.fast_unpacker_cache) > self.fast_unpacker_cache_size:
+                self.fast_unpacker_cache.clear()
         self._last_unpacker_bitmap = present_bitmap
         self._last_unpacker = rv
         return rv
@@ -3039,7 +3214,7 @@ class Schema(object):
                     packable_append(val)
                 else:
                     slot_type = slot_types[slot]
-                    if slot_type is mapped_object:
+                    if slot_type is _mapped_object:
                         val_id = wrapped_id(val)
                     else:
                         val_id = shared_id(val)
@@ -3166,7 +3341,7 @@ class Schema(object):
                 if proxy_into is None:
                     rv = gfactory(buf, offs, none_bitmap, idmap)
                 else:
-                    if not isinstance(proxy_into, gfactory):
+                    if type(proxy_into) is not gfactory:
                         proxy_into.__class__ = gfactory
                     if proxy_into.buf is buf:
                         proxy_into._reset_internal(offs, none_bitmap, idmap)
@@ -3308,8 +3483,8 @@ class mapped_object_with_schema(object):
     def pack_into(self, obj, buf, offs, idmap = None, implicit_offs = 0):
         return self._schema.pack_into(obj, buf, offs, idmap, None, None, implicit_offs)
 
-    def unpack_from(self, buf, offs, idmap = None):
-        return self._schema.unpack_from(buf, offs, idmap)
+    def unpack_from(self, buf, offs, idmap = None, proxy_into = None):
+        return self._schema.unpack_from(buf, offs, idmap, None, proxy_into)
 
     def __reduce__(self):
         # WARNING: Not using setstate somehow breaks schemas with cyclic references \_(0_0)_/
@@ -3465,8 +3640,8 @@ class MappedArrayProxyBase(_ZipMapBase):
         for i in xrange(len(self)):
             yield schema.unpack_from(buf, index[i], idmap, proxy_class_new)
 
-    @cython.locals(i = int, schema = Schema)
-    def iter_fast(self):
+    @cython.locals(i = int, schema = Schema, pmask = 'const unsigned char[:]')
+    def iter_fast(self, mask=None):
         # getter inlined
         schema = self.schema
         proxy_class = self.proxy_class
@@ -3479,8 +3654,13 @@ class MappedArrayProxyBase(_ZipMapBase):
         else:
             proxy_class_new = None
 
+        if mask is not None:
+            pmask = mask
+
         proxy_into = schema.Proxy()
         for i in xrange(len(self)):
+            if mask is not None and not pmask[i]:
+                continue
             yield schema.unpack_from(buf, index[i], idmap, proxy_class_new, proxy_into)
 
     def __len__(self):
@@ -5019,6 +5199,7 @@ class NumericIdMapper(_CZipMapBase):
         destfile.seek(finalpos)
         return rv
 
+@cython.cclass
 class NumericId32Mapper(NumericIdMapper):
     dtype = npuint32
 
@@ -5082,10 +5263,10 @@ class ObjectIdMapper(_CZipMapBase):
 
         dtype = self.dtype
         try:
-            dtypemax = ~dtype(0)
+            dtypemax = int(~dtype(0))
         except:
             try:
-                dtypemax = ~dtype.type(0)
+                dtypemax = int(~dtype.type(0))
             except:
                 dtypemax = ~0
         self._dtype_bits = 0
@@ -5178,11 +5359,19 @@ class ObjectIdMapper(_CZipMapBase):
                     PyBuffer_Release(cython.address(indexbuf))
             else:
                 for i in xrange(self.index_elements):
-                    yield self._unpack(self._buf, index[i])
+                    if not make_sequential:
+                        pos = index[i, offs]
+                    else:
+                        pos = index[i]
+                    yield self._unpack(self._buf, pos)
             #lint:enable
         else:
             for i in xrange(self.index_elements):
-                yield self._unpack(buf, index[i])
+                if not make_sequential:
+                    pos = index[i, offs]
+                else:
+                    pos = index[i]
+                yield self._unpack(buf, pos)
 
     def __iter__(self):
         return self.iterkeys()
@@ -5392,10 +5581,10 @@ class ObjectIdMapper(_CZipMapBase):
 
         dtype = cls.dtype
         try:
-            dtypemax = ~dtype(0)
+            dtypemax = int(~dtype(0))
         except:
             try:
-                dtypemax = ~dtype.type(0)
+                dtypemax = int(~dtype.type(0))
             except:
                 dtypemax = ~0
 
@@ -6008,16 +6197,23 @@ class StringId32Mapper(StringIdMapper):
 @cython.cclass
 class NumericIdMultiMapper(NumericIdMapper):
     @cython.ccall
+    def _encode_key(self, key):
+        return key
+
+    @cython.ccall
     @cython.locals(
         hkey = cython.ulonglong, startpos = int, nitems = int,
         stride0 = cython.size_t, stride1 = cython.size_t,
         indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
     def get(self, key, default = None):
+        key = self._encode_key(key)
         if not isinstance(key, (int, long)):
             return default
-        if key < 0 or key > self.dtypemax:
-            return default
-        hkey = key
+        try:
+            hkey = key
+        except OverflowError:
+            if key < 0 or key > self.dtypemax:
+                return default
         startpos = self._search_hkey(hkey)
         nitems = self.index_elements
         if 0 <= startpos < nitems:
@@ -6081,11 +6277,16 @@ class NumericIdMultiMapper(NumericIdMapper):
                     return rv
         return default
 
+    def __contains__(self, key):
+        return self.has_key(key)
+
+    @cython.ccall
     @cython.locals(
         hkey = cython.ulonglong, startpos = int, nitems = int,
         stride0 = cython.size_t,
         indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
-    def __contains__(self, key):
+    def has_key(self, key):
+        key = self._encode_key(key)
         if not isinstance(key, (int, long)):
             return False
         if key < 0 or key > self.dtypemax:
@@ -6147,6 +6348,7 @@ class NumericIdMultiMapper(NumericIdMapper):
         stride0 = cython.size_t, stride1 = cython.size_t,
         indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
     def get_iter(self, key):
+        key = self._encode_key(key)
         if not isinstance(key, (int, long)):
             return
         if key < 0 or key > self.dtypemax:
@@ -6208,6 +6410,7 @@ class NumericIdMultiMapper(NumericIdMapper):
                     yield index[startpos,1]
                     startpos += 1
 
+@cython.cclass
 class NumericId32MultiMapper(NumericIdMultiMapper):
     dtype = npuint32
 
@@ -6381,11 +6584,15 @@ class StringIdMultiMapper(StringIdMapper):
                         yield index[startpos,2]
                     startpos += 1
 
+    def __contains__(self, key):
+        return self.has_key(key)
+
+    @cython.ccall
     @cython.locals(
         hkey = cython.ulonglong, startpos = int, nitems = int, bkey = bytes,
         stride0 = cython.size_t, stride1 = cython.size_t, blen = cython.size_t, pbkey = 'const char *',
         indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
-    def __contains__(self, key):
+    def has_key(self, key):
         if not isinstance(key, basestring):
             return False
         bkey = self._encode(key)
@@ -6462,6 +6669,7 @@ class StringIdMultiMapper(StringIdMapper):
                     startpos += 1
         return False
 
+@cython.cclass
 class StringId32MultiMapper(StringIdMultiMapper):
     dtype = npuint32
     xxh = xxhash.xxh32
@@ -6483,23 +6691,11 @@ class ApproxStringIdMultiMapper(NumericIdMultiMapper):
         NumericIdMultiMapper.__init__(self, buf, offset)
 
     @cython.ccall
-    def get(self, key, default = None):
+    def _encode_key(self, key):
         if isinstance(key, (int, long)):
-            return super(ApproxStringIdMultiMapper, self).get(key, default)
+            return key
         else:
-            return super(ApproxStringIdMultiMapper, self).get(self._xxh(self._encode(key)).intdigest(), default)
-
-    def __contains__(self, key):
-        if isinstance(key, (int, long)):
-            return super(ApproxStringIdMultiMapper, self).__contains__(key)
-        else:
-            return super(ApproxStringIdMultiMapper, self).__contains__(self._xxh(self._encode(key)).intdigest())
-
-    def get_iter(self, key):
-        if isinstance(key, (int, long)):
-            return super(ApproxStringIdMultiMapper, self).get_iter(key)
-        else:
-            return super(ApproxStringIdMultiMapper, self).get_iter(self._xxh(self._encode(key)).intdigest())
+            return self._xxh(self._encode(key)).intdigest()
 
     @classmethod
     def build(cls, initializer, *p, **kw):
