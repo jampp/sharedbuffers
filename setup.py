@@ -101,7 +101,7 @@ else:
                     Extension('sharedbuffers.mapped_struct', ['sharedbuffers/mapped_struct.py'],
                         depends = ['sharedbuffers/mapped_struct.pxd']),
                 ]
-                ext_modules = cythonize(extension_modules, include_path = include_dirs)
+                ext_modules = cythonize(extension_modules, include_path = include_dirs, language_level = 2)
                 self.extend(ext_modules)
         def __iter__(self):
             self.initialize()

@@ -2277,10 +2277,17 @@ class mapped_object(object):
 mapped_object.TYPE_CODES[mapped_object] = 'o'
 mapped_object.OBJ_PACKERS['o'] = (mapped_object.pack_into, mapped_object.unpack_from, mapped_object)
 
-_mapped_object = cython.declare(object, mapped_object)
-_mapped_object_PACKERS = cython.declare(dict, _mapped_object.PACKERS)
-_mapped_object_OBJ_PACKERS = cython.declare(dict, _mapped_object.OBJ_PACKERS)
-_mapped_object_TYPE_CODES = cython.declare(dict, _mapped_object.TYPE_CODES)
+cython.declare(
+    _mapped_object = object,
+    _mapped_object_PACKERS = dict,
+    _mapped_object_OBJ_PACKERS = dict,
+    _mapped_object_TYPE_CODES = dict,
+)
+
+_mapped_object = mapped_object
+_mapped_object_PACKERS = _mapped_object.PACKERS
+_mapped_object_OBJ_PACKERS = _mapped_object.OBJ_PACKERS
+_mapped_object_TYPE_CODES = _mapped_object.TYPE_CODES
 
 VARIABLE_TYPES = {
     frozenset : mapped_frozenset,
