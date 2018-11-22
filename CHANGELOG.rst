@@ -57,6 +57,7 @@ Changes
 - Improved performance of binary search utilities.
 - NumericId32[Multi]Mapper and StringId32[Multi]Mapper are now built-in
   classes when cythonized (should be relatively transparent).
+- Schema.pack is now thread-safe
 
 
 Bugfixes
