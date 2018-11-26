@@ -403,35 +403,34 @@ def get_wrapped_key(obj):
 
 
 class mapped_frozenset(frozenset):
-    @staticmethod
-    def sort(obj, generic):
-        if isinstance(obj, numpy.ndarray) and (
-            obj.dtype in (numpy.int64, numpy.int32, numpy.uint32, numpy.float64)):
-            return numpy.unique(obj)
-        elif not generic and cython.compiled:
-            return sorted(obj)
-        else:
-            # generic objects; sort according to their stable hash
-            return sorted(obj, key=_stable_hash)
 
     @classmethod
     @cython.locals(cbuf = 'unsigned char[:]', i=int, ix=int, offs=cython.longlong)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if isinstance(obj, npndarray):
-            all_int = 0
+            all_int = all_intlong = all_float = 0
             obj_dtype = obj.dtype
             if obj_dtype.isbuiltin:
                 dtype = obj_dtype.char
                 cdtype = cython.cast('const char*', dtype)[0]
-                if cdtype in ('L', 'l', 'I', 'i', 'H', 'h', 'B', 'b'):
+                if cdtype in ('l', 'I', 'i', 'H', 'h', 'B', 'b'):
                     all_int = 1
+                elif cdtype == 'L':
+                    all_intlong = 1
+                elif cdtype in ('d', 'f'):
+                    all_float = 1
         else:
-            all_int = 1
+            all_int = all_intlong = all_float = 1
             for x in obj:
-                if type(x) is not int:
+                if all_int and type(x) is not int:
                     all_int = 0
+                if all_intlong and type(x) is not int and type(x) is not long:
+                    all_intlong = 0
+                if all_float and type(x) is not float:
+                    all_float = 0
+                if not all_int and not all_intlong and not all_float:
                     break
-        if all_int:
+        if all_int or all_intlong:
             if isinstance(obj, npndarray):
                 maxval = int(obj.max())
                 minval = int(obj.min())
@@ -483,7 +482,14 @@ class mapped_frozenset(frozenset):
                 return mapped_tuple.pack_into(tup, buf, offs, idmap, implicit_offs)
         else:
             # Same representation as a tuple of items, only backed in-memory by a frozenset
-            return mapped_tuple.pack_into(obj, buf, offs, idmap, implicit_offs, sort_fn=mapped_frozenset.sort)
+            if all_float:
+                if isinstance(obj, npndarray):
+                    obj = numpy.unique(obj)
+                else:
+                    obj = sorted(obj)
+            else:
+                obj = sorted(obj, key=_stable_hash)
+            return mapped_tuple.pack_into(obj, buf, offs, idmap, implicit_offs)
 
     @classmethod
     @cython.locals(
@@ -541,7 +547,7 @@ class mapped_tuple(tuple):
         offs = cython.Py_ssize_t, implicit_offs = cython.Py_ssize_t, val_offs = cython.Py_ssize_t,
         i = cython.Py_ssize_t, iminval = cython.longlong, imaxval = cython.longlong)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
-            int = int, type = type, min = min, max = max, array = array.array, id = id, sort_fn = None):
+            int = int, type = type, min = min, max = max, array = array.array, id = id):
         baseoffs = offs
         objlen = len(obj)
         if isinstance(obj, npndarray):
@@ -638,9 +644,6 @@ class mapped_tuple(tuple):
                 buf[offs+8:offs+12] = _struct_l_Q.pack(objlen)
                 offs += 12
 
-            if sort_fn is not None:
-                obj = sort_fn(obj, False)
-
             if isinstance(obj, npndarray):
                 a = obj
             else:
@@ -651,9 +654,6 @@ class mapped_tuple(tuple):
             offs = (offs + 7) / 8 * 8
             return offs
         elif all_float:
-            if sort_fn is not None:
-                obj = sort_fn(obj, False)
-
             if isinstance(obj, npndarray):
                 a = obj
                 # dtype already set when inspecting obj's dtype
@@ -669,9 +669,6 @@ class mapped_tuple(tuple):
             return offs
         else:
             # inline object tuple
-            if sort_fn is not None:
-                obj = sort_fn(obj, True)
-
             use_narrow = False
             buf[offs] = 't'
             buf[offs+1:offs+8] = _struct_l_Q.pack(objlen)[:7]
