@@ -2024,8 +2024,7 @@ class proxied_frozenset(object):
                         else:
                             # pfset[j] < val, skip as much as we can
                             while j < seqlen:
-                                if _stable_hash(pfset.objlist._c_getitem(
-                                    j, dcode2, objlen2, itemsize2, offset2, _struct2, None)) >= h1:
+                                if _stable_hash(pfset.objlist._c_getitem(j, dcode2, objlen2, itemsize2, offset2, _struct2, None)) >= h1:
                                     break
                                 j += 1
                             if j == seqlen:
