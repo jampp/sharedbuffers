@@ -403,9 +403,20 @@ def get_wrapped_key(obj):
 
 
 class mapped_frozenset(frozenset):
+    @staticmethod
+    def sort(obj, generic):
+        if isinstance(obj, numpy.ndarray) and (
+            obj.dtype in (numpy.int64, numpy.int32, numpy.uint32, numpy.float64)):
+            return numpy.unique(obj)
+        elif not generic and cython.compiled:
+            return sorted(obj)
+        else:
+            # generic objects; sort according to their stable hash
+            return sorted(obj, key=_stable_hash)
+
     @classmethod
     @cython.locals(cbuf = 'unsigned char[:]', i=int, ix=int, offs=cython.longlong)
-    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0, sort_fn = None):
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if isinstance(obj, npndarray):
             all_int = 0
             obj_dtype = obj.dtype
@@ -472,7 +483,7 @@ class mapped_frozenset(frozenset):
                 return mapped_tuple.pack_into(tup, buf, offs, idmap, implicit_offs)
         else:
             # Same representation as a tuple of items, only backed in-memory by a frozenset
-            return mapped_tuple.pack_into(obj, buf, offs, idmap, implicit_offs, sort_fn=sort_fn)
+            return mapped_tuple.pack_into(obj, buf, offs, idmap, implicit_offs, sort_fn=mapped_frozenset.sort)
 
     @classmethod
     @cython.locals(
@@ -1757,16 +1768,7 @@ class proxied_frozenset(object):
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
-        def sort(obj, generic):
-            if isinstance(obj, numpy.ndarray) and (
-                obj.dtype in (numpy.int64, numpy.int32, numpy.uint32, numpy.float64)):
-                return numpy.unique(obj)
-            elif not generic and cython.compiled:
-                return sorted(obj)
-            else:
-                # generic objects; sort according to their stable hash
-                return sorted(obj, key=_stable_hash)
-        return mapped_frozenset.pack_into(obj, buf, offs, idmap, implicit_offs, sort_fn=sort)
+        return mapped_frozenset.pack_into(obj, buf, offs, idmap, implicit_offs)
 
     @classmethod
     @cython.locals(
