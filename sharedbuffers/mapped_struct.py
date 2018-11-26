@@ -1832,9 +1832,9 @@ class proxied_frozenset(object):
         else:
             raise NotImplementedError("Unsupported data type for fast lookup: %s" % chr(dcode))
 
-    @cython.locals(lo=cython.Py_ssize_t, hi=cython.Py_ssize_t,
-        step=cython.Py_ssize_t, dcode=cython.char, offset=cython.size_t,
-        h1=cython.ulonglong, h2=cython.ulonglong)
+    @cython.locals(lo=cython.Py_ssize_t, hi=cython.Py_ssize_t, step=cython.Py_ssize_t,
+        dcode=cython.char, objlen=cython.longlong, itemsize=cython.uchar,
+        offset=cython.Py_ssize_t, h1=cython.ulonglong, h2=cython.ulonglong)
     def __contains__(self, elem):
         if self.objlist is None:
             try:
@@ -1848,16 +1848,16 @@ class proxied_frozenset(object):
 
         lo = 0
         hi = len(self.objlist)
+        dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
 
         if cython.compiled:
-            dcode, _, _, offset, _ = self.objlist._metadata()
             if dcode in ('q', 'I', 'i', 'd'):
                 return self._search_key(elem, dcode, offset, lo, hi, hi // 2, True) < hi
 
         h2 = _stable_hash(elem)
         while lo < hi:
             step = (lo + hi) >> 1
-            val = self.objlist._getitem(step)
+            val = self.objlist.__getitem(step, dcode, objlen, itemsize, offset, _struct, None)
             h1 = _stable_hash(val)
             if h1 == h2 and val == elem:
                 return True
@@ -1867,11 +1867,14 @@ class proxied_frozenset(object):
                 hi = step
         return False
 
-    @cython.locals(i=cython.Py_ssize_t, val=cython.size_t, xlen=cython.Py_ssize_t)
+    @cython.locals(i=cython.Py_ssize_t, val=cython.size_t, xlen=cython.Py_ssize_t,
+        dcode=cython.char, objlen=cython.longlong, itemsize=cython.uchar,
+        offset=cython.Py_ssize_t)
     def __iter__(self):
         if self.objlist is not None:
+            dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
             for i in xrange(len(self)):
-                yield self.objlist._getitem(i)
+                yield self.objlist.__getitem(i, dcode, objlen, itemsize, offset, _struct, None)
         else:
             bitrep = self.bitrep_lo
             i = 0
@@ -1903,7 +1906,8 @@ class proxied_frozenset(object):
 
     @cython.ccall
     @cython.locals(i=cython.Py_ssize_t, xlen=cython.Py_ssize_t,
-        pfset='proxied_frozenset', bitrep=cython.size_t)
+        pfset='proxied_frozenset', bitrep=cython.size_t, dcode=cython.char,
+        objlen=cython.longlong, itemsize=cython.uchar, offset=cython.Py_ssize_t)
     def _frozenset_eq(self, x):
         if isinstance(x, proxied_frozenset):
             pfset = cython.cast(proxied_frozenset, x)
@@ -1934,7 +1938,8 @@ class proxied_frozenset(object):
             return True
 
         for i in xrange(xlen):
-            if self.objlist._getitem(i) not in x:
+            dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
+            if self.objlist.__getitem(i, dcode, objlen, itemsize, offset, _struct, None) not in x:
                 return False
         return True
 
@@ -1948,7 +1953,9 @@ class proxied_frozenset(object):
     @cython.locals(strict_subset=cython.bint, i=cython.Py_ssize_t,
         xlen=cython.Py_ssize_t, pfset='proxied_frozenset',
         seqlen=cython.Py_ssize_t, bitrep=cython.size_t, dcode=cython.char,
-        h1=cython.ulonglong, h2=cython.ulonglong)
+        objlen=cython.longlong, itemsize=cython.uchar, offset=cython.Py_ssize_t,
+        dcode2=cython.char, oblen2=cython.longlong, itemsize2=cython.uchar,
+        offset2=cython.Py_ssize_t, h1=cython.ulonglong, h2=cython.ulonglong)
     def _subset(self, seq, strict_subset):
         i = 0
         xlen = len(self)
@@ -1962,8 +1969,9 @@ class proxied_frozenset(object):
                         self.bitrep_hi & pfset.bitrep_hi) == self.bitrep_hi and (
                         not strict_subset or self.bitlen < pfset.bitlen)
                 else:
+                    dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
                     for i in xrange(xlen):
-                        if self.objlist._getitem(i) not in pfset:
+                        if self.objlist.__getitem(i, dcode, objlen, itemsize, offset, _struct, None) not in pfset:
                             return False
                     return not strict_subset or xlen < pfset.bitlen
 
@@ -1990,20 +1998,22 @@ class proxied_frozenset(object):
             if xlen > seqlen:
                 return False
 
-            dcode, _, _, offset, _ = pfset.objlist._metadata()
+            dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
             if dcode in ('q', 'I', 'i', 'd') and cython.compiled:
                 # fast path, use the search_hkey variants
+                dcode2, objlen2, itemsize2, offset2, _struct2 = pfset.objlist._metadata()
                 for i in xrange(xlen):
-                    val = self.objlist._getitem(i)
+                    val = self.objlist.__getitem(i, dcode, objlen, itemsize, offset, _struct, None)
                     j = pfset._search_key(val, dcode, offset, j, seqlen - j, j)
-                    if pfset.objlist._getitem(j) != val:
+                    if pfset.objlist.__getitem(j, dcode2, objlen2, itemsize2, offset2, _struct2, None) != val:
                         return False
             else:
                 for i in xrange(xlen):
-                    val = self.objlist._getitem(i)
+                    val = self.objlist.__getitem(i, dcode, objlen, itemsize, offset, _struct, None)
                     h1 = _stable_hash(val)
                     while True:
-                        val2 = pfset.objlist._getitem(j)
+                        dcode2, objlen2, itemsize2, offset2, _struct2 = pfset.objlist._metadata()
+                        val2 = pfset.objlist.__getitem(j, dcode2, objlen2, itemsize2, offset2, _struct2, None)
                         h2 = _stable_hash(val2)
                         j += 1
 
@@ -2014,7 +2024,8 @@ class proxied_frozenset(object):
                         else:
                             # pfset[j] < val, skip as much as we can
                             while j < seqlen:
-                                if _stable_hash(pfset.objlist._getitem(j)) >= h1:
+                                if _stable_hash(pfset.objlist.__getitem(
+                                    j, dcode2, objlen2, itemsize2, offset2, _struct2, None)) >= h1:
                                     break
                                 j += 1
                             if j == seqlen:
@@ -2037,8 +2048,9 @@ class proxied_frozenset(object):
                 bitrep >>= 1
                 i += 1
         else:
+            dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
             for i in xrange(xlen):
-                val = self.objlist._getitem(i)
+                val = self.objlist.__getitem(i, dcode, objlen, itemsize, offset, _struct, None)
                 if val not in seq:
                     return False
 
