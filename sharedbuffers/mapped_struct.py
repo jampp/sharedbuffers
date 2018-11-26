@@ -1496,7 +1496,7 @@ class proxied_list(object):
 
         @cython.locals(index = cython.longlong)
         def getter(index):
-            return self.__getitem(index, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
+            return self._c_getitem(index, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
 
         return getter
 
@@ -1505,7 +1505,7 @@ class proxied_list(object):
         objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def _getitem(self, index):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
-        return self.__getitem(index, dcode, objlen, itemsize, dataoffs, _struct, None)
+        return self._c_getitem(index, dcode, objlen, itemsize, dataoffs, _struct, None)
 
     @cython.inline
     @cython.cfunc
@@ -1514,7 +1514,7 @@ class proxied_list(object):
         lpindex = "const long *",
         ipindex = "const int *",
         dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
-    def __getitem(self, index, dcode, objlen, itemsize, dataoffs, _struct, proxy_into):
+    def _c_getitem(self, index, dcode, objlen, itemsize, dataoffs, _struct, proxy_into):
         xlen = objlen
         orig_index = index
 
@@ -1663,7 +1663,7 @@ class proxied_list(object):
     def __iter__(self):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         for i in xrange(len(self)):
-            yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, None)
+            yield self._c_getitem(i, dcode, objlen, itemsize, dataoffs, _struct, None)
 
     @cython.locals(i=cython.longlong,
         dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar,
@@ -1675,7 +1675,7 @@ class proxied_list(object):
         for i in xrange(len(self)):
             if mask is not None and not pmask[i]:
                 continue
-            yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
+            yield self._c_getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
 
     @cython.locals(i=cython.longlong,
         dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar,
@@ -1693,7 +1693,7 @@ class proxied_list(object):
         for i in xrange(len(self)):
             if mask is not None and not pmask[i]:
                 continue
-            yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
+            yield self._c_getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
 
     @cython.locals(l=cython.Py_ssize_t,
         dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
@@ -1702,7 +1702,7 @@ class proxied_list(object):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         if l > 0:
             for i in xrange(l - 1, -1, -1):
-                yield self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, None)
+                yield self._c_getitem(i, dcode, objlen, itemsize, dataoffs, _struct, None)
 
     @cython.locals(i=cython.longlong,
         dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
@@ -1715,7 +1715,7 @@ class proxied_list(object):
         else:
             proxy_into = None
         for i in xrange(len(self)):
-            if self.__getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into) == item:
+            if self._c_getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into) == item:
                 return True
         return False
 
@@ -1857,7 +1857,7 @@ class proxied_frozenset(object):
         h2 = _stable_hash(elem)
         while lo < hi:
             step = (lo + hi) >> 1
-            val = self.objlist.__getitem(step, dcode, objlen, itemsize, offset, _struct, None)
+            val = self.objlist._c_getitem(step, dcode, objlen, itemsize, offset, _struct, None)
             h1 = _stable_hash(val)
             if h1 == h2 and val == elem:
                 return True
@@ -1874,7 +1874,7 @@ class proxied_frozenset(object):
         if self.objlist is not None:
             dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
             for i in xrange(len(self)):
-                yield self.objlist.__getitem(i, dcode, objlen, itemsize, offset, _struct, None)
+                yield self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
         else:
             bitrep = self.bitrep_lo
             i = 0
@@ -1937,9 +1937,9 @@ class proxied_frozenset(object):
 
             return True
 
+        dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
         for i in xrange(xlen):
-            dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
-            if self.objlist.__getitem(i, dcode, objlen, itemsize, offset, _struct, None) not in x:
+            if self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None) not in x:
                 return False
         return True
 
@@ -1971,7 +1971,7 @@ class proxied_frozenset(object):
                 else:
                     dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
                     for i in xrange(xlen):
-                        if self.objlist.__getitem(i, dcode, objlen, itemsize, offset, _struct, None) not in pfset:
+                        if self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None) not in pfset:
                             return False
                     return not strict_subset or xlen < pfset.bitlen
 
@@ -2003,17 +2003,17 @@ class proxied_frozenset(object):
                 # fast path, use the search_hkey variants
                 dcode2, objlen2, itemsize2, offset2, _struct2 = pfset.objlist._metadata()
                 for i in xrange(xlen):
-                    val = self.objlist.__getitem(i, dcode, objlen, itemsize, offset, _struct, None)
+                    val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
                     j = pfset._search_key(val, dcode, offset, j, seqlen - j, j)
-                    if pfset.objlist.__getitem(j, dcode2, objlen2, itemsize2, offset2, _struct2, None) != val:
+                    if pfset.objlist._c_getitem(j, dcode2, objlen2, itemsize2, offset2, _struct2, None) != val:
                         return False
             else:
+                dcode2, objlen2, itemsize2, offset2, _struct2 = pfset.objlist._metadata()
                 for i in xrange(xlen):
-                    val = self.objlist.__getitem(i, dcode, objlen, itemsize, offset, _struct, None)
+                    val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
                     h1 = _stable_hash(val)
                     while True:
-                        dcode2, objlen2, itemsize2, offset2, _struct2 = pfset.objlist._metadata()
-                        val2 = pfset.objlist.__getitem(j, dcode2, objlen2, itemsize2, offset2, _struct2, None)
+                        val2 = pfset.objlist._c_getitem(j, dcode2, objlen2, itemsize2, offset2, _struct2, None)
                         h2 = _stable_hash(val2)
                         j += 1
 
@@ -2024,7 +2024,7 @@ class proxied_frozenset(object):
                         else:
                             # pfset[j] < val, skip as much as we can
                             while j < seqlen:
-                                if _stable_hash(pfset.objlist.__getitem(
+                                if _stable_hash(pfset.objlist._c_getitem(
                                     j, dcode2, objlen2, itemsize2, offset2, _struct2, None)) >= h1:
                                     break
                                 j += 1
@@ -2050,7 +2050,7 @@ class proxied_frozenset(object):
         else:
             dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
             for i in xrange(xlen):
-                val = self.objlist.__getitem(i, dcode, objlen, itemsize, offset, _struct, None)
+                val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
                 if val not in seq:
                     return False
 
