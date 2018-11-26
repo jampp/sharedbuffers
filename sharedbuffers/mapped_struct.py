@@ -481,7 +481,8 @@ class mapped_frozenset(frozenset):
                     tup = sorted(obj)
                 return mapped_tuple.pack_into(tup, buf, offs, idmap, implicit_offs)
         else:
-            # Same representation as a tuple of items, only backed in-memory by a frozenset
+            # Same representation as a tuple of items, only backed in-memory by a frozenset, but
+            # sorted by their stable hash value, in case these aren't all numeric objects.
             if all_float:
                 if isinstance(obj, npndarray):
                     obj = numpy.unique(obj)
@@ -1831,19 +1832,24 @@ class proxied_frozenset(object):
         else:
             raise NotImplementedError("Unsupported data type for fast lookup: %s" % chr(dcode))
 
-    @cython.locals(lo=cython.Py_ssize_t, hi=cython.Py_ssize_t, step=cython.Py_ssize_t,
+    @cython.locals(eint=cython.ulonglong)
+    def _contains_compressed(self, elem):
+        try:
+            eint = int(elem)
+        except (ValueError, TypeError, OverflowError):
+            return False
+
+        if eint != elem or eint >= 128 or eint < 0:
+            return False
+        return (eint < 64 and (self.bitrep_lo & (1 << eint)) != 0) or (
+            (eint < 128 and (self.bitrep_hi & (1 << (eint - 64))) != 0))
+
+    @cython.locals(lo=cython.Py_ssize_t, hi=cython.Py_ssize_t, mid=cython.Py_ssize_t,
         dcode=cython.char, objlen=cython.longlong, itemsize=cython.uchar,
         offset=cython.Py_ssize_t, h1=cython.ulonglong, h2=cython.ulonglong)
     def __contains__(self, elem):
         if self.objlist is None:
-            try:
-                eint = int(elem)
-                if eint != elem or eint >= 128 or eint < 0:
-                    return False
-                return (eint < 64 and (self.bitrep_lo & (1 << eint)) != 0) or (
-                    (eint < 128 and (self.bitrep_hi & (1 << (eint - 64))) != 0))
-            except (ValueError, TypeError):
-                return False
+            return self._contains_compressed(elem)
 
         lo = 0
         hi = len(self.objlist)
@@ -1855,41 +1861,58 @@ class proxied_frozenset(object):
 
         h2 = _stable_hash(elem)
         while lo < hi:
-            step = (lo + hi) >> 1
-            val = self.objlist._c_getitem(step, dcode, objlen, itemsize, offset, _struct, None)
+            mid = lo + ((hi - lo) >> 1)
+            val = self.objlist._c_getitem(mid, dcode, objlen, itemsize, offset, _struct, None)
             h1 = _stable_hash(val)
-            if h1 == h2 and val == elem:
-                return True
+            if h1 == h2:
+                # Equal hashes - Look in both directions for a match, without binary search
+                if val == elem:
+                    return True
+                while mid > 0:
+                    val = self.objlist._c_getitem(mid, dcode, objlen, itemsize, offset, _struct, None)
+                    h1 = _stable_hash(val)
+                    if h1 != h2:
+                        break
+                    elif val == elem:
+                        return True
+                    mid -= 1
+
+                mid = lo + ((hi - lo) >> 1)
+                hi = len(self.objlist)
+                while mid < hi:
+                    val = self.objlist._c_getitem(mid, dcode, objlen, itemsize, offset, _struct, None)
+                    h1 = _stable_hash(val)
+                    if h1 != h2:
+                        break
+                    elif val == elem:
+                        return True
+                    mid += 1
+                return False
             elif h1 < h2:
-                lo = step + 1
+                lo = mid + 1
             else:
-                hi = step
+                hi = mid
         return False
 
-    @cython.locals(i=cython.Py_ssize_t, val=cython.size_t, xlen=cython.Py_ssize_t,
-        dcode=cython.char, objlen=cython.longlong, itemsize=cython.uchar,
-        offset=cython.Py_ssize_t)
+    @cython.locals(i=cython.Py_ssize_t, dcode=cython.char, objlen=cython.longlong,
+        itemsize=cython.uchar, offset=cython.Py_ssize_t)
     def __iter__(self):
         if self.objlist is not None:
             dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
             for i in xrange(len(self)):
                 yield self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
         else:
-            bitrep = self.bitrep_lo
-            i = 0
-
-            while bitrep != 0:
-                if (bitrep & 1) != 0:
+            for i in xrange(64):
+                if self.bitrep_lo & (1 << i):
                     yield i
-                bitrep >>= 1
-                i += 1
+                elif not self.bitrep_lo >> i:
+                    break
 
-            bitrep = self.bitrep_hi
-            while bitrep != 0:
-                if (bitrep & 1) != 0:
-                    yield i
-                bitrep >>= 1
-                i += 1
+            for i in xrange(64):
+                if self.bitrep_hi & (1 << i):
+                    yield i + 64
+                elif not self.bitrep_hi >> i:
+                    break
 
     def union(self, *seqs):
         return frozenset(self).union(*seqs)
@@ -1905,34 +1928,30 @@ class proxied_frozenset(object):
 
     @cython.ccall
     @cython.locals(i=cython.Py_ssize_t, xlen=cython.Py_ssize_t,
-        pfset='proxied_frozenset', bitrep=cython.size_t, dcode=cython.char,
+        pfset='proxied_frozenset', dcode=cython.char,
         objlen=cython.longlong, itemsize=cython.uchar, offset=cython.Py_ssize_t)
     def _frozenset_eq(self, x):
         if isinstance(x, proxied_frozenset):
             pfset = cython.cast(proxied_frozenset, x)
-            return self.objlist == pfset.objlist and (
-                self.bitrep_lo == pfset.bitrep_lo and
-                self.bitrep_hi == pfset.bitrep_hi)
+            return (self.bitrep_lo == pfset.bitrep_lo and
+                self.bitrep_hi == pfset.bitrep_hi and
+                self.objlist == pfset.objlist)
 
         xlen = len(self)
         if not isinstance(x, (set, frozenset)) or xlen != len(x):
             return False
         elif self.objlist is None:
-            bitrep = self.bitrep_lo
-            i = 0
-
-            while bitrep != 0:
-                if (bitrep & 1) != 0 and i not in x:
+            for i in xrange(64):
+                if not self.bitrep_lo >> i:
+                    break
+                elif (self.bitrep_lo & (1 << i)) and i not in x:
                     return False
-                bitrep >>= 1
-                i += 1
 
-            bitrep = self.bitrep_hi
-            while bitrep != 0:
-                if (bitrep & 1) != 0 and i not in x:
+            for i in xrange(64):
+                if not self.bitrep_hi >> i:
+                    break
+                elif (self.bitrep_hi & (1 << i)) and (i + 64) not in x:
                     return False
-                bitrep >>= 1
-                i += 1
 
             return True
 
@@ -1950,11 +1969,12 @@ class proxied_frozenset(object):
 
     @cython.ccall
     @cython.locals(strict_subset=cython.bint, i=cython.Py_ssize_t,
+        j=cython.Py_ssize_t, tmp_idx=cython.Py_ssize_t,
         xlen=cython.Py_ssize_t, pfset='proxied_frozenset',
-        seqlen=cython.Py_ssize_t, bitrep=cython.size_t, dcode=cython.char,
-        objlen=cython.longlong, itemsize=cython.uchar, offset=cython.Py_ssize_t,
-        dcode2=cython.char, oblen2=cython.longlong, itemsize2=cython.uchar,
-        offset2=cython.Py_ssize_t, h1=cython.ulonglong, h2=cython.ulonglong)
+        seqlen=cython.Py_ssize_t, dcode=cython.char, objlen=cython.longlong,
+        itemsize=cython.uchar, offset=cython.Py_ssize_t, dcode2=cython.char,
+        oblen2=cython.longlong, itemsize2=cython.uchar, offset2=cython.Py_ssize_t,
+        h1=cython.ulonglong, h2=cython.ulonglong)
     def _subset(self, seq, strict_subset):
         i = 0
         xlen = len(self)
@@ -1969,25 +1989,28 @@ class proxied_frozenset(object):
                         not strict_subset or self.bitlen < pfset.bitlen)
                 else:
                     dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
+                    if dcode not in ('q', 'I', 'i', 'd'):
+                        # non-numeric typecode
+                        return False
+
                     for i in xrange(xlen):
-                        if self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None) not in pfset:
+                        val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
+                        if not pfset._contains_compressed(val):
                             return False
                     return not strict_subset or xlen < pfset.bitlen
 
             elif self.objlist is None:
-                bitrep = self.bitrep_lo
-                while bitrep != 0:
-                    if (bitrep & 1) != 0 and i not in pfset:
+                for i in xrange(64):
+                    if not self.bitrep_lo >> i:
+                        break
+                    elif (self.bitrep_lo & (1 << i)) and i not in pfset:
                         return False
-                    bitrep >>= 1
-                    i += 1
 
-                bitrep = self.bitrep_hi
-                while bitrep != 0:
-                    if (bitrep & 1) != 0 and i not in pfset:
+                for i in xrange(64):
+                    if not self.bitrep_hi >> i:
+                        break
+                    elif (self.bitrep_hi & (1 << i)) and (i + 64) not in pfset:
                         return False
-                    bitrep >>= 1
-                    i += 1
 
                 return not strict_subset or xlen < len(pfset)
 
@@ -2003,9 +2026,10 @@ class proxied_frozenset(object):
                 dcode2, objlen2, itemsize2, offset2, _struct2 = pfset.objlist._metadata()
                 for i in xrange(xlen):
                     val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
-                    j = pfset._search_key(val, dcode, offset, j, seqlen - j, j)
-                    if pfset.objlist._c_getitem(j, dcode2, objlen2, itemsize2, offset2, _struct2, None) != val:
+                    tmp_idx = pfset._search_key(val, dcode, offset, j, seqlen - j, j, True)
+                    if not tmp_idx < seqlen - j:
                         return False
+                    j = tmp_idx
             else:
                 dcode2, objlen2, itemsize2, offset2, _struct2 = pfset.objlist._metadata()
                 for i in xrange(xlen):
@@ -2032,19 +2056,17 @@ class proxied_frozenset(object):
         elif xlen > len(seq):
             return False
         elif self.objlist is None:
-            bitrep = self.bitrep_lo
-            while bitrep != 0:
-                if (bitrep & 1) != 0 and i not in seq:
+            for i in xrange(64):
+                if not self.bitrep_lo >> i:
+                    break
+                elif (self.bitrep_lo & (1 << i)) and i not in seq:
                     return False
-                bitrep >>= 1
-                i += 1
 
-            bitrep = self.bitrep_hi
-            while bitrep != 0:
-                if (bitrep & 1) != 0 and i not in seq:
+            for i in xrange(64):
+                if not self.bitrep_hi >> i:
+                    break
+                elif (self.bitrep_hi & (1 << i)) and (i + 64) not in seq:
                     return False
-                bitrep >>= 1
-                i += 1
         else:
             dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
             for i in xrange(xlen):
@@ -2508,7 +2530,7 @@ class mapped_object(object):
         proxied_ndarray: 'n',
         proxied_buffer: 'r',
         proxied_dict: 'M',
-        proxied_frozenset: 'O',
+        proxied_frozenset: 'z',
 
         int : 'q',
         long : 'q',
@@ -2559,7 +2581,7 @@ class mapped_object(object):
         'V' : (mapped_date.pack_into, mapped_date.unpack_from, mapped_date),
         'F' : (mapped_decimal.pack_into, mapped_decimal.unpack_from, mapped_decimal),
         'M' : (proxied_dict.pack_into, proxied_dict.unpack_from, proxied_dict),
-        'O' : (proxied_frozenset.pack_into, proxied_frozenset.unpack_from, proxied_frozenset)
+        'z' : (proxied_frozenset.pack_into, proxied_frozenset.unpack_from, proxied_frozenset)
     }
 
     del p
