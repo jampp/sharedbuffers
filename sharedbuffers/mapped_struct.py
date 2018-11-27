@@ -829,7 +829,7 @@ class mapped_list(list):
             if idmap is None:
                 idmap = {}
 
-            unpack_from = _mapped_object.unpack_from
+            unpack_from = _mapped_object_unpack_from
             if klass is set or klass is frozenset:
                 # Will turn recursive references into sets, but recursive references aren't
                 # easy to build with frozensets, so we're cool
@@ -1245,7 +1245,7 @@ class proxied_ndarray(object):
             shape = mapped_tuple.unpack_from(buf, baseoffs + shape_offs)
         else:
             shape = None
-        dtype_params = mapped_object.unpack_from(buf, baseoffs + dtype_offs)
+        dtype_params = _mapped_object_unpack_from(buf, baseoffs + dtype_offs)
 
         data = proxied_buffer.unpack_from(buf, baseoffs + data_offs)
 
@@ -1544,7 +1544,7 @@ class proxied_list(object):
             obj_offs = dataoffs + itemsize * cython.cast(cython.size_t, int(index))
 
         if dcode in ('t', 'T'):
-            res = mapped_object.unpack_from(self.buf, obj_offs, None, proxy_into)
+            res = _mapped_object_unpack_from(self.buf, obj_offs, None, proxy_into)
         elif cython.compiled:
             if dcode == 'B':
                 res = cython.cast(cython.p_uchar,
@@ -2281,12 +2281,14 @@ cython.declare(
     _mapped_object_PACKERS = dict,
     _mapped_object_OBJ_PACKERS = dict,
     _mapped_object_TYPE_CODES = dict,
+    _mapped_object_unpack_from = object,
 )
 
 _mapped_object = mapped_object
 _mapped_object_PACKERS = _mapped_object.PACKERS
 _mapped_object_OBJ_PACKERS = _mapped_object.OBJ_PACKERS
 _mapped_object_TYPE_CODES = _mapped_object.TYPE_CODES
+_mapped_object_unpack_from = _mapped_object.unpack_from
 
 VARIABLE_TYPES = {
     frozenset : mapped_frozenset,
@@ -5362,7 +5364,7 @@ class ObjectIdMapper(_CZipMapBase):
                 # sign-extend
                 sindex <<= 64 - self._dtype_bits
                 sindex >>= 64 - self._dtype_bits
-        return mapped_object.unpack_from(buf, pos + sindex)
+        return _mapped_object_unpack_from(buf, pos + sindex)
 
     @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer')
     def iterkeys(self, make_sequential = False):
