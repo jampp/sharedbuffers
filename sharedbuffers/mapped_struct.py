@@ -1584,6 +1584,7 @@ class proxied_list(object):
     def _make_empty(self):
         return []
 
+    @cython.locals(start = cython.Py_ssize_t, end = cython.Py_ssize_t, step = cython.Py_ssize_t)
     def __getitem__(self, index):
         if isinstance(index, slice):
             xlen = len(self)
@@ -1596,13 +1597,11 @@ class proxied_list(object):
             if (step < 0 and end >= start) or (step >= 0 and start >= end):
                 return self._make_empty()
 
-            return proxied_tuple(
-                buf = self.buf,
-                offs = self.offs,
-                idmap = None,
-                elem_start = start,
-                elem_end = end,
-                elem_step = step)
+            return type(self)(
+                self.buf,
+                self.offs,
+                None,
+                start, end, step)
 
         return self._getitem(index)
 
