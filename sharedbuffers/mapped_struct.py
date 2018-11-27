@@ -2416,6 +2416,11 @@ class BaseBufferProxyProperty(object):
     def __init__(self, offs, mask):
         self.offs = offs
         self.mask = mask
+        self._init_impl()
+
+    @cython.cfunc
+    def _init_impl(self):
+        pass
 
     def __set__(self, obj, value):
         raise TypeError("Proxy objects are read-only")
@@ -2704,6 +2709,14 @@ class MissingBufferProxyProperty(BaseBufferProxyProperty):
 class GenericBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
 
+    cython.declare(
+        _unpack_from = object,
+    )
+
+    @cython.cfunc
+    def _init_impl(self):
+        self._unpack_from = self.typ.unpack_from
+
     @cython.locals(obj = BufferProxyObject, offs = cython.Py_ssize_t, buflen = cython.ulonglong, pybuf = 'Py_buffer*',
         poffs = object)
     def __get__(self, obj, klass):
@@ -2729,7 +2742,7 @@ class GenericBufferProxyProperty(BaseBufferProxyProperty):
             assert offs + cython.sizeof(cython.ushort) <= buflen
         else:
             poffs = offs = obj.offs + struct.unpack_from('q', obj.buf, obj.offs + self.offs)[0]
-        rv = self.typ.unpack_from(obj.buf, offs)
+        rv = self._unpack_from(obj.buf, offs)
         if obj.idmap is not None:
             obj.idmap[poffs] = rv
         return rv
