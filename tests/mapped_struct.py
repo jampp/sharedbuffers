@@ -1631,6 +1631,10 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
         self.assertTrue(big >= small)
         self.assertFalse(big > big)
 
+        big = self.pack([1L, 2L, 3L])
+        self.assertTrue(small < big)
+        self.assertTrue(small <= big)
+
     def testNonNumeric(self):
         small = self.pack(["aa", "bb", "cc"])
         big = self.pack(["aa", "ab", "bb", "bc", "cc", "cd"])
