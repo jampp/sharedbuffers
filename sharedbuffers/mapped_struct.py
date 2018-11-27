@@ -1832,6 +1832,7 @@ class proxied_frozenset(object):
         else:
             raise NotImplementedError("Unsupported data type for fast lookup: %s" % chr(dcode))
 
+    @cython.cfunc
     @cython.locals(eint=cython.ulonglong)
     def _contains_compressed(self, elem):
         try:
