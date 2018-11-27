@@ -4421,251 +4421,114 @@ def sorted_contains(a, hkey):
     return ix < hi
 
 if cython.compiled:
-    #@cython.cfunc
+
+    @cython.nogil
+    @cython.cfunc
+    @cython.returns(cython.size_t)
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.ulonglong,
+        stride0 = cython.size_t, ref = numeric_A,
         pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
         pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    def _c_merge_gen(ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         # Main merge
         pend1 = pindex1 + stride0 * length1
         pend2 = pindex2 + stride0 * length2
         pdestend = pdest + stride0 * destlength
         pdeststart = pdest
         while pindex1 < pend1 and pindex2 < pend2 and pdest < pdestend:
-            ref = cython.cast(cython.p_ulonglong, pindex2)[0]
-            while pindex1 < pend1 and cython.cast(cython.p_ulonglong, pindex1)[0] <= ref and pdest < pdestend:
-                cython.cast(cython.p_ulonglong, pdest)[0] = cython.cast(cython.p_ulonglong, pindex1)[0]
-                cython.cast(cython.p_ulonglong, pdest)[1] = cython.cast(cython.p_ulonglong, pindex1)[1]
+            ref = cython.cast('numeric_A *', pindex2)[0]
+            while pindex1 < pend1 and cython.cast('numeric_A *', pindex1)[0] <= ref and pdest < pdestend:
+                cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex1)[0]
+                cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex1)[1]
                 pdest += stride0
                 pindex1 += stride0
             if pindex1 < pend1:
-                ref = cython.cast(cython.p_ulonglong, pindex1)[0]
-                while pindex2 < pend2 and cython.cast(cython.p_ulonglong, pindex2)[0] <= ref and pdest < pdestend:
-                    cython.cast(cython.p_ulonglong, pdest)[0] = cython.cast(cython.p_ulonglong, pindex2)[0]
-                    cython.cast(cython.p_ulonglong, pdest)[1] = cython.cast(cython.p_ulonglong, pindex2)[1]
+                ref = cython.cast('numeric_A *', pindex1)[0]
+                while pindex2 < pend2 and cython.cast('numeric_A *', pindex2)[0] <= ref and pdest < pdestend:
+                    cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex2)[0]
+                    cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex2)[1]
                     pdest += stride0
                     pindex2 += stride0
 
         # Copy leftover tails
         while pindex1 < pend1 and pdest < pdestend:
-            cython.cast(cython.p_ulonglong, pdest)[0] = cython.cast(cython.p_ulonglong, pindex1)[0]
-            cython.cast(cython.p_ulonglong, pdest)[1] = cython.cast(cython.p_ulonglong, pindex1)[1]
+            cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex1)[0]
+            cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex1)[1]
             pdest += stride0
             pindex1 += stride0
         while pindex2 < pend2 and pdest < pdestend:
-            cython.cast(cython.p_ulonglong, pdest)[0] = cython.cast(cython.p_ulonglong, pindex2)[0]
-            cython.cast(cython.p_ulonglong, pdest)[1] = cython.cast(cython.p_ulonglong, pindex2)[1]
+            cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex2)[0]
+            cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex2)[1]
             pdest += stride0
             pindex2 += stride0
         return (pdest - pdeststart) / stride0
+
+    #@cython.cfunc
+    @cython.locals(
+        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+        stride0 = cython.size_t, ref = cython.ulonglong,
+        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+    #@cython.returns(cython.size_t)
+    def _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+        ref = 0
+        return _c_merge_gen[cython.ulonglong](
+            ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0)
 
     #@cython.cfunc
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
         stride0 = cython.size_t, ref = cython.longlong,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
-        pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char)
+        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
     #@cython.returns(cython.size_t)
     def _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        # Main merge
-        pend1 = pindex1 + stride0 * length1
-        pend2 = pindex2 + stride0 * length2
-        pdestend = pdest + stride0 * destlength
-        pdeststart = pdest
-        while pindex1 < pend1 and pindex2 < pend2 and pdest < pdestend:
-            ref = cython.cast(cython.p_longlong, pindex2)[0]
-            while pindex1 < pend1 and cython.cast(cython.p_longlong, pindex1)[0] <= ref and pdest < pdestend:
-                cython.cast(cython.p_longlong, pdest)[0] = cython.cast(cython.p_longlong, pindex1)[0]
-                cython.cast(cython.p_longlong, pdest)[1] = cython.cast(cython.p_longlong, pindex1)[1]
-                pdest += stride0
-                pindex1 += stride0
-            if pindex1 < pend1:
-                ref = cython.cast(cython.p_longlong, pindex1)[0]
-                while pindex2 < pend2 and cython.cast(cython.p_longlong, pindex2)[0] <= ref and pdest < pdestend:
-                    cython.cast(cython.p_longlong, pdest)[0] = cython.cast(cython.p_longlong, pindex2)[0]
-                    cython.cast(cython.p_longlong, pdest)[1] = cython.cast(cython.p_longlong, pindex2)[1]
-                    pdest += stride0
-                    pindex2 += stride0
-
-        # Copy leftover tails
-        while pindex1 < pend1 and pdest < pdestend:
-            cython.cast(cython.p_longlong, pdest)[0] = cython.cast(cython.p_longlong, pindex1)[0]
-            cython.cast(cython.p_longlong, pdest)[1] = cython.cast(cython.p_longlong, pindex1)[1]
-            pdest += stride0
-            pindex1 += stride0
-        while pindex2 < pend2 and pdest < pdestend:
-            cython.cast(cython.p_longlong, pdest)[0] = cython.cast(cython.p_longlong, pindex2)[0]
-            cython.cast(cython.p_longlong, pdest)[1] = cython.cast(cython.p_longlong, pindex2)[1]
-            pdest += stride0
-            pindex2 += stride0
-        return (pdest - pdeststart) / stride0
+        ref = 0
+        return _c_merge_gen[cython.longlong](
+            ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0)
 
     #@cython.cfunc
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
         stride0 = cython.size_t, ref = cython.uint,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
-        pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char)
+        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
     #@cython.returns(cython.size_t)
     def _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        # Main merge
-        pend1 = pindex1 + stride0 * length1
-        pend2 = pindex2 + stride0 * length2
-        pdestend = pdest + stride0 * destlength
-        pdeststart = pdest
-        while pindex1 < pend1 and pindex2 < pend2 and pdest < pdestend:
-            ref = cython.cast(cython.p_uint, pindex2)[0]
-            while pindex1 < pend1 and cython.cast(cython.p_uint, pindex1)[0] <= ref and pdest < pdestend:
-                cython.cast(cython.p_uint, pdest)[0] = cython.cast(cython.p_uint, pindex1)[0]
-                cython.cast(cython.p_uint, pdest)[1] = cython.cast(cython.p_uint, pindex1)[1]
-                pdest += stride0
-                pindex1 += stride0
-            if pindex1 < pend1:
-                ref = cython.cast(cython.p_uint, pindex1)[0]
-                while pindex2 < pend2 and cython.cast(cython.p_uint, pindex2)[0] <= ref and pdest < pdestend:
-                    cython.cast(cython.p_uint, pdest)[0] = cython.cast(cython.p_uint, pindex2)[0]
-                    cython.cast(cython.p_uint, pdest)[1] = cython.cast(cython.p_uint, pindex2)[1]
-                    pdest += stride0
-                    pindex2 += stride0
-
-        # Copy leftover tails
-        while pindex1 < pend1 and pdest < pdestend:
-            cython.cast(cython.p_uint, pdest)[0] = cython.cast(cython.p_uint, pindex1)[0]
-            cython.cast(cython.p_uint, pdest)[1] = cython.cast(cython.p_uint, pindex1)[1]
-            pdest += stride0
-            pindex1 += stride0
-        while pindex2 < pend2 and pdest < pdestend:
-            cython.cast(cython.p_uint, pdest)[0] = cython.cast(cython.p_uint, pindex2)[0]
-            cython.cast(cython.p_uint, pdest)[1] = cython.cast(cython.p_uint, pindex2)[1]
-            pdest += stride0
-            pindex2 += stride0
-        return (pdest - pdeststart) / stride0
+        ref = 0
+        return _c_merge_gen[cython.uint](
+            ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0)
 
     #@cython.cfunc
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
         stride0 = cython.size_t, ref = cython.int,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
-        pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char)
+        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
     #@cython.returns(cython.size_t)
     def _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        # Main merge
-        pend1 = pindex1 + stride0 * length1
-        pend2 = pindex2 + stride0 * length2
-        pdestend = pdest + stride0 * destlength
-        pdeststart = pdest
-        while pindex1 < pend1 and pindex2 < pend2 and pdest < pdestend:
-            ref = cython.cast(cython.p_int, pindex2)[0]
-            while pindex1 < pend1 and cython.cast(cython.p_int, pindex1)[0] <= ref and pdest < pdestend:
-                cython.cast(cython.p_int, pdest)[0] = cython.cast(cython.p_int, pindex1)[0]
-                cython.cast(cython.p_int, pdest)[1] = cython.cast(cython.p_int, pindex1)[1]
-                pdest += stride0
-                pindex1 += stride0
-            if pindex1 < pend1:
-                ref = cython.cast(cython.p_int, pindex1)[0]
-                while pindex2 < pend2 and cython.cast(cython.p_int, pindex2)[0] <= ref and pdest < pdestend:
-                    cython.cast(cython.p_int, pdest)[0] = cython.cast(cython.p_int, pindex2)[0]
-                    cython.cast(cython.p_int, pdest)[1] = cython.cast(cython.p_int, pindex2)[1]
-                    pdest += stride0
-                    pindex2 += stride0
-
-        # Copy leftover tails
-        while pindex1 < pend1 and pdest < pdestend:
-            cython.cast(cython.p_int, pdest)[0] = cython.cast(cython.p_int, pindex1)[0]
-            cython.cast(cython.p_int, pdest)[1] = cython.cast(cython.p_int, pindex1)[1]
-            pdest += stride0
-            pindex1 += stride0
-        while pindex2 < pend2 and pdest < pdestend:
-            cython.cast(cython.p_int, pdest)[0] = cython.cast(cython.p_int, pindex2)[0]
-            cython.cast(cython.p_int, pdest)[1] = cython.cast(cython.p_int, pindex2)[1]
-            pdest += stride0
-            pindex2 += stride0
-        return (pdest - pdeststart) / stride0
+        ref = 0
+        return _c_merge_gen[cython.int](
+            ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0)
 
     #@cython.cfunc
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
         stride0 = cython.size_t, ref = cython.double,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
-        pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char)
+        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
     #@cython.returns(cython.size_t)
     def _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        # Main merge
-        pend1 = pindex1 + stride0 * length1
-        pend2 = pindex2 + stride0 * length2
-        pdestend = pdest + stride0 * destlength
-        pdeststart = pdest
-        while pindex1 < pend1 and pindex2 < pend2 and pdest < pdestend:
-            ref = cython.cast(cython.p_double, pindex2)[0]
-            while pindex1 < pend1 and cython.cast(cython.p_double, pindex1)[0] <= ref and pdest < pdestend:
-                cython.cast(cython.p_double, pdest)[0] = cython.cast(cython.p_double, pindex1)[0]
-                cython.cast(cython.p_double, pdest)[1] = cython.cast(cython.p_double, pindex1)[1]
-                pdest += stride0
-                pindex1 += stride0
-            if pindex1 < pend1:
-                ref = cython.cast(cython.p_double, pindex1)[0]
-                while pindex2 < pend2 and cython.cast(cython.p_double, pindex2)[0] <= ref and pdest < pdestend:
-                    cython.cast(cython.p_double, pdest)[0] = cython.cast(cython.p_double, pindex2)[0]
-                    cython.cast(cython.p_double, pdest)[1] = cython.cast(cython.p_double, pindex2)[1]
-                    pdest += stride0
-                    pindex2 += stride0
-
-        # Copy leftover tails
-        while pindex1 < pend1 and pdest < pdestend:
-            cython.cast(cython.p_double, pdest)[0] = cython.cast(cython.p_double, pindex1)[0]
-            cython.cast(cython.p_double, pdest)[1] = cython.cast(cython.p_double, pindex1)[1]
-            pdest += stride0
-            pindex1 += stride0
-        while pindex2 < pend2 and pdest < pdestend:
-            cython.cast(cython.p_double, pdest)[0] = cython.cast(cython.p_double, pindex2)[0]
-            cython.cast(cython.p_double, pdest)[1] = cython.cast(cython.p_double, pindex2)[1]
-            pdest += stride0
-            pindex2 += stride0
-        return (pdest - pdeststart) / stride0
+        ref = 0
+        return _c_merge_gen[cython.double](
+            ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0)
 
     #@cython.cfunc
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
         stride0 = cython.size_t, ref = cython.float,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
-        pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char)
+        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
     #@cython.returns(cython.size_t)
     def _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        # Main merge
-        pend1 = pindex1 + stride0 * length1
-        pend2 = pindex2 + stride0 * length2
-        pdestend = pdest + stride0 * destlength
-        pdeststart = pdest
-        while pindex1 < pend1 and pindex2 < pend2 and pdest < pdestend:
-            ref = cython.cast(cython.p_float, pindex2)[0]
-            while pindex1 < pend1 and cython.cast(cython.p_float, pindex1)[0] <= ref and pdest < pdestend:
-                cython.cast(cython.p_float, pdest)[0] = cython.cast(cython.p_float, pindex1)[0]
-                cython.cast(cython.p_float, pdest)[1] = cython.cast(cython.p_float, pindex1)[1]
-                pdest += stride0
-                pindex1 += stride0
-            if pindex1 < pend1:
-                ref = cython.cast(cython.p_float, pindex1)[0]
-                while pindex2 < pend2 and cython.cast(cython.p_float, pindex2)[0] <= ref and pdest < pdestend:
-                    cython.cast(cython.p_float, pdest)[0] = cython.cast(cython.p_float, pindex2)[0]
-                    cython.cast(cython.p_float, pdest)[1] = cython.cast(cython.p_float, pindex2)[1]
-                    pdest += stride0
-                    pindex2 += stride0
-
-        # Copy leftover tails
-        while pindex1 < pend1 and pdest < pdestend:
-            cython.cast(cython.p_float, pdest)[0] = cython.cast(cython.p_float, pindex1)[0]
-            cython.cast(cython.p_float, pdest)[1] = cython.cast(cython.p_float, pindex1)[1]
-            pdest += stride0
-            pindex1 += stride0
-        while pindex2 < pend2 and pdest < pdestend:
-            cython.cast(cython.p_float, pdest)[0] = cython.cast(cython.p_float, pindex2)[0]
-            cython.cast(cython.p_float, pdest)[1] = cython.cast(cython.p_float, pindex2)[1]
-            pdest += stride0
-            pindex2 += stride0
-        return (pdest - pdeststart) / stride0
+        ref = 0
+        return _c_merge_gen[cython.float](
+            ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0)
 
     # Commented cython directives in pxd
     #@cython.ccall
