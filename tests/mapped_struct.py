@@ -1226,13 +1226,13 @@ class BsearchTest(unittest.TestCase):
         SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
             numpy.double, numpy.single, numpy.float64, numpy.float32 ]
 
-        UNSUPPORTED_DTYPES = [ numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
+        UNSUPPORTED_DTYPES = [ numpy.complex ]
     else:
         SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
             numpy.double, numpy.single, numpy.float64, numpy.float32,
             numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
 
-        UNSUPPORTED_DTYPES = []
+        UNSUPPORTED_DTYPES = [ numpy.complex ]
 
     for dtype in SUPPORTED_DTYPES:
         def testBsearch(self, dtype=dtype):
@@ -1287,7 +1287,7 @@ class MergeTest(unittest.TestCase):
         SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
             numpy.double, numpy.single, numpy.float64, numpy.float32 ]
 
-        UNSUPPORTED_DTYPES = [ numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
+        UNSUPPORTED_DTYPES = []
     else:
         SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
             numpy.double, numpy.single, numpy.float64, numpy.float32,
