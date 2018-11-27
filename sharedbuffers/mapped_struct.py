@@ -1878,7 +1878,6 @@ class proxied_frozenset(object):
                     mid -= 1
 
                 mid = lo + ((hi - lo) >> 1)
-                hi = len(self.objlist)
                 while mid < hi:
                     val = self.objlist._c_getitem(mid, dcode, objlen, itemsize, offset, _struct, None)
                     h1 = _stable_hash(val)
@@ -1902,17 +1901,19 @@ class proxied_frozenset(object):
             for i in xrange(len(self)):
                 yield self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
         else:
-            for i in xrange(64):
-                if self.bitrep_lo & (1 << i):
-                    yield i
-                elif not self.bitrep_lo >> i:
-                    break
+            if self.bitrep_lo:
+                for i in xrange(64):
+                    if self.bitrep_lo & (1 << i):
+                        yield i
+                    elif not self.bitrep_lo >> i:
+                        break
 
-            for i in xrange(64):
-                if self.bitrep_hi & (1 << i):
-                    yield i + 64
-                elif not self.bitrep_hi >> i:
-                    break
+            if self.bitrep_hi:
+                for i in xrange(64):
+                    if self.bitrep_hi & (1 << i):
+                        yield i + 64
+                    elif not self.bitrep_hi >> i:
+                        break
 
     def union(self, *seqs):
         return frozenset(self).union(*seqs)
@@ -1941,17 +1942,19 @@ class proxied_frozenset(object):
         if not isinstance(x, (set, frozenset)) or xlen != len(x):
             return False
         elif self.objlist is None:
-            for i in xrange(64):
-                if not self.bitrep_lo >> i:
-                    break
-                elif (self.bitrep_lo & (1 << i)) and i not in x:
-                    return False
+            if self.bitrep_lo:
+                for i in xrange(64):
+                    if not self.bitrep_lo >> i:
+                        break
+                    elif (self.bitrep_lo & (1 << i)) and i not in x:
+                        return False
 
-            for i in xrange(64):
-                if not self.bitrep_hi >> i:
-                    break
-                elif (self.bitrep_hi & (1 << i)) and (i + 64) not in x:
-                    return False
+            if self.bitrep_hi:
+                for i in xrange(64):
+                    if not self.bitrep_hi >> i:
+                        break
+                    elif (self.bitrep_hi & (1 << i)) and (i + 64) not in x:
+                        return False
 
             return True
 
@@ -1989,7 +1992,7 @@ class proxied_frozenset(object):
                         not strict_subset or self.bitlen < pfset.bitlen)
                 else:
                     dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
-                    if dcode not in ('q', 'I', 'i', 'd'):
+                    if dcode in ('t', 'T'):
                         # non-numeric typecode
                         return False
 
@@ -2000,17 +2003,19 @@ class proxied_frozenset(object):
                     return not strict_subset or xlen < pfset.bitlen
 
             elif self.objlist is None:
-                for i in xrange(64):
-                    if not self.bitrep_lo >> i:
-                        break
-                    elif (self.bitrep_lo & (1 << i)) and i not in pfset:
-                        return False
+                if self.bitrep_lo:
+                    for i in xrange(64):
+                        if not self.bitrep_lo >> i:
+                            break
+                        elif (self.bitrep_lo & (1 << i)) and i not in pfset:
+                            return False
 
-                for i in xrange(64):
-                    if not self.bitrep_hi >> i:
-                        break
-                    elif (self.bitrep_hi & (1 << i)) and (i + 64) not in pfset:
-                        return False
+                if self.bitrep_hi:
+                    for i in xrange(64):
+                        if not self.bitrep_hi >> i:
+                            break
+                        elif (self.bitrep_hi & (1 << i)) and (i + 64) not in pfset:
+                            return False
 
                 return not strict_subset or xlen < len(pfset)
 
@@ -2027,7 +2032,7 @@ class proxied_frozenset(object):
                 for i in xrange(xlen):
                     val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
                     tmp_idx = pfset._search_key(val, dcode, offset, j, seqlen - j, j, True)
-                    if not tmp_idx < seqlen - j:
+                    if tmp_idx >= seqlen - j:
                         return False
                     j = tmp_idx
             else:
@@ -2056,17 +2061,19 @@ class proxied_frozenset(object):
         elif xlen > len(seq):
             return False
         elif self.objlist is None:
-            for i in xrange(64):
-                if not self.bitrep_lo >> i:
-                    break
-                elif (self.bitrep_lo & (1 << i)) and i not in seq:
-                    return False
+            if self.bitrep_lo:
+                for i in xrange(64):
+                    if not self.bitrep_lo >> i:
+                        break
+                    elif (self.bitrep_lo & (1 << i)) and i not in seq:
+                        return False
 
-            for i in xrange(64):
-                if not self.bitrep_hi >> i:
-                    break
-                elif (self.bitrep_hi & (1 << i)) and (i + 64) not in seq:
-                    return False
+            if self.bitrep_hi:
+                for i in xrange(64):
+                    if not self.bitrep_hi >> i:
+                        break
+                    elif (self.bitrep_hi & (1 << i)) and (i + 64) not in seq:
+                        return False
         else:
             dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
             for i in xrange(xlen):
