@@ -39,6 +39,10 @@ npuint64 = cython.declare(object, numpy.uint64)
 npint64 = cython.declare(object, numpy.int64)
 npuint32 = cython.declare(object, numpy.uint32)
 npint32 = cython.declare(object, numpy.int32)
+npuint16 = cython.declare(object, numpy.uint16)
+npint16 = cython.declare(object, numpy.int16)
+npuint8 = cython.declare(object, numpy.uint8)
+npint8 = cython.declare(object, numpy.int8)
 npfloat64 = cython.declare(object, numpy.float64)
 npfloat32 = cython.declare(object, numpy.float32)
 npempty = cython.declare(object, numpy.empty)
@@ -1827,6 +1831,10 @@ class proxied_frozenset(object):
             return _c_search_hkey_ui32(elem, pindex + start * 4, 4, xlen, hint, equal)
         elif dcode == 'i':
             return _c_search_hkey_i32(elem, pindex + start * 4, 4, xlen, hint, equal)
+        elif dcode == 'H':
+            return _c_search_hkey_ui16(elem, pindex + start * 2, 2, xlen, hint, equal)
+        elif dcode == 'h':
+            return _c_search_hkey_i16(elem, pindex + start * 2, 2, xlen, hint, equal)
         elif dcode == 'd':
             return _c_search_hkey_f64(elem, pindex + start * 8, 8, xlen, hint, equal)
         else:
@@ -4387,6 +4395,18 @@ if cython.compiled:
             elif dtype == 'i':
                 # TO-DO: better hints?
                 ix = _c_search_hkey_i32(hkey, pindex, stride0, hi, hint, check_equal)
+            elif dtype == 'H':
+                # TO-DO: better hints?
+                ix = _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, check_equal)
+            elif dtype == 'h':
+                # TO-DO: better hints?
+                ix = _c_search_hkey_i16(hkey, pindex, stride0, hi, hint, check_equal)
+            elif dtype == 'B':
+                # TO-DO: better hints?
+                ix = _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, check_equal)
+            elif dtype == 'b':
+                # TO-DO: better hints?
+                ix = _c_search_hkey_i8(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'd':
                 # TO-DO: better hints?
                 ix = _c_search_hkey_f64(hkey, pindex, stride0, hi, hint, check_equal)
@@ -4464,7 +4484,7 @@ if cython.compiled:
         pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
         pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char,
         ref = numeric_A)
-    def _c_merge_gen(ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    def _c_merge_gen(pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref):
         # Main merge
         pend1 = pindex1 + stride0 * length1
         pend2 = pindex2 + stride0 * length2
@@ -4507,7 +4527,7 @@ if cython.compiled:
     def _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         ref = 0
         return _c_merge_gen[cython.ulonglong](
-            ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
     #@cython.cfunc
     @cython.locals(
@@ -4518,7 +4538,7 @@ if cython.compiled:
     def _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         ref = 0
         return _c_merge_gen[cython.longlong](
-            ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
     #@cython.cfunc
     @cython.locals(
@@ -4529,7 +4549,7 @@ if cython.compiled:
     def _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         ref = 0
         return _c_merge_gen[cython.uint](
-            ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
     #@cython.cfunc
     @cython.locals(
@@ -4540,7 +4560,7 @@ if cython.compiled:
     def _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         ref = 0
         return _c_merge_gen[cython.int](
-            ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
     #@cython.cfunc
     @cython.locals(
@@ -4551,7 +4571,7 @@ if cython.compiled:
     def _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         ref = 0
         return _c_merge_gen[cython.double](
-            ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
     #@cython.cfunc
     @cython.locals(
@@ -4562,7 +4582,7 @@ if cython.compiled:
     def _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         ref = 0
         return _c_merge_gen[cython.float](
-            ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
     # Commented cython directives in pxd
     #@cython.ccall
@@ -4960,7 +4980,7 @@ class NumericIdMapper(_CZipMapBase):
             return hi
         if cython.compiled:
             dtype = self._dtype
-            if dtype is npuint64 or dtype is npuint32:
+            if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
                 #lint:disable
                 PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
                 try:
@@ -4978,6 +4998,14 @@ class NumericIdMapper(_CZipMapBase):
                         # TO-DO: better hints?
                         hint = (lo+hi)//2
                         return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
+                    elif dtype is npuint16:
+                        # TO-DO: better hints?
+                        hint = (lo+hi)//2
+                        return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
+                    elif dtype is npuint8:
+                        # TO-DO: better hints?
+                        hint = (lo+hi)//2
+                        return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
                     else:
                         raise AssertionError("Internal error")
                 finally:
@@ -5515,7 +5543,7 @@ class ObjectIdMapper(_CZipMapBase):
         lo = 0
         if cython.compiled:
             dtype = self._dtype
-            if dtype is npuint64 or dtype is npuint32:
+            if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
                 #lint:disable
                 PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
                 try:
@@ -5533,6 +5561,12 @@ class ObjectIdMapper(_CZipMapBase):
                         # A quick guess assuming uniform distribution of keys over the 64-bit value range
                         hint = ((hkey * (hi-lo)) >> 32) + lo
                         return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
+                    elif dtype is npuint16:
+                        hint = ((hkey * (hi-lo)) >> 32) + lo
+                        return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
+                    elif dtype is npuint8:
+                        hint = ((hkey * (hi-lo)) >> 32) + lo
+                        return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
                     else:
                         raise AssertionError("Internal error")
                 finally:
@@ -6015,7 +6049,7 @@ class StringIdMapper(_CZipMapBase):
         lo = 0
         if cython.compiled:
             dtype = self._dtype
-            if dtype is npuint64 or dtype is npuint32:
+            if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
                 #lint:disable
                 PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
                 try:
@@ -6033,6 +6067,12 @@ class StringIdMapper(_CZipMapBase):
                         # A quick guess assuming uniform distribution of keys over the 64-bit value range
                         hint = ((hkey * (hi-lo)) >> 32) + lo
                         return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
+                    elif dtype is npuint16:
+                        hint = ((hkey * (hi-lo)) >> 32) + lo
+                        return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
+                    elif dtype is npuint8:
+                        hint = ((hkey * (hi-lo)) >> 32) + lo
+                        return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
                     else:
                         raise AssertionError("Internal error")
                 finally:
