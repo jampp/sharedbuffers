@@ -4215,6 +4215,7 @@ if cython.compiled:
         elif hkey > cython.cast('numeric_B *', pindex + stride0 * (hi-1))[0]:
             return hi
 
+        elem = cython.cast(cython.typeof(elem), hkey)
         if lo < hi:
             # First iteration a quick guess assuming uniform distribution of keys
             mid = min(hint, hi-1)
@@ -4224,19 +4225,19 @@ if cython.compiled:
                 lo = mid = mid+1
                 skip = 32
                 while skip > 0 and mid + skip < hi:
-                    if cython.cast('numeric_B *', pindex + stride0 * (mid+skip))[0] < hkey:
+                    if cython.cast('numeric_B *', pindex + stride0 * (mid+skip))[0] < elem:
                         lo = mid+1
                         mid += skip
                         skip *= 2
                     else:
                         hi = mid + skip
                         break
-            elif mkey > hkey:
+            elif mkey > elem:
                 # Got a hi guess, now skip-search backwards for a lo
                 hi = mid
                 skip = 32
                 while skip > 0 and mid > lo + skip:
-                    if cython.cast('numeric_B *', pindex + stride0 * (mid-skip))[0] > hkey:
+                    if cython.cast('numeric_B *', pindex + stride0 * (mid-skip))[0] > elem:
                         hi = mid
                         mid -= skip
                         skip *= 2
@@ -4246,23 +4247,23 @@ if cython.compiled:
             else:
                 # hit, but must find the first
                 # good idea to go sequential because we assume collisions are unlikely
-                while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == hkey:
+                while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
                     mid -= 1
                 return mid
         # Final stretch: search the remaining range with a regular binary search
         while lo < hi:
             mid = (lo+hi)//2
             mkey = cython.cast('numeric_B *', pindex + stride0 * mid)[0]
-            if mkey < hkey:
+            if mkey < elem:
                 lo = mid+1
-            elif mkey > hkey:
+            elif mkey > elem:
                 hi = mid
             else:
-                while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == hkey:
+                while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
                     mid -= 1
                 return mid
         # Check equality if requested
-        if check_equal and lo < length and cython.cast('numeric_B *', pindex + stride0 * lo)[0] != hkey:
+        if check_equal and lo < length and cython.cast('numeric_B *', pindex + stride0 * lo)[0] != elem:
             lo = length
         return lo
 
@@ -4295,6 +4296,38 @@ if cython.compiled:
         pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
         hint = cython.size_t, check_equal = cython.bint)
     def _c_search_hkey_i32(hkey, pindex, stride0, length, hint, check_equal):
+        elem = 0
+        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+    @cython.cfunc
+    @cython.locals(hkey = cython.ulonglong, elem = cython.ushort,
+        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+        hint = cython.size_t, check_equal = cython.bint)
+    def _c_search_hkey_ui16(hkey, pindex, stride0, length, hint, check_equal):
+        elem = 0
+        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+    @cython.cfunc
+    @cython.locals(hkey = cython.longlong, elem = cython.short,
+        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+        hint = cython.size_t, check_equal = cython.bint)
+    def _c_search_hkey_i16(hkey, pindex, stride0, length, hint, check_equal):
+        elem = 0
+        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+    @cython.cfunc
+    @cython.locals(hkey = cython.ulonglong, elem = cython.uchar,
+        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+        hint = cython.size_t, check_equal = cython.bint)
+    def _c_search_hkey_ui8(hkey, pindex, stride0, length, hint, check_equal):
+        elem = 0
+        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+    @cython.cfunc
+    @cython.locals(hkey = cython.longlong, elem = cython.char,
+        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+        hint = cython.size_t, check_equal = cython.bint)
+    def _c_search_hkey_i8(hkey, pindex, stride0, length, hint, check_equal):
         elem = 0
         return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
@@ -4427,9 +4460,10 @@ if cython.compiled:
     @cython.returns(cython.size_t)
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = numeric_A,
+        stride0 = cython.size_t,
         pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
-        pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char)
+        pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char,
+        ref = numeric_A)
     def _c_merge_gen(ref, pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         # Main merge
         pend1 = pindex1 + stride0 * length1
