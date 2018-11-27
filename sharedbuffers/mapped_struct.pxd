@@ -27,6 +27,18 @@ cdef size_t _c_merge_ui32(
 cdef size_t _c_merge_i32(
     char* pindex1, size_t length1, char* pindex2, size_t length2,
     char* pdest, size_t destlength, size_t stride0) nogil except 0xFFFFFFFFFFFFFFFF
+cdef size_t _c_merge_ui16(
+    char* pindex1, size_t length1, char* pindex2, size_t length2,
+    char* pdest, size_t destlength, size_t stride0) nogil except 0xFFFFFFFFFFFFFFFF
+cdef size_t _c_merge_i16(
+    char* pindex1, size_t length1, char* pindex2, size_t length2,
+    char* pdest, size_t destlength, size_t stride0) nogil except 0xFFFFFFFFFFFFFFFF
+cdef size_t _c_merge_ui8(
+    char* pindex1, size_t length1, char* pindex2, size_t length2,
+    char* pdest, size_t destlength, size_t stride0) nogil except 0xFFFFFFFFFFFFFFFF
+cdef size_t _c_merge_i8(
+    char* pindex1, size_t length1, char* pindex2, size_t length2,
+    char* pdest, size_t destlength, size_t stride0) nogil except 0xFFFFFFFFFFFFFFFF
 cdef size_t _c_merge_f64(
     char* pindex1, size_t length1, char* pindex2, size_t length2,
     char* pdest, size_t destlength, size_t stride0) nogil except 0xFFFFFFFFFFFFFFFF

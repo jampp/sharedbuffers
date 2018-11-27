@@ -4565,6 +4565,50 @@ if cython.compiled:
     #@cython.cfunc
     @cython.locals(
         length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+        stride0 = cython.size_t, ref = cython.int,
+        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+    #@cython.returns(cython.size_t)
+    def _c_merge_ui16(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+        ref = 0
+        return _c_merge_gen[cython.ushort](
+            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+
+    #@cython.cfunc
+    @cython.locals(
+        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+        stride0 = cython.size_t, ref = cython.int,
+        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+    #@cython.returns(cython.size_t)
+    def _c_merge_i16(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+        ref = 0
+        return _c_merge_gen[cython.short](
+            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+
+    #@cython.cfunc
+    @cython.locals(
+        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+        stride0 = cython.size_t, ref = cython.int,
+        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+    #@cython.returns(cython.size_t)
+    def _c_merge_ui8(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+        ref = 0
+        return _c_merge_gen[cython.uchar](
+            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+
+    #@cython.cfunc
+    @cython.locals(
+        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+        stride0 = cython.size_t, ref = cython.int,
+        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+    #@cython.returns(cython.size_t)
+    def _c_merge_i8(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+        ref = 0
+        return _c_merge_gen[cython.char](
+            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+
+    #@cython.cfunc
+    @cython.locals(
+        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
         stride0 = cython.size_t, ref = cython.double,
         pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
     #@cython.returns(cython.size_t)
@@ -4665,6 +4709,22 @@ if cython.compiled:
                         # TO-DO: better hints?
                         with cython.nogil:
                             return _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                    elif dtype == 'H':
+                        # TO-DO: better hints?
+                        with cython.nogil:
+                            return _c_merge_ui16(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                    elif dtype == 'h':
+                        # TO-DO: better hints?
+                        with cython.nogil:
+                            return _c_merge_i16(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                    elif dtype == 'B':
+                        # TO-DO: better hints?
+                        with cython.nogil:
+                            return _c_merge_ui8(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                    elif dtype == 'b':
+                        # TO-DO: better hints?
+                        with cython.nogil:
+                            return _c_merge_i8(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'd':
                         # TO-DO: better hints?
                         with cython.nogil:
@@ -5022,6 +5082,35 @@ class NumericIdMapper(_CZipMapBase):
             return self.index.view(struct_dt).reshape(self.index.shape[0]).searchsorted(
                 numpy.array([(hkey,0)],dtype=struct_dt))[0]
 
+    @cython.cfunc
+    @cython.locals(elem = numeric_A, indexbuf = 'Py_buffer',
+        pybuf = 'Py_buffer', startpos = int, hkey = cython.ulonglong,
+        stride0 = cython.size_t, stride1 = cython.size_t,
+        pindex = cython.p_char, pindexend = cython.p_char)
+    def _get_gen(self, elem, startpos, hkey):
+        #lint:disable
+        buf = self._likebuf
+        nitems = self.index_elements
+        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+        try:
+            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            try:
+                if (indexbuf.strides == cython.NULL
+                       or indexbuf.ndim < 2
+                       or indexbuf.len < nitems * indexbuf.strides[0]):
+                    raise ValueError("Invalid buffer state")
+                stride0 = indexbuf.strides[0]
+                stride1 = indexbuf.strides[1]
+                pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                if pindex < pindexend and cython.cast('numeric_A *', pindex)[0] == hkey:
+                    return cython.cast('numeric_A *', pindex + stride1)[0]
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
+        finally:
+            PyBuffer_Release(cython.address(pybuf))
+        #lint:enable
+
     @cython.ccall
     @cython.locals(
         hkey = cython.ulonglong, startpos = int, nitems = int, bkey = bytes,
@@ -5039,51 +5128,18 @@ class NumericIdMapper(_CZipMapBase):
             buf = self._buf
             dtype = self._dtype
             if cython.compiled:
-                #lint:disable
-                buf = self._likebuf
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-                try:
-                    if dtype is npuint64:
-                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                        try:
-                            if ( indexbuf.strides == cython.NULL
-                                    or indexbuf.ndim < 2
-                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
-                                raise ValueError("Invalid buffer state")
-                            stride0 = indexbuf.strides[0]
-                            stride1 = indexbuf.strides[1]
-                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
-                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
-                            if pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
-                                return cython.cast(cython.p_ulonglong, pindex + stride1)[0]
-                        finally:
-                            PyBuffer_Release(cython.address(indexbuf))
-                    elif dtype is npuint32:
-                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                        try:
-                            if ( indexbuf.strides == cython.NULL
-                                    or indexbuf.ndim < 2
-                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
-                                raise ValueError("Invalid buffer state")
-                            stride0 = indexbuf.strides[0]
-                            stride1 = indexbuf.strides[1]
-                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
-                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
-                            if pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
-                                return cython.cast(cython.p_uint, pindex + stride1)[0]
-                        finally:
-                            PyBuffer_Release(cython.address(indexbuf))
-                    else:
-                        index = self.index
-                        if startpos < nitems and index[startpos,0] == hkey:
-                            return index[startpos,1]
-                finally:
-                    PyBuffer_Release(cython.address(pybuf))
-                #lint:enable
-            else:
-                index = self.index
-                if startpos < nitems and index[startpos,0] == hkey:
-                    return index[startpos,1]
+                if dtype is npuint64:
+                    return self._get_gen[cython.ulonglong](0, startpos, hkey)
+                elif dtype is npuint32:
+                    return self._get_gen[cython.uint](0, startpos, hkey)
+                elif dtype is npuint16:
+                    return self._get_gen[cython.ushort](0, startpos, hkey)
+                elif dtype is npuint8:
+                    return self._get_gen[cython.uchar](0, startpos, hkey)
+
+            index = self.index
+            if startpos < nitems and index[startpos,0] == hkey:
+                return index[startpos,1]
         return default
 
     @classmethod
@@ -5587,10 +5643,35 @@ class ObjectIdMapper(_CZipMapBase):
         return self._unpack(buf, offs) == key
 
     @cython.ccall
+    @cython.locals(elem = numeric_A, indexbuf = 'Py_buffer', startpos = int,
+        hkey = cython.ulonglong, stride0 = cython.size_t, stride1 = cython.size_t,
+        pindex = cython.p_char, pindexend = cython.p_char)
+    def _get_gen(self, elem, startpos, hkey, key, default):
+        #lint:disable
+        nitems = self.index_elements
+        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+        try:
+            if (indexbuf.strides == cython.NULL
+                   or indexbuf.ndim < 2
+                   or indexbuf.len < nitems * indexbuf.strides[0]):
+                raise ValueError("Invalid buffer state")
+            stride0 = indexbuf.strides[0]
+            stride1 = indexbuf.strides[1]
+            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+            while pindex < pindexend and cython.cast('numeric_A *', pindex)[0] == hkey:
+                if self._compare_keys(self._buf,
+                      cython.cast('numeric_A *', pindex + stride1)[0], key):
+                    return cython.cast('numeric_A *', pindex + 2*stride1)[0]
+                pindex += stride0
+            return default
+        finally:
+            PyBuffer_Release(cython.address(indexbuf))
+        #lint:enable
+
+    @cython.ccall
     @cython.locals(
-        hkey = cython.ulonglong, startpos = int, nitems = int,
-        stride0 = cython.size_t, stride1 = cython.size_t,
-        indexbuf = 'Py_buffer', pindex = cython.p_char)
+        hkey = cython.ulonglong, startpos = int, nitems = int)
     def get(self, key, default = None):
         hkey = _stable_hash(key)
         startpos = self._search_hkey(hkey)
@@ -5599,59 +5680,25 @@ class ObjectIdMapper(_CZipMapBase):
             buf = self._buf
             dtype = self._dtype
             if cython.compiled:
-                #lint:disable
                 buf = self._likebuf
                 if dtype is npuint64:
-                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                    try:
-                        if ( indexbuf.strides == cython.NULL
-                                or indexbuf.ndim < 2
-                                or indexbuf.len < nitems * indexbuf.strides[0] ):
-                            raise ValueError("Invalid buffer state")
-                        stride0 = indexbuf.strides[0]
-                        stride1 = indexbuf.strides[1]
-                        pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
-                        pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
-                        while pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
-                            if self._compare_keys(buf,
-                                  cython.cast(cython.p_ulonglong, pindex + stride1)[0],
-                                  key):
-                                return cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
-                            pindex += stride0
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
+                    return self._get_gen[cython.ulonglong](
+                        0, startpos, hkey, key, default)
                 elif dtype is npuint32:
-                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                    try:
-                        if ( indexbuf.strides == cython.NULL
-                                or indexbuf.ndim < 2
-                                or indexbuf.len < nitems * indexbuf.strides[0] ):
-                            raise ValueError("Invalid buffer state")
-                        stride0 = indexbuf.strides[0]
-                        stride1 = indexbuf.strides[1]
-                        pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
-                        pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
-                        while pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
-                            if self._compare_keys(buf,
-                                     cython.cast(cython.p_uint, pindex + stride1)[0],
-                                     key):
-                                return cython.cast(cython.p_uint, pindex + 2*stride1)[0]
-                            pindex += stride0
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
-                else:
-                    index = self.index
-                    while startpos < nitems and index[startpos,0] == hkey:
-                        if self._compare_keys(buf, self.index[startpos,1], key):
-                            return index[startpos,2]
-                        startpos += 1
-                #lint:enable
-            else:
-                index = self.index
-                while startpos < nitems and index[startpos,0] == hkey:
-                    if self._compare_keys(buf, index[startpos, 1], key):
-                        return index[startpos,2]
-                    startpos += 1
+                    return self._get_gen[cython.uint](
+                        0, startpos, hkey, key, default)
+                elif dtype is npuint16:
+                    return self._get_gen[cython.ushort](
+                        0, startpos, hkey, key, default)
+                elif dtype is npuint8:
+                    return self._get_gen[cython.uchar](
+                        0, startpos, hkey, key, default)
+
+            index = self.index
+            while startpos < nitems and index[startpos,0] == hkey:
+                if self._compare_keys(buf, index[startpos, 1], key):
+                    return index[startpos,2]
+                startpos += 1
         return default
 
     @classmethod
