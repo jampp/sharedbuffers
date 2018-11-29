@@ -6628,7 +6628,8 @@ class StringIdMultiMapper(StringIdMapper):
 
     @cython.locals(
         hkey = cython.ulonglong, startpos = int, nitems = int, bkey = bytes,
-        blen = cython.size_t, pbkey = 'const char *', pybuf = 'Py_buffer')
+        blen = cython.size_t, pbkey = 'const char *', pybuf = 'Py_buffer', indexbuf = 'Py_buffer',
+        stride0 = cython.size_t, stride1 = cython.size_t, pindex = cython.p_char)
     def get_iter(self, key, default = None):
         if not isinstance(key, basestring):
             return
