@@ -4174,6 +4174,10 @@ class MappedArrayProxyBase(_ZipMapBase):
 
 if cython.compiled:
 
+    # We need as many of these definitions as different parameters are
+    # used per-function; otherwise, cython will deduce that they are of
+    # the same type. Sigh ...
+
     numeric_A = cython.fused_type(
         cython.char,
         cython.uchar,
