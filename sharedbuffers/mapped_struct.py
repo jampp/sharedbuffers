@@ -414,7 +414,7 @@ class mapped_frozenset(frozenset):
                 dtype = obj_dtype.char
                 cdtype = cython.cast('const char*', dtype)[0]
                 if cdtype in ('l', 'I', 'i', 'H', 'h', 'B', 'b'):
-                    all_int = 1
+                    all_int = all_intlong = 1
                 elif cdtype == 'L':
                     all_intlong = 1
                 elif cdtype in ('d', 'f'):
@@ -548,7 +548,7 @@ class mapped_tuple(tuple):
         offs = cython.Py_ssize_t, implicit_offs = cython.Py_ssize_t, val_offs = cython.Py_ssize_t,
         i = cython.Py_ssize_t, iminval = cython.longlong, imaxval = cython.longlong)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
-            int = int, type = type, min = min, max = max, array = array.array, id = id):
+            array = array.array):
         baseoffs = offs
         objlen = len(obj)
         if isinstance(obj, npndarray):
@@ -2053,13 +2053,14 @@ class proxied_frozenset(object):
                         else:
                             # pfset[j] < val, skip as much as we can
                             while j < seqlen:
-                                if _stable_hash(pfset.objlist._c_getitem(j, dcode2, objlen2, itemsize2, offset2, _struct2, None)) >= h1:
+                                if _stable_hash(pfset.objlist._c_getitem(
+                                    j, dcode2, objlen2, itemsize2, offset2, _struct2, None)) >= h1:
                                     break
                                 j += 1
                             if j == seqlen:
                                 return False
             return not strict_subset or xlen < seqlen
-        elif xlen > len(seq):
+        elif not hasattr(seq, '__len__') or xlen > len(seq):
             return False
         elif self.objlist is None:
             if self.bitrep_lo:
@@ -2130,10 +2131,10 @@ class proxied_frozenset(object):
         return frozenset(seq).symmetric_difference(self)
 
     def __repr__(self):
-        return "proxied_frozenset(%s)" % str(self)
+        return "proxied_frozenset([%s])" % ",".join(str(x) for x in self)
 
     def __str__(self):
-        return "[%s]" % ",".join(str(x) for x in self)
+        return self.__repr__()
 
 is_cpython = cython.declare(cython.bint, sys.subversion[0] == 'CPython')
 
