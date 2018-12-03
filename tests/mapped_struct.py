@@ -1649,6 +1649,12 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
         self.assertTrue(big >= small)
         self.assertFalse(big > big)
 
+    def testForeign(self):
+        obj = [2., 1, 1.5]
+        small = self.pack(obj)
+        self.assertTrue(small <= set(obj))
+        self.assertTrue(small <= frozenset(obj))
+
 class MappedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest):
     PACKING_CLASS = mapped_struct.mapped_frozenset
     COLLECTION_CLASS = frozenset

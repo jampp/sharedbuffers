@@ -1971,14 +1971,6 @@ class proxied_frozenset(object):
         else:
             return cython.cast(proxied_frozenset, seq)._frozenset_eq(self)
 
-    @staticmethod
-    @cython.locals(xlen=cython.Py_ssize_t)
-    def _safe_len_gt(xlen, obj):
-        try:
-            return xlen > len(obj)
-        except (AttributeError, TypeError):
-            return True
-
     @cython.ccall
     @cython.locals(strict_subset=cython.bint, i=cython.Py_ssize_t,
         j=cython.Py_ssize_t, tmp_idx=cython.Py_ssize_t,
@@ -2068,30 +2060,36 @@ class proxied_frozenset(object):
                             if j == seqlen:
                                 return False
             return not strict_subset or xlen < seqlen
-        elif proxied_frozenset._safe_len_gt(xlen, seq):
+
+        # seq is not a proxied_frozenset
+        try:
+            seqlen = len(seq)
+        except (TypeError, AttributeError):
+            # seq is not a sequence, therefore this operation is meaningless.
             return False
-        elif self.objlist is None:
-            if self.bitrep_lo:
-                for i in xrange(64):
-                    if not self.bitrep_lo >> i:
-                        break
-                    elif (self.bitrep_lo & (1 << i)) and i not in seq:
-                        return False
-
-            if self.bitrep_hi:
-                for i in xrange(64):
-                    if not self.bitrep_hi >> i:
-                        break
-                    elif (self.bitrep_hi & (1 << i)) and (i + 64) not in seq:
-                        return False
         else:
-            dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
-            for i in xrange(xlen):
-                val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
-                if val not in seq:
-                    return False
+            if self.objlist is None:
+                if self.bitrep_lo:
+                    for i in xrange(64):
+                        if not self.bitrep_lo >> i:
+                            break
+                        elif (self.bitrep_lo & (1 << i)) and i not in seq:
+                            return False
 
-        return not strict_subset or xlen < len(seq)
+                if self.bitrep_hi:
+                    for i in xrange(64):
+                        if not self.bitrep_hi >> i:
+                            break
+                        elif (self.bitrep_hi & (1 << i)) and (i + 64) not in seq:
+                            return False
+            else:
+                dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
+                for i in xrange(xlen):
+                    val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
+                    if val not in seq:
+                        return False
+
+            return not strict_subset or xlen < seqlen
 
     def __lt__(self, seq):
         if isinstance(self, proxied_frozenset):
