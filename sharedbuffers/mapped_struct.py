@@ -2558,8 +2558,12 @@ class ULongBufferProxyProperty(BaseBufferProxyProperty):
             return None
         if cython.compiled:
             assert (obj.offs + self.offs + cython.sizeof(cython.ulong)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_ulonglong,
+            rv = cython.cast(cython.p_ulonglong,
                 cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            if rv < cython.cast(cython.ulonglong, 0x7FFFFFFFFFFFFFFF):
+                return cython.cast(cython.longlong, rv)
+            else:
+                return rv
         else:
             return struct.unpack_from('Q', obj.buf, obj.offs + self.offs)[0]
 
