@@ -1971,6 +1971,14 @@ class proxied_frozenset(object):
         else:
             return cython.cast(proxied_frozenset, seq)._frozenset_eq(self)
 
+    @staticmethod
+    @cython.locals(xlen=cython.Py_ssize_t)
+    def _safe_len_gt(xlen, obj):
+        try:
+            return xlen > len(obj)
+        except (AttributeError, TypeError):
+            return True
+
     @cython.ccall
     @cython.locals(strict_subset=cython.bint, i=cython.Py_ssize_t,
         j=cython.Py_ssize_t, tmp_idx=cython.Py_ssize_t,
@@ -2060,7 +2068,7 @@ class proxied_frozenset(object):
                             if j == seqlen:
                                 return False
             return not strict_subset or xlen < seqlen
-        elif not hasattr(seq, '__len__') or xlen > len(seq):
+        elif proxied_frozenset._safe_len_gt(xlen, seq):
             return False
         elif self.objlist is None:
             if self.bitrep_lo:
