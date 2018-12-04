@@ -1825,7 +1825,9 @@ class proxied_frozenset(object):
         start=cython.size_t, xlen=cython.size_t, hint=cython.size_t, equal=cython.bint)
     def _search_key(self, elem, dcode, offset, start, xlen, hint, equal=False):
         pindex = cython.cast(cython.p_char, self.objlist.pybuf.buf) + offset
-        if dcode == 'q':
+        if dcode == 'Q':
+            return _c_search_hkey_ui64(elem, pindex + start * 8, 8, xlen, hint, equal)
+        elif dcode == 'q':
             return _c_search_hkey_i64(elem, pindex + start * 8, 8, xlen, hint, equal)
         elif dcode == 'I':
             return _c_search_hkey_ui32(elem, pindex + start * 4, 4, xlen, hint, equal)
@@ -1835,6 +1837,10 @@ class proxied_frozenset(object):
             return _c_search_hkey_ui16(elem, pindex + start * 2, 2, xlen, hint, equal)
         elif dcode == 'h':
             return _c_search_hkey_i16(elem, pindex + start * 2, 2, xlen, hint, equal)
+        elif dcode == 'B':
+            return _c_search_hkey_ui8(elem, pindex + start, 1, xlen, hint, equal)
+        elif dcode == 'b':
+            return _c_search_hkey_i8(elem, pindex + start, 1, xlen, hint, equal)
         elif dcode == 'd':
             return _c_search_hkey_f64(elem, pindex + start * 8, 8, xlen, hint, equal)
         else:
@@ -1865,7 +1871,7 @@ class proxied_frozenset(object):
         dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
 
         if cython.compiled:
-            if dcode in ('q', 'I', 'i', 'd'):
+            if dcode not in ('t', 'T'):
                 return self._search_key(elem, dcode, offset, lo, hi, hi // 2, True) < hi
 
         h2 = _stable_hash(elem)
@@ -2037,7 +2043,7 @@ class proxied_frozenset(object):
             dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
             dcode2, objlen2, itemsize2, offset2, _struct2 = pfset.objlist._metadata()
 
-            if dcode2 in ('q', 'I', 'i', 'd') and cython.compiled:
+            if dcode2 not in ('t', 'T') and cython.compiled:
                 # fast path, use the search_hkey variants
                 for i in xrange(xlen):
                     val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
@@ -2061,8 +2067,8 @@ class proxied_frozenset(object):
                         else:
                             # pfset[j] < val, skip as much as we can
                             while j < seqlen:
-                                if _stable_hash(pfset.objlist._c_getitem(
-                                    j, dcode2, objlen2, itemsize2, offset2, _struct2, None)) >= h1:
+                                val = pfset.objlist._c_getitem(j, dcode2, objlen2, itemsize2, offset2, _struct2, None)
+                                if _stable_hash(val) >= h1:
                                     break
                                 j += 1
                             if j == seqlen:
