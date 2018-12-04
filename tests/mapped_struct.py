@@ -1222,17 +1222,11 @@ class MappedString32MappingBigTest(MappedString32MappingTest):
     TEST_VALUES = [ v for v in MappedStringMappingTest.TEST_VALUES for i in xrange(64) ]
 
 class BsearchTest(unittest.TestCase):
-    if mapped_struct._cythonized:
-        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
-            numpy.double, numpy.single, numpy.float64, numpy.float32 ]
+    SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
+        numpy.double, numpy.single, numpy.float64, numpy.float32,
+        numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
 
-        UNSUPPORTED_DTYPES = [ numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
-    else:
-        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
-            numpy.double, numpy.single, numpy.float64, numpy.float32,
-            numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
-
-        UNSUPPORTED_DTYPES = []
+    UNSUPPORTED_DTYPES = [ numpy.complex ]
 
     for dtype in SUPPORTED_DTYPES:
         def testBsearch(self, dtype=dtype):
@@ -1283,17 +1277,11 @@ class BsearchTest(unittest.TestCase):
         self.assertEqual(0, mapped_struct.bsearch(a, 6))
 
 class MergeTest(unittest.TestCase):
-    if mapped_struct._cythonized:
-        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
-            numpy.double, numpy.single, numpy.float64, numpy.float32 ]
+    SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
+        numpy.double, numpy.single, numpy.float64, numpy.float32,
+        numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
 
-        UNSUPPORTED_DTYPES = [ numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
-    else:
-        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
-            numpy.double, numpy.single, numpy.float64, numpy.float32,
-            numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
-
-        UNSUPPORTED_DTYPES = []
+    UNSUPPORTED_DTYPES = []
 
     for dtype in SUPPORTED_DTYPES:
         def testMerge(self, dtype=dtype):

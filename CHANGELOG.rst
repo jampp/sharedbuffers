@@ -31,6 +31,7 @@ Added
   through proxied_list s containing objects, by allowing proxy
   reuse and masked iteration. The first one can take a proxy to use,
   while the second one will build its own generic proxy.
+- Use fused types to reduce code bloat and support more integer formats.
 
 Changes
 -------
