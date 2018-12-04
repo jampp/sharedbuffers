@@ -1582,6 +1582,9 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
         self.assertEqual(c.intersection([3., 5., 9.]), frozenset([3., 5.]))
         self.assertEqual(c.difference([2., 4., 8.]), frozenset([1., 3., 5.]))
         self.assertEqual(c.symmetric_difference([1., 8.]), frozenset([2., 3., 4., 5., 8.]))
+        self.assertEqual(c.union(set()), c)
+        self.assertEqual(c.intersection(set()), set())
+        self.assertEqual(c.difference(set()), c)
 
     def testSubsetSuperset(self):
         small = self.pack([1., 2.])
@@ -1589,6 +1592,9 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
         self.assertTrue(small < big)
         self.assertTrue(small <= big)
         self.assertFalse(small < small)
+        self.assertTrue(small <= small)
+        self.assertFalse(small > small)
+        self.assertTrue(small >= small)
         self.assertTrue(big > small)
         self.assertTrue(big >= small)
         self.assertFalse(big > big)
