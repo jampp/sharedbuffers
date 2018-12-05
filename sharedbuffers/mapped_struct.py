@@ -1930,16 +1930,52 @@ class proxied_frozenset(object):
                     elif not self.bitrep_hi >> i:
                         break
 
+    @cython.locals(seqs=tuple, pfset='proxied_frozenset')
     def union(self, *seqs):
+        if not seqs:
+            return self
+        elif self.objlist is None and len(seqs) == 1 and type(seqs[0]) is proxied_frozenset:
+            pfset = cython.cast(proxied_frozenset, seqs[0])
+            if pfset.objlist is None:
+                return proxied_frozenset(
+                    None, self.bitrep_lo | pfset.bitrep_lo, self.bitrep_hi | pfset.bitrep_hi)
+
         return frozenset(self).union(*seqs)
 
+    @cython.locals(seqs=tuple, pfset='proxied_frozenset')
     def intersection(self, *seqs):
+        if not seqs:
+            return self
+        elif self.objlist is None and len(seqs) == 1 and type(seqs[0]) is proxied_frozenset:
+            pfset = cython.cast(proxied_frozenset, seqs[0])
+            if pfset.objlist is None:
+                return proxied_frozenset(
+                    None, self.bitrep_lo & pfset.bitrep_lo, self.bitrep_hi & pfset.bitrep_hi)
+
         return frozenset(self).intersection(*seqs)
 
+    @cython.locals(seqs=tuple, pfset='proxied_frozenset')
     def difference(self, *seqs):
+        if not seqs:
+            return self
+        elif self.objlist is None and len(seqs) == 1 and type(seqs[0]) is proxied_frozenset:
+            pfset = cython.cast(proxied_frozenset, seqs[0])
+            if pfset.objlist is None:
+                return proxied_frozenset(
+                    None, self.bitrep_lo & ~pfset.bitrep_lo, self.bitrep_hi & ~pfset.bitrep_hi)
+
         return frozenset(self).difference(*seqs)
 
+    @cython.locals(seqs=tuple, pfset='proxied_frozenset')
     def symmetric_difference(self, *seqs):
+        if not seqs:
+            return self
+        elif self.objlist is None and len(seqs) == 1 and type(seqs[0]) is proxied_frozenset:
+            pfset = cython.cast(proxied_frozenset, seqs[0])
+            if pfset.objlist is None:
+                return proxied_frozenset(
+                    None, self.bitrep_lo ^ pfset.bitrep_lo, self.bitrep_hi ^ pfset.bitrep_hi)
+
         return frozenset(self).symmetric_difference(*seqs)
 
     @cython.ccall
@@ -1984,6 +2020,9 @@ class proxied_frozenset(object):
             return cython.cast(proxied_frozenset, self)._frozenset_eq(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._frozenset_eq(self)
+
+    def __ne__(self, seq):
+        return not (self == seq)
 
     @cython.ccall
     @cython.locals(strict_subset=cython.bint, i=cython.Py_ssize_t,

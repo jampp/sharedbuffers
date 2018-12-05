@@ -1580,6 +1580,7 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
         c = self.pack([])
         self.assertEqual(c, set())
         self.assertEqual(c, frozenset())
+        self.assertNotIn(3, c)
 
     def testSetOps(self):
         c = self.pack([1., 2., 3., 4., 5.])
@@ -1612,6 +1613,16 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
         small = self.pack([1, 2])
         big = self.pack([1, 2, 3, 4, 5])
 
+        self.assertTrue(small < big)
+        self.assertTrue(small <= big)
+        self.assertFalse(small < small)
+        self.assertTrue(big > small)
+        self.assertTrue(big >= small)
+        self.assertFalse(big > big)
+
+        # Test with the higher bitmap != 0
+        small = self.pack([100, 102, 104])
+        big = self.pack([100, 101, 102, 103, 104, 105])
         self.assertTrue(small < big)
         self.assertTrue(small <= big)
         self.assertFalse(small < small)
