@@ -1584,13 +1584,19 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
 
     def testSetOps(self):
         c = self.pack([1., 2., 3., 4., 5.])
-        self.assertEqual(c.union([3., 6.]), frozenset([1., 2., 3., 4., 5., 6.]))
-        self.assertEqual(c.intersection([3., 5., 9.]), frozenset([3., 5.]))
-        self.assertEqual(c.difference([2., 4., 8.]), frozenset([1., 3., 5.]))
-        self.assertEqual(c.symmetric_difference([1., 8.]), frozenset([2., 3., 4., 5., 8.]))
+        self.assertEqual(c.union(set([3., 6.])), frozenset([1., 2., 3., 4., 5., 6.]))
+        self.assertEqual(c.intersection(set([3., 5., 9.])), frozenset([3., 5.]))
+        self.assertEqual(c.difference(set([2., 4., 8.])), frozenset([1., 3., 5.]))
+        self.assertEqual(c.symmetric_difference(set([1., 8.])), frozenset([2., 3., 4., 5., 8.]))
         self.assertEqual(c.union(set()), c)
         self.assertEqual(c.intersection(set()), set())
         self.assertEqual(c.difference(set()), c)
+
+        c = self.pack([1, 101, 70])
+        self.assertEqual(c & c, c)
+        self.assertEqual(c | self.pack([2, 102]), self.pack([1, 2, 70, 101, 102]))
+        self.assertNotIn(101, c - self.pack([101]))
+        self.assertEqual(c ^ c, self.pack([]))
 
     def testSubsetSuperset(self):
         small = self.pack([1., 2.])
