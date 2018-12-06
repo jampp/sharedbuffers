@@ -1918,27 +1918,53 @@ class proxied_frozenset(object):
         else:
             if self.bitrep_lo:
                 for i in xrange(64):
-                    if self.bitrep_lo & (1 << i):
+                    if self.bitrep_lo & (cython.cast(cython.size_t, 1) << i):
                         yield i
                     elif not self.bitrep_lo >> i:
                         break
 
             if self.bitrep_hi:
                 for i in xrange(64):
-                    if self.bitrep_hi & (1 << i):
+                    if self.bitrep_hi & (cython.cast(cython.size_t, 1) << i):
                         yield i + 64
                     elif not self.bitrep_hi >> i:
                         break
 
+    @cython.locals(i=cython.Py_ssize_t)
+    @cython.ccall
+    def _add_to(self, out):
+        if self.objlist is None:
+            for i in xrange(64):
+                if self.bitrep_lo & (cython.cast(cython.size_t, 1) << i):
+                    out.add(i)
+                elif not self.bitrep_lo >> i:
+                    break
+            for i in xrange(64):
+                if self.bitrep_hi & (cython.cast(cython.size_t, 1) << i):
+                    out.add(i + 64)
+                elif not self.bitrep_hi >> i:
+                    break
+            return out
+
+        dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
+        for i in xrange(len(self)):
+            out.add(self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None))
+        return out
+
     @cython.ccall
     @cython.locals(pfset='proxied_frozenset')
     def _union_2(self, seq):
-        if self.objlist is None and type(seq) is proxied_frozenset:
+        if not seq:
+            return self
+        elif self.objlist is None and type(seq) is proxied_frozenset:
             pfset = cython.cast(proxied_frozenset, seq)
             if pfset.objlist is None:
                 return proxied_frozenset(
                     None, self.bitrep_lo | pfset.bitrep_lo, self.bitrep_hi | pfset.bitrep_hi)
-        return frozenset(self).union(seq)
+
+        rv = self._add_to(set())
+        rv.update(seq)
+        return frozenset(rv)
 
     @cython.ccall
     @cython.locals(pfset='proxied_frozenset')
@@ -1948,30 +1974,42 @@ class proxied_frozenset(object):
             if pfset.objlist is None:
                 return proxied_frozenset(
                     None, self.bitrep_lo & pfset.bitrep_lo, self.bitrep_hi & pfset.bitrep_hi)
+        elif not seq:
+            return proxied_frozenset(None, 0, 0)
 
-        return frozenset(self).intersection(seq)
+        rv = self._add_to(set())
+        rv.intersection_update(seq)
+        return frozenset(rv)
 
     @cython.ccall
     @cython.locals(pfset='proxied_frozenset')
     def _diff_2(self, seq):
-        if self.objlist is None and type(seq) is proxied_frozenset:
+        if not seq:
+            return self
+        elif self.objlist is None and type(seq) is proxied_frozenset:
             pfset = cython.cast(proxied_frozenset, seq)
             if pfset.objlist is None:
                 return proxied_frozenset(
                     None, self.bitrep_lo & ~pfset.bitrep_lo, self.bitrep_hi & ~pfset.bitrep_hi)
 
-        return frozenset(self).difference(seq)
+        rv = self._add_to(set())
+        rv.difference_update(seq)
+        return frozenset(rv)
 
     @cython.ccall
     @cython.locals(pfset='proxied_frozenset')
     def _symdiff_2(self, seq):
-        if self.objlist is None and type(seq) is proxied_frozenset:
+        if not seq:
+            return self
+        elif self.objlist is None and type(seq) is proxied_frozenset:
             pfset = cython.cast(proxied_frozenset, seq)
             if pfset.objlist is None:
                 return proxied_frozenset(
                     None, self.bitrep_lo ^ pfset.bitrep_lo, self.bitrep_hi ^ pfset.bitrep_hi)
 
-        return frozenset(self).symmetric_difference(seq)
+        rv = self._add_to(set())
+        rv.symmetric_difference_update(seq)
+        return frozenset(rv)
 
     def union(self, *seqs):
         if not seqs:
@@ -2020,14 +2058,14 @@ class proxied_frozenset(object):
                 for i in xrange(64):
                     if not self.bitrep_lo >> i:
                         break
-                    elif (self.bitrep_lo & (1 << i)) and i not in x:
+                    elif (self.bitrep_lo & (cython.cast(cython.size_t, 1) << i)) and i not in x:
                         return False
 
             if self.bitrep_hi:
                 for i in xrange(64):
                     if not self.bitrep_hi >> i:
                         break
-                    elif (self.bitrep_hi & (1 << i)) and (i + 64) not in x:
+                    elif (self.bitrep_hi & (cython.cast(cython.size_t, 1) << i)) and (i + 64) not in x:
                         return False
 
             return True
@@ -2084,14 +2122,14 @@ class proxied_frozenset(object):
                     for i in xrange(64):
                         if not self.bitrep_lo >> i:
                             break
-                        elif (self.bitrep_lo & (1 << i)) and i not in pfset:
+                        elif (self.bitrep_lo & (cython.cast(cython.size_t, 1) << i)) and i not in pfset:
                             return False
 
                 if self.bitrep_hi:
                     for i in xrange(64):
                         if not self.bitrep_hi >> i:
                             break
-                        elif (self.bitrep_hi & (1 << i)) and (i + 64) not in pfset:
+                        elif (self.bitrep_hi & (cython.cast(cython.size_t, 1) << i)) and (i + 64) not in pfset:
                             return False
 
                 return not strict_subset or xlen < len(pfset)
@@ -2149,14 +2187,14 @@ class proxied_frozenset(object):
                     for i in xrange(64):
                         if not self.bitrep_lo >> i:
                             break
-                        elif (self.bitrep_lo & (1 << i)) and i not in seq:
+                        elif (self.bitrep_lo & (cython.cast(cython.size_t, 1) << i)) and i not in seq:
                             return False
 
                 if self.bitrep_hi:
                     for i in xrange(64):
                         if not self.bitrep_hi >> i:
                             break
-                        elif (self.bitrep_hi & (1 << i)) and (i + 64) not in seq:
+                        elif (self.bitrep_hi & (cython.cast(cython.size_t, 1) << i)) and (i + 64) not in seq:
                             return False
             else:
                 dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
