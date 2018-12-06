@@ -1918,14 +1918,14 @@ class proxied_frozenset(object):
         else:
             if self.bitrep_lo:
                 for i in xrange(64):
-                    if self.bitrep_lo & (cython.cast(cython.size_t, 1) << i):
+                    if self.bitrep_lo & (cython.cast(cython.ulonglong, 1) << i):
                         yield i
                     elif not self.bitrep_lo >> i:
                         break
 
             if self.bitrep_hi:
                 for i in xrange(64):
-                    if self.bitrep_hi & (cython.cast(cython.size_t, 1) << i):
+                    if self.bitrep_hi & (cython.cast(cython.ulonglong, 1) << i):
                         yield i + 64
                     elif not self.bitrep_hi >> i:
                         break
@@ -1935,12 +1935,12 @@ class proxied_frozenset(object):
     def _add_to(self, out):
         if self.objlist is None:
             for i in xrange(64):
-                if self.bitrep_lo & (cython.cast(cython.size_t, 1) << i):
+                if self.bitrep_lo & (cython.cast(cython.ulonglong, 1) << i):
                     out.add(i)
                 elif not self.bitrep_lo >> i:
                     break
             for i in xrange(64):
-                if self.bitrep_hi & (cython.cast(cython.size_t, 1) << i):
+                if self.bitrep_hi & (cython.cast(cython.ulonglong, 1) << i):
                     out.add(i + 64)
                 elif not self.bitrep_hi >> i:
                     break
@@ -2058,14 +2058,14 @@ class proxied_frozenset(object):
                 for i in xrange(64):
                     if not self.bitrep_lo >> i:
                         break
-                    elif (self.bitrep_lo & (cython.cast(cython.size_t, 1) << i)) and i not in x:
+                    elif (self.bitrep_lo & (cython.cast(cython.ulonglong, 1) << i)) and i not in x:
                         return False
 
             if self.bitrep_hi:
                 for i in xrange(64):
                     if not self.bitrep_hi >> i:
                         break
-                    elif (self.bitrep_hi & (cython.cast(cython.size_t, 1) << i)) and (i + 64) not in x:
+                    elif (self.bitrep_hi & (cython.cast(cython.ulonglong, 1) << i)) and (i + 64) not in x:
                         return False
 
             return True
@@ -2122,14 +2122,14 @@ class proxied_frozenset(object):
                     for i in xrange(64):
                         if not self.bitrep_lo >> i:
                             break
-                        elif (self.bitrep_lo & (cython.cast(cython.size_t, 1) << i)) and i not in pfset:
+                        elif (self.bitrep_lo & (cython.cast(cython.ulonglong, 1) << i)) and i not in pfset:
                             return False
 
                 if self.bitrep_hi:
                     for i in xrange(64):
                         if not self.bitrep_hi >> i:
                             break
-                        elif (self.bitrep_hi & (cython.cast(cython.size_t, 1) << i)) and (i + 64) not in pfset:
+                        elif (self.bitrep_hi & (cython.cast(cython.ulonglong, 1) << i)) and (i + 64) not in pfset:
                             return False
 
                 return not strict_subset or xlen < len(pfset)
@@ -2187,14 +2187,14 @@ class proxied_frozenset(object):
                     for i in xrange(64):
                         if not self.bitrep_lo >> i:
                             break
-                        elif (self.bitrep_lo & (cython.cast(cython.size_t, 1) << i)) and i not in seq:
+                        elif (self.bitrep_lo & (cython.cast(cython.ulonglong, 1) << i)) and i not in seq:
                             return False
 
                 if self.bitrep_hi:
                     for i in xrange(64):
                         if not self.bitrep_hi >> i:
                             break
-                        elif (self.bitrep_hi & (cython.cast(cython.size_t, 1) << i)) and (i + 64) not in seq:
+                        elif (self.bitrep_hi & (cython.cast(cython.ulonglong, 1) << i)) and (i + 64) not in seq:
                             return False
             else:
                 dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
