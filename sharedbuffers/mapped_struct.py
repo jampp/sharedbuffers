@@ -2709,7 +2709,7 @@ class mapped_object(object):
         'V' : (mapped_date.pack_into, mapped_date.unpack_from, mapped_date),
         'F' : (mapped_decimal.pack_into, mapped_decimal.unpack_from, mapped_decimal),
         'M' : (proxied_dict.pack_into, proxied_dict.unpack_from, proxied_dict),
-        'z' : (proxied_frozenset.pack_into, proxied_frozenset.unpack_from, proxied_frozenset)
+        'z' : (proxied_frozenset.pack_into, proxied_frozenset.unpack_from, proxied_frozenset),
     }
 
     del p
