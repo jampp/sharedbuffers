@@ -10,6 +10,23 @@ The format is largely inspired by keepachangelog_.
 v0.5.0 - Unreleased
 ===================
 
+Notable changes
+---------------
+
+- Added support for proxied variants of a number of collection
+  classes that have constant property access times (item
+  lookup times vary from class to class, but usually `O(log N)`)
+- Proxies can now inherit from custom classes, so you can have
+  proxies with behavior (methods and properties) that match
+  the proxied object's
+- Various optimizations across the board. A huge optimization
+  effort improved both access and pack times for most cases.
+- Added some low-level utilities to facilitate incremental
+  construction of large object graphs.
+- Now requires Cython 0.29 (when using Cython)
+- Added support for quite a few extra primitive types.
+- More compact representations of lists and sets in most cases.
+
 Added
 -----
 
@@ -58,6 +75,7 @@ Changes
 - Improved performance of binary search utilities.
 - NumericId32[Multi]Mapper and StringId32[Multi]Mapper are now built-in
   classes when cythonized (should be relatively transparent).
+- Schema.pack is now thread-safe if the module is cythonized
 
 
 Bugfixes

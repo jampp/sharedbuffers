@@ -852,7 +852,7 @@ class mapped_list(list):
             if idmap is None:
                 idmap = {}
 
-            unpack_from = _mapped_object.unpack_from
+            unpack_from = _mapped_object_unpack_from
             if klass is set or klass is frozenset:
                 # Will turn recursive references into sets, but recursive references aren't
                 # easy to build with frozensets, so we're cool
@@ -1268,7 +1268,7 @@ class proxied_ndarray(object):
             shape = mapped_tuple.unpack_from(buf, baseoffs + shape_offs)
         else:
             shape = None
-        dtype_params = mapped_object.unpack_from(buf, baseoffs + dtype_offs)
+        dtype_params = _mapped_object_unpack_from(buf, baseoffs + dtype_offs)
 
         data = proxied_buffer.unpack_from(buf, baseoffs + data_offs)
 
@@ -1567,7 +1567,7 @@ class proxied_list(object):
             obj_offs = dataoffs + itemsize * cython.cast(cython.size_t, int(index))
 
         if dcode in ('t', 'T'):
-            res = mapped_object.unpack_from(self.buf, obj_offs, None, proxy_into)
+            res = _mapped_object_unpack_from(self.buf, obj_offs, None, proxy_into)
         elif cython.compiled:
             if dcode == 'B':
                 res = cython.cast(cython.p_uchar,
@@ -1607,6 +1607,7 @@ class proxied_list(object):
     def _make_empty(self):
         return []
 
+    @cython.locals(start = cython.Py_ssize_t, end = cython.Py_ssize_t, step = cython.Py_ssize_t)
     def __getitem__(self, index):
         if isinstance(index, slice):
             xlen = len(self)
@@ -1619,13 +1620,11 @@ class proxied_list(object):
             if (step < 0 and end >= start) or (step >= 0 and start >= end):
                 return self._make_empty()
 
-            return proxied_tuple(
-                buf = self.buf,
-                offs = self.offs,
-                idmap = None,
-                elem_start = start,
-                elem_end = end,
-                elem_step = step)
+            return type(self)(
+                self.buf,
+                self.offs,
+                None,
+                start, end, step)
 
         return self._getitem(index)
 
@@ -2815,10 +2814,19 @@ class mapped_object(object):
 mapped_object.TYPE_CODES[mapped_object] = 'o'
 mapped_object.OBJ_PACKERS['o'] = (mapped_object.pack_into, mapped_object.unpack_from, mapped_object)
 
-_mapped_object = cython.declare(object, mapped_object)
-_mapped_object_PACKERS = cython.declare(dict, _mapped_object.PACKERS)
-_mapped_object_OBJ_PACKERS = cython.declare(dict, _mapped_object.OBJ_PACKERS)
-_mapped_object_TYPE_CODES = cython.declare(dict, _mapped_object.TYPE_CODES)
+cython.declare(
+    _mapped_object = object,
+    _mapped_object_PACKERS = dict,
+    _mapped_object_OBJ_PACKERS = dict,
+    _mapped_object_TYPE_CODES = dict,
+    _mapped_object_unpack_from = object,
+)
+
+_mapped_object = mapped_object
+_mapped_object_PACKERS = _mapped_object.PACKERS
+_mapped_object_OBJ_PACKERS = _mapped_object.OBJ_PACKERS
+_mapped_object_TYPE_CODES = _mapped_object.TYPE_CODES
+_mapped_object_unpack_from = _mapped_object.unpack_from
 
 VARIABLE_TYPES = {
     frozenset : mapped_frozenset,
@@ -2945,6 +2953,11 @@ class BaseBufferProxyProperty(object):
     def __init__(self, offs, mask):
         self.offs = offs
         self.mask = mask
+        self._init_impl()
+
+    @cython.cfunc
+    def _init_impl(self):
+        pass
 
     def __set__(self, obj, value):
         raise TypeError("Proxy objects are read-only")
@@ -3083,8 +3096,12 @@ class ULongBufferProxyProperty(BaseBufferProxyProperty):
             return None
         if cython.compiled:
             assert (obj.offs + self.offs + cython.sizeof(cython.ulong)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_ulonglong,
+            rv = cython.cast(cython.p_ulonglong,
                 cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            if rv <= cython.cast(cython.ulonglong, 0x7FFFFFFFFFFFFFFF):
+                return cython.cast(cython.longlong, rv)
+            else:
+                return rv
         else:
             return struct.unpack_from('Q', obj.buf, obj.offs + self.offs)[0]
 
@@ -3233,6 +3250,14 @@ class MissingBufferProxyProperty(BaseBufferProxyProperty):
 class GenericBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
 
+    cython.declare(
+        _unpack_from = object,
+    )
+
+    @cython.cfunc
+    def _init_impl(self):
+        self._unpack_from = self.typ.unpack_from
+
     @cython.locals(obj = BufferProxyObject, offs = cython.Py_ssize_t, buflen = cython.ulonglong, pybuf = 'Py_buffer*',
         poffs = object)
     def __get__(self, obj, klass):
@@ -3258,7 +3283,7 @@ class GenericBufferProxyProperty(BaseBufferProxyProperty):
             assert offs + cython.sizeof(cython.ushort) <= buflen
         else:
             poffs = offs = obj.offs + struct.unpack_from('q', obj.buf, obj.offs + self.offs)[0]
-        rv = self.typ.unpack_from(obj.buf, offs)
+        rv = self._unpack_from(obj.buf, offs)
         if obj.idmap is not None:
             obj.idmap[poffs] = rv
         return rv
@@ -3729,71 +3754,80 @@ class Schema(object):
         else:
             widmap = None
         baseoffs = offs
-        if buf is None:
-            buf = self._pack_buffer
         has_bitmap, none_bitmap, present_bitmap, values = self._get_bitmaps(obj, True)
         fixed_present = present_bitmap & self._fixed_bitmap
         size = packer.size
         offs += size + padding
-        if offs > len(buf):
-            raise struct.error('buffer too small')
-        packable = [
-            has_bitmap,
-            none_bitmap,
-        ]
-        packable_append = packable.append
-        idmap_get = idmap.get
-        slot_types = self.slot_types
-        alignment = self.alignment
-        val_pos = 0
-        for i,slot in enumerate(self.slot_keys):
-            mask = cython.cast(cython.ulonglong, 1) << i
-            if present_bitmap & mask:
-                val = values[val_pos]
-                val_pos += 1
-                if fixed_present & mask:
-                    packable_append(val)
-                else:
-                    slot_type = slot_types[slot]
-                    if slot_type is _mapped_object:
-                        val_id = wrapped_id(val)
-                    else:
-                        val_id = shared_id(val)
-                    if widmap is not None:
-                        # fast-call
-                        val_offs = widmap.get(val_id)
-                    else:
-                        val_offs = idmap_get(val_id)
-                    if val_offs is None:
-                        idmap[val_id] = ival_offs = offs + implicit_offs
-                        if widmap is not None:
-                            widmap.link(val_id, val)
-                        try:
-                            offs = slot_type.pack_into(val, buf, offs, idmap, implicit_offs)
-                        except Exception as e:
-                            try:
-                                # Add some context. It may not work with all exception types, hence the fallback
-                                vrepr = repr(val)
-                                if len(vrepr) > 200:
-                                    vrepr = vrepr[:200] + '...'
-                                e = type(e)("%s packing attribute %s=%s of type %s" % (
-                                    e, slot, vrepr, type(obj).__name__))
-                            except:
-                                pass
-                            else:
-                                raise type(e), e, sys.exc_info()[2]
-                            raise
-                        padding = (offs + alignment - 1) / alignment * alignment - offs
-                        offs += padding
-                    else:
-                        ival_offs = val_offs
-                    packable_append(ival_offs - baseoffs - implicit_offs)
 
-        padding = (offs + alignment - 1) / alignment * alignment - offs
-        offs = offs + padding
-        if offs > len(buf):
-            raise struct.error('buffer too small')
-        return packable, offs
+        if buf is None:
+            buf = self._acquire_pack_buffer()
+            owns_buffer = True
+        else:
+            owns_buffer = False
+
+        try:
+            if offs > len(buf):
+                raise struct.error('buffer too small')
+            packable = [
+                has_bitmap,
+                none_bitmap,
+            ]
+            packable_append = packable.append
+            idmap_get = idmap.get
+            slot_types = self.slot_types
+            alignment = self.alignment
+            val_pos = 0
+            for i,slot in enumerate(self.slot_keys):
+                mask = cython.cast(cython.ulonglong, 1) << i
+                if present_bitmap & mask:
+                    val = values[val_pos]
+                    val_pos += 1
+                    if fixed_present & mask:
+                        packable_append(val)
+                    else:
+                        slot_type = slot_types[slot]
+                        if slot_type is _mapped_object:
+                            val_id = wrapped_id(val)
+                        else:
+                            val_id = shared_id(val)
+                        if widmap is not None:
+                            # fast-call
+                            val_offs = widmap.get(val_id)
+                        else:
+                            val_offs = idmap_get(val_id)
+                        if val_offs is None:
+                            idmap[val_id] = ival_offs = offs + implicit_offs
+                            if widmap is not None:
+                                widmap.link(val_id, val)
+                            try:
+                                offs = slot_type.pack_into(val, buf, offs, idmap, implicit_offs)
+                            except Exception as e:
+                                try:
+                                    # Add some context. It may not work with all exception types, hence the fallback
+                                    vrepr = repr(val)
+                                    if len(vrepr) > 200:
+                                        vrepr = vrepr[:200] + '...'
+                                    e = type(e)("%s packing attribute %s=%s of type %s" % (
+                                        e, slot, vrepr, type(obj).__name__))
+                                except:
+                                    pass
+                                else:
+                                    raise type(e), e, sys.exc_info()[2]
+                                raise
+                            padding = (offs + alignment - 1) / alignment * alignment - offs
+                            offs += padding
+                        else:
+                            ival_offs = val_offs
+                        packable_append(ival_offs - baseoffs - implicit_offs)
+
+            padding = (offs + alignment - 1) / alignment * alignment - offs
+            offs = offs + padding
+            if offs > len(buf):
+                raise struct.error('buffer too small')
+            return packable, offs
+        finally:
+            if owns_buffer:
+                self._release_pack_buffer(buf)
 
     @cython.ccall
     def pack_into(self, obj, buf, offs, idmap = None, packer = None, padding = None, implicit_offs = 0):
@@ -3820,20 +3854,38 @@ class Schema(object):
             self.postwrite_hook(obj, buf, baseoffs, offs)
         return offs
 
+    @cython.cfunc
+    def _acquire_pack_buffer(self):
+        pack_buffer = self._pack_buffer
+        if pack_buffer is None:
+            pack_buffer = bytearray(self.pack_buffer_size)
+        else:
+            self._pack_buffer = None
+        return pack_buffer
+
+    @cython.cfunc
+    def _release_pack_buffer(self, pack_buffer):
+        if self._pack_buffer is None and pack_buffer is not None:
+            self._pack_buffer = pack_buffer
+
     @cython.ccall
     def pack(self, obj, idmap = None, packer = None, padding = None, implicit_offs = 0):
-        for i in xrange(24):
-            try:
-                endp = self.pack_into(obj, self._pack_buffer, 0, idmap, packer, padding, implicit_offs)
-                return self._pack_buffer[:endp]
-            except (struct.error, IndexError):
-                # Buffer overflow, retry with a bigger buffer
-                # Idmap is probably corrupted beyond hope though :(
-                if len(self._pack_buffer) >= self.max_pack_buffer_size:
-                    raise
-                self._pack_buffer.extend(self._pack_buffer)
-                if idmap is not None:
-                    idmap.clear()
+        buf = self._acquire_pack_buffer()
+        try:
+            for i in xrange(24):
+                try:
+                    endp = self.pack_into(obj, buf, 0, idmap, packer, padding, implicit_offs)
+                    return buf[:endp]
+                except (struct.error, IndexError):
+                    # Buffer overflow, retry with a bigger buffer
+                    # Idmap is probably corrupted beyond hope though :(
+                    if len(buf) >= self.max_pack_buffer_size:
+                        raise
+                    buf.extend(buf)
+                    if idmap is not None:
+                        idmap.clear()
+        finally:
+            self._release_pack_buffer(buf)
 
     @cython.ccall
     @cython.locals(
@@ -5593,7 +5645,7 @@ class ObjectIdMapper(_CZipMapBase):
                 # sign-extend
                 sindex <<= 64 - self._dtype_bits
                 sindex >>= 64 - self._dtype_bits
-        return mapped_object.unpack_from(buf, pos + sindex)
+        return _mapped_object_unpack_from(buf, pos + sindex)
 
     @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer')
     def iterkeys(self, make_sequential = False):
