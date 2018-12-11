@@ -1977,15 +1977,13 @@ class proxied_frozenset(object):
 
         if len(self) > len(seq):
             rv = set(seq)
-            typ = type(seq)
-
-            if typ is set:
-                set_seq = cython.cast(set, seq)
+            if type(seq) is set:
+                set_seq = seq
                 for val in set_seq:
                     if val not in self:
                         rv.discard(val)
-            elif typ is frozenset:
-                fs_seq = cython.cast(frozenset, seq)
+            elif type(seq) is frozenset:
+                fs_seq = seq
                 for val in fs_seq:
                     if val not in self:
                         rv.discard(val)
