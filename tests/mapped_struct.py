@@ -1222,17 +1222,11 @@ class MappedString32MappingBigTest(MappedString32MappingTest):
     TEST_VALUES = [ v for v in MappedStringMappingTest.TEST_VALUES for i in xrange(64) ]
 
 class BsearchTest(unittest.TestCase):
-    if mapped_struct._cythonized:
-        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
-            numpy.double, numpy.single, numpy.float64, numpy.float32 ]
+    SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
+        numpy.double, numpy.single, numpy.float64, numpy.float32,
+        numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
 
-        UNSUPPORTED_DTYPES = [ numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
-    else:
-        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
-            numpy.double, numpy.single, numpy.float64, numpy.float32,
-            numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
-
-        UNSUPPORTED_DTYPES = []
+    UNSUPPORTED_DTYPES = [ numpy.complex ]
 
     for dtype in SUPPORTED_DTYPES:
         def testBsearch(self, dtype=dtype):
@@ -1283,17 +1277,11 @@ class BsearchTest(unittest.TestCase):
         self.assertEqual(0, mapped_struct.bsearch(a, 6))
 
 class MergeTest(unittest.TestCase):
-    if mapped_struct._cythonized:
-        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
-            numpy.double, numpy.single, numpy.float64, numpy.float32 ]
+    SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
+        numpy.double, numpy.single, numpy.float64, numpy.float32,
+        numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
 
-        UNSUPPORTED_DTYPES = [ numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
-    else:
-        SUPPORTED_DTYPES = [ numpy.uint32, numpy.int32, numpy.uint64, numpy.int64,
-            numpy.double, numpy.single, numpy.float64, numpy.float32,
-            numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
-
-        UNSUPPORTED_DTYPES = []
+    UNSUPPORTED_DTYPES = []
 
     for dtype in SUPPORTED_DTYPES:
         def testMerge(self, dtype=dtype):
@@ -1569,6 +1557,119 @@ class IndexedCollectionPackingTest(CollectionPackingTestHelpers):
         self.assertNotEquals(c, pack([1]))
         self.assertNotEquals(c, pack([1, 2.0, 3]))
         self.assertNotEquals(c, pack([2, 2.0]))
+
+class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest):
+    PACKING_CLASS = mapped_struct.proxied_frozenset
+    COLLECTION_CLASS = frozenset
+
+    def testContains(self):
+        values = [float(x) for x in range(5)]
+        c = self.pack(values)
+        for val in values:
+            self.assertIn(val, c)
+        for val in values:
+            self.assertNotIn(-val - 1, c)
+
+    def testCmpSets(self):
+        c = self.pack([1., 2., 3., 4., 5.])
+        self.assertEqual(c, self.pack([5., 4., 3., 2., 1.]))
+        self.assertEqual(c, set(c))
+        self.assertEqual(c, frozenset(c))
+        self.assertNotEqual(c, set())
+        self.assertNotEqual(c, frozenset())
+        c = self.pack([])
+        self.assertEqual(c, set())
+        self.assertEqual(c, frozenset())
+        self.assertNotIn(3, c)
+
+    def testSetOps(self):
+        c = self.pack([1., 2., 3., 4., 5.])
+        self.assertEqual(c.union(set([3., 6.])), frozenset([1., 2., 3., 4., 5., 6.]))
+        self.assertEqual(c.intersection(set([3., 5., 9.])), frozenset([3., 5.]))
+        self.assertEqual(c.difference(set([2., 4., 8.])), frozenset([1., 3., 5.]))
+        self.assertEqual(c.symmetric_difference(set([1., 8.])), frozenset([2., 3., 4., 5., 8.]))
+        self.assertEqual(c.union(set()), c)
+        self.assertEqual(c.intersection(set()), set())
+        self.assertEqual(c.difference(set()), c)
+
+        c = self.pack([1, 101, 70])
+        self.assertEqual(c & c, c)
+        self.assertEqual(c | self.pack([2, 102]), self.pack([1, 2, 70, 101, 102]))
+        self.assertNotIn(101, c - self.pack([101]))
+        self.assertEqual(c ^ c, self.pack([]))
+
+    def testSubsetSuperset(self):
+        small = self.pack([1., 2.])
+        big = self.pack([1., 2., 3., 4.])
+        self.assertTrue(small < big)
+        self.assertTrue(small <= big)
+        self.assertFalse(small < small)
+        self.assertTrue(small <= small)
+        self.assertFalse(small > small)
+        self.assertTrue(small >= small)
+        self.assertTrue(big > small)
+        self.assertTrue(big >= small)
+        self.assertFalse(big > big)
+
+        big = self.pack([1., 1.5, 2., 2.5, 3.])
+        self.assertTrue(small < big)
+        self.assertTrue(big > small)
+
+    def testCompressed(self):
+        small = self.pack([1, 2])
+        big = self.pack([1, 2, 3, 4, 5])
+
+        self.assertTrue(small < big)
+        self.assertTrue(small <= big)
+        self.assertFalse(small < small)
+        self.assertTrue(big > small)
+        self.assertTrue(big >= small)
+        self.assertFalse(big > big)
+
+        # Test with the higher bitmap != 0
+        small = self.pack([100, 102, 104])
+        big = self.pack([100, 101, 102, 103, 104, 105])
+        self.assertTrue(small < big)
+        self.assertTrue(small <= big)
+        self.assertFalse(small < small)
+        self.assertTrue(big > small)
+        self.assertTrue(big >= small)
+        self.assertFalse(big > big)
+
+    def testMixed(self):
+        small = self.pack([1, 2])
+        big = self.pack([1., 2, 3., 4, 5.])
+
+        self.assertTrue(small < big)
+        self.assertTrue(small <= big)
+        self.assertFalse(small < small)
+        self.assertTrue(big > small)
+        self.assertTrue(big >= small)
+        self.assertFalse(big > big)
+
+        big = self.pack([1L, 2L, 3L])
+        self.assertTrue(small < big)
+        self.assertTrue(small <= big)
+
+    def testNonNumeric(self):
+        small = self.pack(["aa", "bb", "cc"])
+        big = self.pack(["aa", "ab", "bb", "bc", "cc", "cd"])
+
+        self.assertIn("aa", small)
+        self.assertNotIn("ax", small)
+
+        self.assertTrue(small < big)
+        self.assertTrue(small <= big)
+        self.assertFalse(small < small)
+        self.assertTrue(big > small)
+        self.assertTrue(big >= small)
+        self.assertFalse(big > big)
+
+    def testForeign(self):
+        obj = [2., 1, 1.5]
+        small = self.pack(obj)
+        self.assertTrue(small <= set(obj))
+        self.assertTrue(small <= frozenset(obj))
 
 class MappedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest):
     PACKING_CLASS = mapped_struct.mapped_frozenset

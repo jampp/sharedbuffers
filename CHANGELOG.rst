@@ -32,7 +32,7 @@ Added
 
 - Add support for proxied buffers
 - Add support for proxied numpy arrays
-- Add support for proxied list/tuple
+- Add support for proxied list/tuple/frozenset
 - Add support for mapped dict
 - Allow specifying custom bases for proxy objects, so proxies
   can inherit their real counterparts' behavior
@@ -48,6 +48,7 @@ Added
   through proxied_list s containing objects, by allowing proxy
   reuse and masked iteration. The first one can take a proxy to use,
   while the second one will build its own generic proxy.
+- Use fused types to reduce code bloat and support more integer formats.
 
 Changes
 -------
