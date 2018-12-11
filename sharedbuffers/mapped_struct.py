@@ -1929,7 +1929,7 @@ class proxied_frozenset(object):
                     elif not self.bitrep_hi >> i:
                         break
 
-    @cython.locals(i=cython.Py_ssize_t)
+    @cython.locals(i=cython.Py_ssize_t, out=set)
     @cython.ccall
     def _add_to(self, out):
         if self.objlist is None:
