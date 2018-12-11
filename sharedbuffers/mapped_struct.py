@@ -1930,6 +1930,7 @@ class proxied_frozenset(object):
                         break
 
     @cython.locals(i=cython.Py_ssize_t, out=set)
+    @cython.returns(set)
     @cython.ccall
     def _add_to(self, out):
         if self.objlist is None:
@@ -1961,12 +1962,10 @@ class proxied_frozenset(object):
                 return proxied_frozenset(
                     None, self.bitrep_lo | pfset.bitrep_lo, self.bitrep_hi | pfset.bitrep_hi)
 
-        rv = self._add_to(set())
-        rv.update(seq)
-        return frozenset(rv)
+        return frozenset(self._add_to(set(seq)))
 
     @cython.ccall
-    @cython.locals(pfset='proxied_frozenset')
+    @cython.locals(pfset='proxied_frozenset', rv=set, set_seq=set, fs_seq=frozenset)
     def _intersect_2(self, seq):
         if self.objlist is None and type(seq) is proxied_frozenset:
             pfset = cython.cast(proxied_frozenset, seq)
@@ -1976,8 +1975,27 @@ class proxied_frozenset(object):
         elif not seq:
             return proxied_frozenset(None, 0, 0)
 
-        rv = self._add_to(set())
-        rv.intersection_update(seq)
+        if len(self) > len(seq):
+            rv = set(seq)
+            typ = type(seq)
+
+            if typ is set:
+                set_seq = cython.cast(set, seq)
+                for val in set_seq:
+                    if val not in self:
+                        rv.discard(val)
+            elif typ is frozenset:
+                fs_seq = cython.cast(frozenset, seq)
+                for val in fs_seq:
+                    if val not in self:
+                        rv.discard(val)
+            else:
+                for val in seq:
+                    if val not in self:
+                        rv.discard(val)
+        else:
+            rv = self._add_to(set())
+            rv.intersection_update(seq)
         return frozenset(rv)
 
     @cython.ccall
@@ -2015,28 +2033,32 @@ class proxied_frozenset(object):
             return self
         elif len(seqs) == 1:
             return self._union_2(seqs[0])
-        return frozenset(self).union(*seqs)
+        else:
+            return frozenset(self._add_to(set())).union(*seqs)
 
     def intersection(self, *seqs):
         if not seqs:
             return self
         elif len(seqs) == 1:
             return self._intersect_2(seqs[0])
-        return frozenset(self).intersection(*seqs)
+        else:
+            return frozenset(self._add_to(set())).intersection(*seqs)
 
     def difference(self, *seqs):
         if not seqs:
             return self
         elif len(seqs) == 1:
             return self._diff_2(seqs[0])
-        return frozenset(self).difference(*seqs)
+        else:
+            return frozenset(self._add_to(set())).difference(*seqs)
 
     def symmetric_difference(self, *seqs):
         if not seqs:
             return self
         elif len(seqs) == 1:
             return self._symdiff_2(seqs[0])
-        return frozenset(self).symmetric_difference(*seqs)
+        else:
+            return frozenset(self._add_to(set())).symmetric_difference(*seqs)
 
     @cython.ccall
     @cython.locals(i=cython.Py_ssize_t, xlen=cython.Py_ssize_t,
