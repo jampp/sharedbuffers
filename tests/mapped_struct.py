@@ -2113,8 +2113,23 @@ class StableHashTest(unittest.TestCase):
     def testHashStrings(self):
         self.assertHashesOK(("abcdef", "123456789", "!@#%&$"))
 
+    def testHashStringsFixed(self):
+        values_hashes = (
+            ("abcdef", 18053520794346263629L),
+            ("123456789", 10139926970967174787L),
+            ("!@#%&$", 15648343848775299486L))
+        for (value, hval) in values_hashes:
+            self.assertEqual(hval, mapped_struct._stable_hash(value))
+
     def testHashSequence(self):
         self.assertHashesOK(((1, "abc", -2.3), frozenset([1.2, 4.5, 0.12])))
+
+    def testHashSequenceFixed(self):
+        values_hashes = (
+            ((1, "abc", -2.3), 2059039662577021167L),
+            (frozenset([1.2, 4.5, 0.12]), 4015877951310865576L))
+        for (value, hval) in values_hashes:
+            self.assertEqual(hval, mapped_struct._stable_hash(value))
 
 class MappedDatetimePackingTest(unittest.TestCase):
 
