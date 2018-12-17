@@ -7,6 +7,15 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+v0.5.1 - Unreleased
+===================
+
+Bugfixes
+--------
+
+- Fix access to empty id mappers that would either throw an
+  error or, worse, if cythonized, segfault.
+
 v0.5.0 - 2018-12-11
 ===================
 
