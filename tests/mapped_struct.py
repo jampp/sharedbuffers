@@ -849,6 +849,19 @@ class IdMapperTest(unittest.TestCase):
             if rvv != v:
                 self.assertEquals(rvv, v)
 
+    def testBuildEmpty(self):
+        rv = self.IdMapperClass.build([], tempdir = None)
+        rvget = rv.get
+        for k, v in self.gen_values(10):
+            self.assertNotIn(k, rv)
+            rvv = rvget(k)
+            self.assertIsNone(rvv)
+
+        self.assertEquals(list(rv), [])
+        self.assertEquals(list(rv.keys()), [])
+        self.assertEquals(list(rv.values()), [])
+        self.assertEquals(list(rv.items()), [])
+
     def testBuildInMem(self):
         self._testBuild(2010, None)
 

@@ -13,7 +13,9 @@ v0.5.1 - Unreleased
 Bugfixes
 --------
 
-- Stable hashing now works with negative and 'special' floats
+- Stable hashing now works with negative and 'special' floats.
+- Fix access to empty id mappers that would either throw an
+  error or, worse, if cythonized, segfault.
 
 v0.5.0 - 2018-12-11
 ===================
