@@ -5248,6 +5248,8 @@ class NumericIdMapper(_CZipMapBase):
     def _search_hkey(self, hkey):
         hi = self.index_elements
         lo = 0
+        if hi <= lo:
+            return hi
         hikey = self._index_max
         lokey = self._index_min
         if hkey < lokey:
@@ -5306,9 +5308,13 @@ class NumericIdMapper(_CZipMapBase):
             return default
         if key < 0 or key > self.dtypemax:
             return default
+
         hkey = key
-        startpos = self._search_hkey(hkey)
         nitems = self.index_elements
+        if nitems == 0:
+            return default
+
+        startpos = self._search_hkey(hkey)
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
@@ -5809,6 +5815,8 @@ class ObjectIdMapper(_CZipMapBase):
     def _search_hkey(self, hkey):
         hi = self.index_elements
         lo = 0
+        if hi <= lo:
+            return hi
         if cython.compiled:
             dtype = self._dtype
             if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
@@ -5858,9 +5866,12 @@ class ObjectIdMapper(_CZipMapBase):
     @cython.locals(
         hkey = cython.ulonglong, startpos = int, nitems = int)
     def get(self, key, default = None):
+        nitems = self.index_elements
+        if nitems == 0:
+            return default
+
         hkey = _stable_hash(key)
         startpos = self._search_hkey(hkey)
-        nitems = self.index_elements
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
@@ -6305,6 +6316,8 @@ class StringIdMapper(_CZipMapBase):
     def _search_hkey(self, hkey):
         hi = self.index_elements
         lo = 0
+        if hi <= lo:
+            return hi
         if cython.compiled:
             dtype = self._dtype
             if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
@@ -6353,10 +6366,14 @@ class StringIdMapper(_CZipMapBase):
     def get(self, key, default = None):
         if not isinstance(key, basestring):
             return default
+
+        nitems = self.index_elements
+        if nitems == 0:
+            return default
+
         bkey = self._encode(key)
         hkey = self._xxh(bkey).intdigest()
         startpos = self._search_hkey(hkey)
-        nitems = self.index_elements
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
@@ -6591,9 +6608,13 @@ class NumericIdMultiMapper(NumericIdMapper):
         except OverflowError:
             if key < 0 or key > self.dtypemax:
                 return default
+
+        nitems = self.index_elements
+        if nitems == 0:
+            return default
+
         startpos = self._search_hkey(hkey)
         rv = []
-        nitems = self.index_elements
         if 0 <= startpos < nitems:
             dtype = self._dtype
             if cython.compiled:
@@ -6630,9 +6651,13 @@ class NumericIdMultiMapper(NumericIdMapper):
             return False
         if key < 0 or key > self.dtypemax:
             return False
+
         hkey = key
-        startpos = self._search_hkey(hkey)
         nitems = self.index_elements
+        if nitems == 0:
+            return False
+
+        startpos = self._search_hkey(hkey)
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
@@ -6663,9 +6688,13 @@ class NumericIdMultiMapper(NumericIdMapper):
             return
         if key < 0 or key > self.dtypemax:
             return
+
         hkey = key
-        startpos = self._search_hkey(hkey)
         nitems = self.index_elements
+        if nitems == 0:
+            return
+
+        startpos = self._search_hkey(hkey)
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
@@ -6792,8 +6821,12 @@ class StringIdMultiMapper(StringIdMapper):
             return default
         bkey = self._encode(key)
         hkey = self._xxh(bkey).intdigest()
-        startpos = self._search_hkey(hkey)
+
         nitems = self.index_elements
+        if nitems == 0:
+            return default
+
+        startpos = self._search_hkey(hkey)
         if 0 <= startpos < nitems:
             buf = self._buf
             rv = []
@@ -6847,13 +6880,17 @@ class StringIdMultiMapper(StringIdMapper):
         hkey = cython.ulonglong, startpos = int, nitems = int, bkey = bytes,
         blen = cython.size_t, pbkey = 'const char *', pybuf = 'Py_buffer', indexbuf = 'Py_buffer',
         stride0 = cython.size_t, stride1 = cython.size_t, pindex = cython.p_char)
-    def get_iter(self, key, default = None):
+    def get_iter(self, key):
         if not isinstance(key, basestring):
             return
+
+        nitems = self.index_elements
+        if nitems == 0:
+            return
+
         bkey = self._encode(key)
         hkey = self._xxh(bkey).intdigest()
         startpos = self._search_hkey(hkey)
-        nitems = self.index_elements
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
@@ -6934,10 +6971,14 @@ class StringIdMultiMapper(StringIdMapper):
     def has_key(self, key):
         if not isinstance(key, basestring):
             return False
+
+        nitems = self.index_elements
+        if nitems == 0:
+            return False
+
         bkey = self._encode(key)
         hkey = self._xxh(bkey).intdigest()
         startpos = self._search_hkey(hkey)
-        nitems = self.index_elements
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
