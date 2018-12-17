@@ -951,7 +951,7 @@ def _stable_hash(key):
             hval = key & 0xFFFFFFFFFFFFFFFF
     elif isinstance(key, float):
         trunc_key = int(key) if not math.isinf(key) and not math.isnan(key) else 0
-        if trunc_key == key:
+        if trunc_key == key and type(trunc_key) is int:
             hval = cython.cast(cython.longlong, trunc_key)
         else:
             mant, expo = math.frexp(key)

@@ -2084,6 +2084,27 @@ class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Di
         {float("inf"): 0, float("-inf"): 1, -0.0001: 2, -123456.: 3}
     ]
 
+class StableHashTest(unittest.TestCase):
+    def testHashIntegers(self):
+        values = (1, -1, 1 << 100, -(1 << 100), 1L, -1L)
+        for v in values:
+            self.assertTrue(isinstance(mapped_struct._stable_hash(v), (int, long)))
+
+    def testHashFloats(self):
+        values = (1., -1., 1e+50, 1e-50, float("inf"), float("-inf"), float("nan"))
+        for v in values:
+            self.assertTrue(isinstance(mapped_struct._stable_hash(v), (int, long)))
+
+    def testHashStrings(self):
+        values = ("abcdef", "123456789", "!@#%&$")
+        for v in values:
+            self.assertTrue(isinstance(mapped_struct._stable_hash(v), (int, long)))
+
+    def testHashSequence(self):
+        values = ((1, "abc", -2.3), frozenset([1.2, 4.5, 0.12]))
+        for v in values:
+            self.assertTrue(isinstance(mapped_struct._stable_hash(v), (int, long)))
+
 class MappedDatetimePackingTest(unittest.TestCase):
 
     TEST_VALUE_NOW = datetime.now()
