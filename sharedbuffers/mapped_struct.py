@@ -935,8 +935,8 @@ def _mix_hash(code1, code2):
     return _hash_rotl(code1, 5) ^ code2
 
 
-_TUPLE_SEED = 1626619511096549620
-_FSET_SEED  = 8212431769940327799
+_TUPLE_SEED = cython.declare(cython.ulonglong, 1626619511096549620)
+_FSET_SEED  = cython.declare(cython.ulonglong, 8212431769940327799)
 
 @cython.locals(hval=cython.ulonglong)
 def _stable_hash(key):
@@ -950,12 +950,17 @@ def _stable_hash(key):
         except OverflowError:
             hval = key & 0xFFFFFFFFFFFFFFFF
     elif isinstance(key, float):
-        trunc_key = int(key)
+        trunc_key = int(key) if not math.isinf(key) else 0
         if trunc_key == key:
-            hval = trunc_key
+            hval = cython.cast(cython.longlong, trunc_key)
         else:
             mant, expo = math.frexp(key)
-            hval = _mix_hash(expo, cython.cast(cython.longlong, mant * 0xffffffffffff))
+            if expo < 0:
+                # A double's exponent is usually limited to [-1024, 1024]
+                expo += 0xFFFF
+            if math.isinf(mant):
+                mant = 1 if mant > 0 else -1
+            hval = _mix_hash(expo, cython.cast(cython.longlong, mant * 0xFFFFFFFFFFFF))
     elif isinstance(key, (tuple, frozenset, proxied_tuple, proxied_frozenset)):
         if isinstance(key, (frozenset, proxied_frozenset)):
             hval = _FSET_SEED

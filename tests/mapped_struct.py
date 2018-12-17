@@ -2075,12 +2075,13 @@ class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Di
         {'a': 'a2', 'b': 'b2', 'c': 'c2'},
         {1: 10, 2: 20, 3: 30},
         {'a': frozenset(), 'b': (1, 2), 'c': 1.0, 'd': [1, 2], 'e': dict(a=1) },
-        {0: 42, 'a1_@!': 69, 3.5: 'uhhhh', (1, 2, 3): "four-five-six"},
+        {0: 42, 'a1_@!': 69, -3.5: 'uhhhh', (1, 2, 3): "four-five-six"},
         {frozenset([1, 2]) : 97.9},
         {1.0: "test floats equivalent to integers"},
         {None: 3},
         {(1,2,3): 4, (-1,3): 7},
         {frozenset([1,2,3]): 4, frozenset([-1,3]): 7},
+        {float("inf"): 0, float("-inf"): 1, -0.0001: 2, -123456.: 3}
     ]
 
 class MappedDatetimePackingTest(unittest.TestCase):
