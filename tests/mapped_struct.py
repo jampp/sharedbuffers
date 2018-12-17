@@ -2117,7 +2117,8 @@ class StableHashTest(unittest.TestCase):
         values_hashes = (
             ("abcdef", 18053520794346263629L),
             ("123456789", 10139926970967174787L),
-            ("!@#%&$", 15648343848775299486L))
+            ("!@#%&$", 15648343848775299486L),
+        )
         for (value, hval) in values_hashes:
             self.assertEqual(hval, mapped_struct._stable_hash(value))
 
@@ -2127,7 +2128,8 @@ class StableHashTest(unittest.TestCase):
     def testHashSequenceFixed(self):
         values_hashes = (
             ((1, "abc", -2.3), 2059039662577021167L),
-            (frozenset([1.2, 4.5, 0.12]), 4015877951310865576L))
+            (frozenset([1.2, 4.5, 0.12]), 4015877951310865576L),
+        )
         for (value, hval) in values_hashes:
             self.assertEqual(hval, mapped_struct._stable_hash(value))
 
