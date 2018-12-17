@@ -2093,8 +2093,18 @@ class StableHashTest(unittest.TestCase):
             self.assertTrue(isinstance(hval, (int, long)))
             self.assertEqual(hval, hashes[i])
 
+    def testHashIntegersFixed(self):
+        values = (1, 1033, 8620194, 20913041029, 66210231110, 752)
+        for x in values:
+            self.assertEqual(x, mapped_struct._stable_hash(x))
+
     def testHashIntegers(self):
         self.assertHashesOK((1, -1, 1 << 100, -(1 << 100), 1L, -1L))
+
+    def testHashFloatsFixed(self):
+        values = (1., 4096., 107203., 91024215., 13328914., 917.)
+        for x in values:
+            self.assertEqual(int(x), mapped_struct._stable_hash(x))
 
     def testHashFloats(self):
         self.assertHashesOK(
