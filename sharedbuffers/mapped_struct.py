@@ -950,7 +950,7 @@ def _stable_hash(key):
         except OverflowError:
             hval = key & 0xFFFFFFFFFFFFFFFF
     elif isinstance(key, float):
-        trunc_key = int(key) if not math.isinf(key) else 0
+        trunc_key = int(key) if not math.isinf(key) and not math.isnan(key) else 0
         if trunc_key == key:
             hval = cython.cast(cython.longlong, trunc_key)
         else:
@@ -960,6 +960,8 @@ def _stable_hash(key):
                 expo += 0xFFFF
             if math.isinf(mant):
                 mant = 1 if mant > 0 else -1
+            elif math.isnan(mant):
+                mant = 2
             hval = _mix_hash(expo, cython.cast(cython.longlong, mant * 0xFFFFFFFFFFFF))
     elif isinstance(key, (tuple, frozenset, proxied_tuple, proxied_frozenset)):
         if isinstance(key, (frozenset, proxied_frozenset)):
