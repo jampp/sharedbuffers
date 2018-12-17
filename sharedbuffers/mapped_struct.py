@@ -20,6 +20,7 @@ import collections
 import weakref
 from datetime import timedelta, datetime, date
 from decimal import Decimal
+from math import frexp
 
 try:
     from cdecimal import Decimal as cDecimal
@@ -938,6 +939,10 @@ def _mix_hash(code1, code2):
 _TUPLE_SEED = cython.declare(cython.ulonglong, 1626619511096549620)
 _FSET_SEED  = cython.declare(cython.ulonglong, 8212431769940327799)
 
+if not cython.compiled:
+    globals()['isinf'] = math.isinf
+    globals()['isnan'] = math.isnan
+
 @cython.locals(hval=cython.ulonglong, trunc_key=cython.longlong,
     truncated=cython.bint, flt=cython.double, mant=cython.double)
 def _stable_hash(key):
@@ -962,7 +967,7 @@ def _stable_hash(key):
             pass
 
         if not truncated:
-            mant, expo = math.frexp(key)
+            mant, expo = frexp(key)
             if expo < 0:
                 # A double's exponent is usually limited to [-1024, 1024]
                 expo += 0xFFFF
