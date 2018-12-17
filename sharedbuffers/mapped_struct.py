@@ -20,7 +20,6 @@ import collections
 import weakref
 from datetime import timedelta, datetime, date
 from decimal import Decimal
-from math import frexp
 
 try:
     from cdecimal import Decimal as cDecimal
@@ -49,6 +48,8 @@ npfloat32 = cython.declare(object, numpy.float32)
 npempty = cython.declare(object, numpy.empty)
 npfrombuffer = cython.declare(object, numpy.frombuffer)
 npndarray = cython.declare(object, numpy.ndarray)
+
+frexp = cython.declare(object, math.frexp)
 
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
