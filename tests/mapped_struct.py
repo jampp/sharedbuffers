@@ -2094,7 +2094,7 @@ class StableHashTest(unittest.TestCase):
             self.assertEqual(hval, hashes[i])
 
     def testHashFloats(self):
-        values = (1., -1., 1e+50, 1e-50, float("inf"), float("-inf"), float("nan"))
+        values = (1., -1., 1e+50, 1e-50, 2.001, -2.001, float("inf"), float("-inf"), float("nan"))
         hashes = [mapped_struct._stable_hash(x) for x in values]
         for i, v in enumerate(values):
             hval = mapped_struct._stable_hash(v)

@@ -950,15 +950,14 @@ def _stable_hash(key):
         except OverflowError:
             hval = key & 0xFFFFFFFFFFFFFFFF
     elif isinstance(key, float):
+        truncated = False
         try:
             trunc_key = int(key)
             if trunc_key == key:
                 hval = trunc_key
                 truncated = True
         except (OverflowError, ValueError):
-            truncated = False
-        except:
-            raise
+            pass
 
         if not truncated:
             mant, expo = math.frexp(key)
