@@ -49,6 +49,8 @@ npempty = cython.declare(object, numpy.empty)
 npfrombuffer = cython.declare(object, numpy.frombuffer)
 npndarray = cython.declare(object, numpy.ndarray)
 
+frexp = cython.declare(object, math.frexp)
+
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
     buffer = cython.declare(object, buffer)  # lint:ok
@@ -935,10 +937,15 @@ def _mix_hash(code1, code2):
     return _hash_rotl(code1, 5) ^ code2
 
 
-_TUPLE_SEED = 1626619511096549620
-_FSET_SEED  = 8212431769940327799
+_TUPLE_SEED = cython.declare(cython.ulonglong, 1626619511096549620)
+_FSET_SEED  = cython.declare(cython.ulonglong, 8212431769940327799)
 
-@cython.locals(hval=cython.ulonglong)
+if not cython.compiled:
+    globals()['isinf'] = math.isinf
+    globals()['isnan'] = math.isnan
+
+@cython.locals(hval=cython.ulonglong, trunc_key=cython.longlong,
+    truncated=cython.bint, flt=cython.double, mant=cython.double)
 def _stable_hash(key):
     if key is None:
         hval = 1
@@ -950,12 +957,26 @@ def _stable_hash(key):
         except OverflowError:
             hval = key & 0xFFFFFFFFFFFFFFFF
     elif isinstance(key, float):
-        trunc_key = int(key)
-        if trunc_key == key:
-            hval = trunc_key
-        else:
-            mant, expo = math.frexp(key)
-            hval = _mix_hash(expo, cython.cast(cython.longlong, mant * 0xffffffffffff))
+        flt = key
+        truncated = False
+        try:
+            trunc_key = int(flt)
+            if trunc_key == flt:
+                hval = trunc_key
+                truncated = True
+        except (OverflowError, ValueError):
+            pass
+
+        if not truncated:
+            mant, expo = frexp(key)
+            if expo < 0:
+                # A double's exponent is usually limited to [-1024, 1024]
+                expo += 0xFFFF
+            if isinf(mant):
+                mant = 1. if mant > 0 else -1.
+            elif isnan(mant):
+                mant = 2.
+            hval = _mix_hash(expo, cython.cast(cython.longlong, mant * 0xFFFFFFFFFFFF))
     elif isinstance(key, (tuple, frozenset, proxied_tuple, proxied_frozenset)):
         if isinstance(key, (frozenset, proxied_frozenset)):
             hval = _FSET_SEED

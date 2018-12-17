@@ -2088,13 +2088,71 @@ class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Di
         {'a': 'a2', 'b': 'b2', 'c': 'c2'},
         {1: 10, 2: 20, 3: 30},
         {'a': frozenset(), 'b': (1, 2), 'c': 1.0, 'd': [1, 2], 'e': dict(a=1) },
-        {0: 42, 'a1_@!': 69, 3.5: 'uhhhh', (1, 2, 3): "four-five-six"},
+        {0: 42, 'a1_@!': 69, -3.5: 'uhhhh', (1, 2, 3): "four-five-six"},
         {frozenset([1, 2]) : 97.9},
         {1.0: "test floats equivalent to integers"},
         {None: 3},
         {(1,2,3): 4, (-1,3): 7},
         {frozenset([1,2,3]): 4, frozenset([-1,3]): 7},
+        {float("inf"): 0, float("-inf"): 1, -0.0001: 2, -123456.: 3}
     ]
+
+class StableHashTest(unittest.TestCase):
+
+    def assertHashesOK(self, values_hashes):
+        for i, (value, hval) in enumerate(values_hashes):
+            hv2 = mapped_struct._stable_hash(value)
+            self.assertTrue(isinstance(hv2, (int, long)))
+            self.assertEqual(hv2, hval)
+
+    def testHashIntegersFixed(self):
+        values_hashes = (
+            (1, 1),
+            (1033, 1033),
+            (8620194, 8620194),
+            (20913041029, 20913041029),
+            (66210231110, 66210231110),
+            (752, 752),
+            (-1, 18446744073709551615L),
+            (1 << 100, 1),
+            (-(1 << 100), 1),
+            (1L, 1),
+            (-1L, 18446744073709551615L),
+        )
+        self.assertHashesOK(values_hashes)
+
+    def testHashFloatsFixed(self):
+        values_hashes = (
+            (1., 1),
+            (4096., 4096),
+            (107203., 107203),
+            (91024215., 91024215),
+            (13328914., 13328914),
+            (-1., 18446744073709551615L),
+            (1e+50, 150463276902340L),
+            (1e-50, 263280728297184L),
+            (2.001, 140807857099441L),
+            (-2.001, 18446603265852452175L),
+            (float('inf'), 281474976710655L),
+            (float('-inf'), 18446462598732840961L),
+            (float('nan'), 562949953421310L),
+        )
+        self.assertHashesOK(values_hashes)
+
+    def testHashStringsFixed(self):
+        values_hashes = (
+            ("abcdef", 18053520794346263629L),
+            ("123456789", 10139926970967174787L),
+            ("!@#%&$", 15648343848775299486L),
+        )
+        self.assertHashesOK(values_hashes)
+
+    def testHashSequenceFixed(self):
+        values_hashes = (
+            ((1, "abc", -2.3), 2059039662577021167L),
+            (frozenset([1.2, 4.5, 0.12]), 4015877951310865576L),
+        )
+        self.assertHashesOK(values_hashes)
 
 class MappedDatetimePackingTest(unittest.TestCase):
 
