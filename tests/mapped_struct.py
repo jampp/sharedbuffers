@@ -2087,23 +2087,35 @@ class ProxiedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, Di
 class StableHashTest(unittest.TestCase):
     def testHashIntegers(self):
         values = (1, -1, 1 << 100, -(1 << 100), 1L, -1L)
-        for v in values:
-            self.assertTrue(isinstance(mapped_struct._stable_hash(v), (int, long)))
+        hashes = [mapped_struct._stable_hash(x) for x in values]
+        for i, v in enumerate(values):
+            hval = mapped_struct._stable_hash(v)
+            self.assertTrue(isinstance(hval, (int, long)))
+            self.assertEqual(hval, hashes[i])
 
     def testHashFloats(self):
         values = (1., -1., 1e+50, 1e-50, float("inf"), float("-inf"), float("nan"))
-        for v in values:
-            self.assertTrue(isinstance(mapped_struct._stable_hash(v), (int, long)))
+        hashes = [mapped_struct._stable_hash(x) for x in values]
+        for i, v in enumerate(values):
+            hval = mapped_struct._stable_hash(v)
+            self.assertTrue(isinstance(hval, (int, long)))
+            self.assertEqual(hval, hashes[i])
 
     def testHashStrings(self):
         values = ("abcdef", "123456789", "!@#%&$")
-        for v in values:
-            self.assertTrue(isinstance(mapped_struct._stable_hash(v), (int, long)))
+        hashes = [mapped_struct._stable_hash(x) for x in values]
+        for i, v in enumerate(values):
+            hval = mapped_struct._stable_hash(v)
+            self.assertTrue(isinstance(hval, (int, long)))
+            self.assertEqual(hval, hashes[i])
 
     def testHashSequence(self):
         values = ((1, "abc", -2.3), frozenset([1.2, 4.5, 0.12]))
-        for v in values:
-            self.assertTrue(isinstance(mapped_struct._stable_hash(v), (int, long)))
+        hashes = [mapped_struct._stable_hash(x) for x in values]
+        for i, v in enumerate(values):
+            hval = mapped_struct._stable_hash(v)
+            self.assertTrue(isinstance(hval, (int, long)))
+            self.assertEqual(hval, hashes[i])
 
 class MappedDatetimePackingTest(unittest.TestCase):
 

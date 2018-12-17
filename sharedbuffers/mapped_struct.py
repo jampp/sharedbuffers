@@ -938,7 +938,7 @@ def _mix_hash(code1, code2):
 _TUPLE_SEED = cython.declare(cython.ulonglong, 1626619511096549620)
 _FSET_SEED  = cython.declare(cython.ulonglong, 8212431769940327799)
 
-@cython.locals(hval=cython.ulonglong)
+@cython.locals(hval=cython.ulonglong, trunc_key=cython.longlong, truncated=cython.bint)
 def _stable_hash(key):
     if key is None:
         hval = 1
@@ -950,10 +950,17 @@ def _stable_hash(key):
         except OverflowError:
             hval = key & 0xFFFFFFFFFFFFFFFF
     elif isinstance(key, float):
-        trunc_key = int(key) if not math.isinf(key) and not math.isnan(key) else 0
-        if trunc_key == key and type(trunc_key) is int:
-            hval = cython.cast(cython.longlong, trunc_key)
-        else:
+        try:
+            trunc_key = int(key)
+            if trunc_key == key:
+                hval = trunc_key
+                truncated = True
+        except (OverflowError, ValueError):
+            truncated = False
+        except:
+            raise
+
+        if not truncated:
             mant, expo = math.frexp(key)
             if expo < 0:
                 # A double's exponent is usually limited to [-1024, 1024]
