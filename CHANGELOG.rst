@@ -7,7 +7,16 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
-v0.5.1 - Unreleased
+v0.6.0 - Unreleased
+===================
+
+Added
+-----
+
+- Allow reusing object pool sections, which is useful
+  when repeatedly creating them (say, in tests)
+
+v0.5.1 - 2018-12-17
 ===================
 
 Bugfixes

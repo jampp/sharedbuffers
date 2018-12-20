@@ -18,9 +18,7 @@ class Section(object):
     def __init__(self, buf, implicit_offs=0, idmap_kwargs={}):
         self.buf = buf
         self.real_buf = buffer(buf)
-        self.implicit_offs = implicit_offs
-        self.write_pos = 0
-        self.idmap = StrongIdMap(**idmap_kwargs)
+        self.attach(implicit_offs, idmap_kwargs)
 
     def allocate(self, size=None):
         write_pos = self.write_pos
@@ -43,19 +41,28 @@ class Section(object):
     def free_space(self):
         return len(self.buf) - self.write_pos
 
+    def detach(self):
+        del self.idmap
+
+    def attach(self, implicit_offs=0, idmap_kwargs={}):
+        self.implicit_offs = implicit_offs
+        self.write_pos = 0
+        self.idmap = StrongIdMap(**idmap_kwargs)
+
 class BaseObjectPool(object):
 
     def _mktemp(self):
         raise NotImplementedError
 
-    def __init__(self, section_size=DEFAULT_SECTION_SIZE, temp_kwargs={}, idmap_kwargs={}):
+    def __init__(self, section_size=DEFAULT_SECTION_SIZE, temp_kwargs={}, idmap_kwargs={},
+            section_freelist=None):
         self.temp_kwargs = temp_kwargs
         self.idmap_kwargs = idmap_kwargs
         self.section_size = section_size
         self.sections = []
-        self.freehead = 0
         self.total_size = 0
         self.idmap_preload = []
+        self.section_freelist = section_freelist
 
     @property
     def size(self):
@@ -66,17 +73,27 @@ class BaseObjectPool(object):
             return 0
 
     def add_section(self):
-        f = self._mktemp()
+        f = None
         try:
-            f.truncate(self.section_size)
-            buf = mmap.mmap(
-                f.fileno(), 0,
-                access = mmap.ACCESS_WRITE)
-
+            new_section = None
             implicit_offs = self.total_size
+
+            if self.section_freelist:
+                new_section = self.section_freelist.pop()
+                new_section.attach(implicit_offs, self.idmap_kwargs)
+
+            if new_section is None:
+                f = self._mktemp()
+                f.truncate(self.section_size)
+                buf = mmap.mmap(
+                    f.fileno(), 0,
+                    access = mmap.ACCESS_WRITE)
+                new_section = Section(buf, implicit_offs, self.idmap_kwargs)
+                new_section.fileobj = f
+            else:
+                buf = new_section.buf
+
             self.total_size += len(buf)
-            new_section = Section(buf, implicit_offs, self.idmap_kwargs)
-            new_section.fileobj = f
 
             # Initialize with preloaded items
             if self.idmap_preload:
@@ -88,7 +105,8 @@ class BaseObjectPool(object):
                     raise RuntimeError("Preload items dont't fit in empty section, increase section size")
                 new_section.idmap.preload(idmap)
         except:
-            f.close()
+            if f is not None:
+                f.close()
             raise
 
         self.sections.append(new_section)
@@ -195,6 +213,17 @@ class BaseObjectPool(object):
         write_bytes += (8 - write_bytes % 8) % 8
         fileobj.write(section.real_buf[:write_bytes])
         return section.implicit_offs + write_bytes
+
+    def close(self):
+        sections = self.sections
+        self.sections = []
+
+        if self.section_freelist is not None:
+            for section in sections:
+                section.detach()
+            self.section_freelist.extend(sections)
+
+        self.total_size = 0
 
 class TemporaryObjectPool(BaseObjectPool):
 
