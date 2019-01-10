@@ -1780,7 +1780,7 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         self.assertRaises(TypeError, c.__delitem__, 0)
 
     def testProxiedListIter(self):
-        l = [1, 2.0]
+        l = [1, 2.0, None]
         c = self.pack(l)
 
         self.assertEquals(list(c), l)
@@ -1812,6 +1812,7 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         l.append(3)
         l.append([1,2,3])
         l.append(frozenset([1,2,3]))
+        l.append(None)
         c = self.pack(l)
 
         oldx = None
@@ -1864,6 +1865,7 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
         l.append(3)
         l.append([1,2,3])
         l.append(frozenset([1,2,3]))
+        l.append(None)
         c = self.pack(l)
         g = c.getter(fast=True)
 
@@ -1892,15 +1894,16 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
                 self.assertEquals(x, l[i])
 
     def testProxiedListStr(self):
-        c = self.pack([1, 2.0])
-        self.assertEquals(str(c), "[1,2.0]")
+        c = self.pack([1, 2.0, None])
+        self.assertEquals(str(c), "[1,2.0,None]")
 
     def testProxiedListRepr(self):
-        c = self.pack([1, 2.0])
-        self.assertEquals(repr(c), "proxied_list([1,2.0])")
+        c = self.pack([1, 2.0, None])
+        self.assertEquals(repr(c), "proxied_list([1,2.0,None])")
 
     def testProxiedListSpecificEqual(self):
         self.assertEquals(self.pack([1, 2.0]), (1, 2.0))
+        self.assertEquals(self.pack([1, None, 2.0]), (1, None, 2.0))
 
     def testProxiedListSlice(self):
         orig = [(str(i) if (i % 2) == 0 else i) for i in range(20)]
