@@ -1577,13 +1577,20 @@ class proxied_list(object):
             if cython.compiled:
                 if dcode == 't':
                     lpindex = cython.cast('const long *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
+                    if lpindex[index] == 1:
+                        return None
                     obj_offs = self.offs + lpindex[index]
                 elif dcode == 'T':
                     ipindex = cython.cast('const int *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
+                    if ipindex[index] == 1:
+                        return None
                     obj_offs = self.offs + ipindex[index]
             else:
                 index_offs = dataoffs + itemsize * int(index)
-                obj_offs = self.offs + _struct.unpack_from(self.buf, index_offs)[0]
+                rel_offs = _struct.unpack_from(self.buf, index_offs)[0]
+                if rel_offs == 1:
+                    return None
+                obj_offs = self.offs + rel_offs
         else:
             obj_offs = dataoffs + itemsize * cython.cast(cython.size_t, int(index))
 

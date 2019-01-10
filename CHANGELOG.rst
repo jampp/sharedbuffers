@@ -7,6 +7,17 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+v0.6.1 - Unreleased
+===================
+
+Bugfixes
+--------
+
+- Fix error trying to access None items within proxied_lists.
+  If a proxied_list contained None items, they'd raise an
+  inconsistent data exception on access even though there was
+  no data inconsistency.
+
 v0.6.0 - 2018-12-27
 ===================
 
