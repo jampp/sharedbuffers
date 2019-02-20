@@ -5508,8 +5508,14 @@ class NumericIdMapper(_CZipMapBase):
             return cls.map_zipfile(fileobj, offset, size)
 
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
+
+        if size is None:
+            map_size = 0
+        else:
+            map_size = size + offset - map_start
+
         fileobj.seek(map_start)
-        buf = mmap.mmap(fileobj.fileno(), 0, access = mmap.ACCESS_READ, offset = map_start)
+        buf = mmap.mmap(fileobj.fileno(), map_size, access = mmap.ACCESS_READ, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
         return rv
@@ -6072,8 +6078,14 @@ class ObjectIdMapper(_CZipMapBase):
             return cls.map_zipfile(fileobj, offset, size)
 
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
+
+        if size is None:
+            map_size = 0
+        else:
+            map_size = size + offset - map_start
+
         fileobj.seek(map_start)
-        buf = mmap.mmap(fileobj.fileno(), 0, access = mmap.ACCESS_READ, offset = map_start)
+        buf = mmap.mmap(fileobj.fileno(), map_size, access = mmap.ACCESS_READ, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
         return rv
@@ -6552,8 +6564,14 @@ class StringIdMapper(_CZipMapBase):
             return cls.map_zipfile(fileobj, offset, size)
 
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
+
+        if size is None:
+            map_size = 0
+        else:
+            map_size = size + offset - map_start
+
         fileobj.seek(map_start)
-        buf = mmap.mmap(fileobj.fileno(), 0, access = mmap.ACCESS_READ, offset = map_start)
+        buf = mmap.mmap(fileobj.fileno(), map_size, access = mmap.ACCESS_READ, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
         return rv

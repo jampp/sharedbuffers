@@ -7,6 +7,14 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+v0.6.2 - Unreleased
+===================
+
+Bugfixes
+--------
+
+- Map only requested size, when specified, in id mappers.
+
 v0.6.1 - 2019-01-23
 ===================
 
