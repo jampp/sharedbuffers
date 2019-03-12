@@ -669,6 +669,27 @@ class NestedAutoregisterTypedObjectPackagingTest(NestedTypedObjectPackagingTest)
                 if k not in TEST_VALUES:
                     self.assertFalse(hasattr(dx, k))
 
+class RegistryConflictTest(unittest.TestCase):
+    Struct = Attr8Struct
+    schema = mapped_struct.Schema.from_typed_slots(Struct)
+
+    def setUp(self):
+        # hack - make sure registry doesn't get screwed
+        self.addCleanup(
+            mapped_struct.mapped_object.OBJ_PACKERS.__setitem__,
+            't', mapped_struct.mapped_object.OBJ_PACKERS['t'])
+        self.addCleanup(
+            mapped_struct.mapped_object.PACKERS.__setitem__,
+            'b', mapped_struct.mapped_object.PACKERS['b'])
+
+    def testRegistryConflictSchema(self):
+        with self.assertRaises(ValueError):
+            mapped_struct.mapped_object.register_schema(self.Struct, self.schema, 't')
+
+    def testRegistryConflictBuiltin(self):
+        with self.assertRaises(ValueError):
+            mapped_struct.mapped_object.register_schema(self.Struct, self.schema, 'b')
+
 class MappedArrayTest(unittest.TestCase):
     Struct = ContainerStruct
     TEST_VALUES = [

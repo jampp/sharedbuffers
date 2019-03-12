@@ -7,6 +7,16 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+v0.6.2 - Unreleased
+===================
+
+Bugfixes
+--------
+
+- Disallow registering schemas with typecodes that conflict
+  with builtin types' typecodes. This would cause all sorts
+  of subtle breakage.
+
 v0.6.1 - 2019-01-23
 ===================
 
