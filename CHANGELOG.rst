@@ -23,9 +23,7 @@ v0.6.2 - 2019-02-21
 Bugfixes
 --------
 
-- Disallow registering schemas with typecodes that conflict
-  with builtin types' typecodes. This would cause all sorts
-  of subtle breakage.
+- Map only requested size, when specified, in id mappers.
 
 v0.6.1 - 2019-01-23
 ===================
