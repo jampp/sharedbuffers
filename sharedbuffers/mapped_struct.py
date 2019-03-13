@@ -2812,10 +2812,21 @@ class mapped_object(object):
 
     @classmethod
     def register_schema(cls, typ, schema, typecode):
-        if typecode is not None and typ in cls.TYPE_CODES:
-            if cls.TYPE_CODES[typ] != typecode or cls.OBJ_PACKERS[typecode][2].schema is not schema:
-                raise ValueError("Registering different types with same typecode %r: %r" % (cls.TYPE_CODES[typ], typ))
-            return cls.OBJ_PACKERS[typecode][2]
+        if typecode is not None:
+            if typ in cls.TYPE_CODES:
+                if cls.TYPE_CODES[typ] != typecode or cls.OBJ_PACKERS[typecode][2].schema is not schema:
+                    raise ValueError("Registering different types with same typecode %r: %r vs %r" % (
+                        typecode, cls.TYPE_CODES[typ], typ))
+                return cls.OBJ_PACKERS[typecode][2]
+            elif typecode in cls.PACKERS:
+                raise ValueError("Registering type %r with typecode %r conflicts with builtin type" % (
+                    typ, typecode))
+            elif typecode in cls.OBJ_PACKERS and getattr(cls.OBJ_PACKERS[typecode][2], 'schema', None) is not schema:
+                # This case is different from the first one in that, since the type isn't in TYPE_CODES,
+                # it may refer to a totally different kind of type. For instance, a user-defined schema vs
+                # a builtin container type, so we can't assume we have an associated schema in OBJ_PACKERS.
+                raise ValueError("Registering type %r with typecode %r conflicts with previously registered type %r" % (
+                    typ, typecode, cls.OBJ_PACKERS[typecode][2]))
 
         if isinstance(typ, mapped_object_with_schema):
             packable = typ
