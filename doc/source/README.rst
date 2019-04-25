@@ -1,3 +1,5 @@
+.. _using-sharedbuffers:
+
 Using sharedbuffers
 ===================
 
@@ -82,6 +84,8 @@ Using the schema is thus straightforward:
     print p.a
     print p.s
     print p.fset
+
+.. _composite-types:
 
 Declaring compound types
 ------------------------
