@@ -1,6 +1,53 @@
 # -*- coding: utf-8 -*-
 # cython: infer_types=True, profile=False, linetrace=False
 # distutils: define_macros=CYTHON_TRACE=0
+"""
+This modules implements marshalling of complex structures into shared memory buffers
+and proxy classes needed to access the information within them in an efficient manner
+without previous deserialization.
+
+The :py:class:`Schema` class represents a particular structure's shape in shared
+memory. Shared buffers can span complex structures by placing an object of a known
+schema at a known location. Then :py:meth:`Schema.unpack_from` can be used to
+get a proxy to that buffer that will expose the whole structure accessible in
+pythonic (and efficient) form.
+
+Schemas are structures with a static list of optionally present fields. All declared
+fields can be either missing, None, or have a value of the declared type. The schema
+defines how the shared memory will be interpreted, and it's not normally stored explicitly
+in the shared memory itself, so "freestyle" classes with arbitrary attributes aren't
+supported in this fashion.
+
+Schemas can be declared with fields of any of the built-in primitive types:
+
+* *Numbers*: :py:class:`ubyte`, :py:class:`byte`, :py:class:`ushort`, :py:class:`short`,
+  :py:class:`uint32`, :py:class:`int32`, :py:class:`uint64`, :py:class:`int64`,
+  :py:class:`float32`, :py:class:`float64`, or their python type, :py:class:`Decimal`,
+  :py:class:`int`, :py:class:`float`, :py:class:`bool`.
+* *Dates*: :py:class:`datetime.datetime`, :py:class:`datetime.date`.
+* *Strings*: by their python type, :py:class:`str`, :py:class:`bytes`, :py:class:`unicode`,
+  or explicitly by their built-in implementation type :py:class:`mapped_bytes`, :py:class:`mapped_unicode`.
+* *Buffers*: by python's :py:class:`buffer` or :py:class:`mapped_buffer`.
+* *Containers*: by python's :py:class:`list`, :py:class:`tuple`, :py:class:`frozenset`, :py:class:`dict`,
+  or by their built-in implementations, which can customize their proxying behavior, :py:class:`mapped_tuple`,
+  :py:class:`mapped_list`, :py:class:`mapped_dict`, :py:class:`mapped_frozenset`, :py:class:`proxied_tuple`,
+  :py:class:`proxied_list`, :py:class:`proxied_dict`, :py:class:`proxied_frozenset`.
+
+Fields can also be declared of *dynamic* type, which means the value will be wrapped with
+runtime type information, and it will accept any value of any supported type, by declaring
+them as :py:class:`object` (or :py:class:`mapped_object` to be more explicit).
+
+Once a :py:class:`Schema` is initialized, data can be placed in any writable buffer by
+invoking :py:meth:`Schema.pack_into`, and accessed through a proxy construced by :py:meth:`Schema.unpack_from`.
+
+In order to make fields reference objects other than the built-in types, their :py:class:`Schema` has to be
+described and registered with :py:meth:`mapped_object.register_schema`, after which it can be used in field
+type declarations as if it were another built-in type, and within containers or dynamically typed values.
+
+:py:class:`Schema` instances are pickleable, which means they can be embedded into shared memory buffers
+to make them portable. This is not done automatically except in some high level data structures, when documented.
+"""
+
 import struct
 import array
 import mmap
@@ -141,21 +188,19 @@ class StrongIdMap(object):
         are evicted from both the strong-reference list and the id map itself, maintaining correct
         behavior at the expense of deduplication effectiveness.
 
-        Params:
+        :param strong_limit: Keep at most this many strong references
 
-            strong_limit: Keep at most this many strong references
+        :param preallocate: Passed to `strong_class` as a kwarg
 
-            preallocate: Passed to `strong_class` as a kwarg
+        :param strong_class: The cache constructor used for the strong referece list. By default, it uses a kind
+            of LRU cache. The constructor should accept `preallocate` as kwarg and `strong_limit` as
+            first positional argument. When given `preallocate=true`, the structure should be preallocated
+            to accommodate `strong_limit` elements. It should also accept an `eviction_callback` kwarg
+            with a callable to be called with `(key, value)` arguments when evicting items from the mapping.
 
-            strong_class: The cache constructor used for the strong referece list. By default, it uses a kind
-                of LRU cache. The constructor should accept `preallocate` as kwarg and `strong_limit` as
-                first positional argument. When given `preallocate=true`, the structure should be preallocated
-                to accommodate `strong_limit` elements. It should also accept an `eviction_callback` kwarg
-                with a callable to be called with `(key, value)` arguments when evicting items from the mapping.
-
-            stable_set: A set of shared_id s that are considered stable. That is, strong references are kept
-                by the caller, so they don't need to be tracked. This allows them to be persistent on the id map
-                and thus improve deduplication effectiveness with little overhead.
+        :param stable_set: A set of shared_id s that are considered stable. That is, strong references are kept
+            by the caller, so they don't need to be tracked. This allows them to be persistent on the id map
+            and thus improve deduplication effectiveness with little overhead.
         """
         self.preloaded = {}
         self.idmap = {}
