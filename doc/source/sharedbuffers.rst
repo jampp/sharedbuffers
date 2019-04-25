@@ -5,6 +5,7 @@ sharedbuffers.mapped\_struct module
 -----------------------------------
 
 .. automodule:: sharedbuffers.mapped_struct
+    :member-order: groupwise
     :members: Schema, MappedArrayProxyBase, GenericFileMapper,
         NumericIdMapper, NumericId32Mapper, NumericIdMultiMapper, NumericId32MultiMapper,
         ObjectIdMapper,
@@ -18,17 +19,17 @@ sharedbuffers.mapped\_struct module
     For a high-level overview of how to use this module,
     check out :ref:`using-sharedbuffers`.
 
-.. autoclass:: mapped_object
-    :members: pack_into, unpack_from, register_schema, register_subclass
-    :undoc-members:
+    .. autoclass:: mapped_object
+        :members: pack_into, unpack_from, register_schema, register_subclass
+        :undoc-members:
 
-    Check out :ref:`composite-types` for examples on how to use this class.
+        Check out :ref:`composite-types` for examples on how to use this class.
 
 sharedbuffers.pool module
 -------------------------
 
 .. automodule:: sharedbuffers.pool
+    :member-order: groupwise
     :members: BaseObjectPool, TemporaryObjectPool
     :undoc-members:
     :show-inheritance:
-
