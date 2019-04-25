@@ -38,7 +38,7 @@ runtime type information, and it will accept any value of any supported type, by
 them as :py:class:`object` (or :py:class:`mapped_object` to be more explicit).
 
 Once a :py:class:`Schema` is initialized, data can be placed in any writable buffer by
-invoking :py:meth:`Schema.pack_into`, and accessed through a proxy construced by :py:meth:`Schema.unpack_from`.
+invoking :py:meth:`~Schema.pack_into`, and accessed through a proxy construced by :py:meth:`~Schema.unpack_from`.
 
 In order to make fields reference objects other than the built-in types, their :py:class:`Schema` has to be
 described and registered with :py:meth:`mapped_object.register_schema`, after which it can be used in field
