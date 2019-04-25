@@ -1,5 +1,5 @@
 Change Log
-==========
+..........
 
 All notable changes to this project will be documented here.
 
@@ -288,6 +288,8 @@ Bugfixes
 - Implement more of the mapping interface on id mappers
 - Add get_iter and __contains__ on multimappers that avoids materializing big sequences
 
+.. _0.2.0:
+
 v0.2.0 - 2016-10-11
 ===================
 
@@ -304,7 +306,7 @@ Added
 - Add approximate string multimaps
 
 v0.1.0
-=====
+======
 
 *Note*: this release has dependency issues, use 0.2.0_ instead
 

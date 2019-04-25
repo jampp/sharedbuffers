@@ -1,5 +1,5 @@
-sharedbuffers
-=============
+Using sharedbuffers
+===================
 
 This library implements shared-memory typed buffers that can be read and manipulated (and we'll eventually
 support writes too) efficiently without serialization or deserialization.
@@ -83,6 +83,9 @@ Using the schema is thus straightforward:
     print p.s
     print p.fset
 
+Declaring compound types
+------------------------
+
 Typed objects can be nested, but for that a typecode must be assigned to each type in order for RTTI to properly
 identify the custom types:
 
@@ -92,6 +95,9 @@ identify the custom types:
         SomeStruct, SomeStruct.__schema__, 'S')
 
 From then on, `SomeStruct` can be used as any other type when declaring field types.
+
+Container structures
+--------------------
 
 High-level typed container classes can be created by inheriting the proper base class. Currently, there are
 three kind of mappings supported: string-to-object, uint-to-object and a generic object-to-object. The first
@@ -166,8 +172,8 @@ Multi-maps with string keys can also be approximate, meaning the original keys w
 only work with hashes, making the map much faster and more compact, at the expense of some inaccuracy where the
 returned values could have extra values corresponding to other keys whose hash collide with the one being requested.
 
-Tests
-=====
+Running tests
+-------------
 
 Running tests can be done locally or on docker, using the script `run-tests.sh`:
 

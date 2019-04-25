@@ -7,9 +7,12 @@ Welcome to sharedbuffers's documentation!
 =========================================
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+    :maxdepth: 2
+    :caption: Contents:
 
+    README.rst
+    modules.rst
+    CHANGELOG.rst
 
 
 Indices and tables
