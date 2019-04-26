@@ -100,6 +100,8 @@ identify the custom types:
 
 From then on, `SomeStruct` can be used as any other type when declaring field types.
 
+.. _container-structures:
+
 Container structures
 --------------------
 
@@ -138,6 +140,8 @@ put the whole collection in memory at once), and then mapped from the resulting 
     with tempfile.NamedTemporaryFile() as destfile:
         arr = StructIdMapping.build({1:SomeStruct(), 3:SomeStruct()}.iteritems(), destfile=destfile)
         print arr[3]
+
+.. _idmap-usage:
 
 When using nested hierarchies, it's possible to unify references to the same object by specifying an idmap dict.
 However, since the idmap will map objects by their `id()`, objects must be kept alive by holding references to

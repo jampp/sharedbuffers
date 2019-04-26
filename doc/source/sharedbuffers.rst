@@ -29,7 +29,7 @@ sharedbuffers.mapped\_struct module
     .. autoclass:: mapped_object
         :members: pack_into, unpack_from, register_schema, register_subclass
         :show-inheritance:
-        :undoc-members:
+        :no-undoc-members:
 
         Check out :ref:`composite-types` for examples on how to use this class.
 
@@ -53,6 +53,8 @@ lower-level primitives.
     :undoc-members:
 
 .. autofunction:: GenericProxyClass
+
+.. autofunction:: _stable_hash
 
 sharedbuffers.pool module
 -------------------------

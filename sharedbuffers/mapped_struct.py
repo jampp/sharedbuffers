@@ -993,6 +993,24 @@ if not cython.compiled:
 @cython.locals(hval=cython.ulonglong, trunc_key=cython.longlong,
     truncated=cython.bint, flt=cython.double, mant=cython.double)
 def _stable_hash(key):
+    """
+    Compute a hash for object ``key`` in a way that is portable across processes and implementations.
+    The computed hash should be appropriate for use in persistent data structures.
+
+    Stable hashing is implemented for:
+
+    * :py:class:`basestring`
+    * :py:class:`int`
+    * :py:class:`long`
+    * :py:class:`float`
+    * :py:class:`tuple` and :py:class:`proxied_tuple`
+    * :py:class:`frozenset` and :py:class:`proxied_frozenset`
+
+    Containers need to have hashable contents to be hashable.
+
+    :rtype: int
+    :returns: A 64-bit hash value
+    """
     if key is None:
         hval = 1
     elif isinstance(key, basestring):
@@ -2821,13 +2839,13 @@ class mapped_object(object):
 
         :param idmap: *(optional)* A mapping (dict-like or an instance of :py:class:`StrongIdMap`) used to
             deduplicate references to recurring objects. If not given, a temporary :py:class:`StrongIdMap` will
-            be constructed for the operation if necessary.
+            be constructed for the operation if necessary. See :term:`idmap`.
 
         :param implicit_offs: *(optional)* The implicit offset of ``buf`` within a larger data structure.
             If either ``buf`` is a slice of a larger buffer or if its contents will be copied onto a larger
             buffer, this should be the starting point of ``buf``, so new entries on the ``idmap`` are
-            created with the proper absolute offset. Otherwise, idmap mixups are likely to corrupt the resulting
-            buffer.
+            created with the proper absolute offset. Otherwise, :term:`idmap` mixups are likely to corrupt the
+            resulting buffer.
 
         :return: The offset where writing finished. Further objects can be placed at this offset when
             packing multiple instances.
@@ -2864,7 +2882,7 @@ class mapped_object(object):
         :param idmap: *(optional)* A dict-like mapping that will be used to store references to already-unpacked
             objects, to preserve object identity (ie: to unpack the same offset into a reference to the same object).
             If object identity matters, be it for memory efficiency or some other reason, one should be provided.
-            Otherwise it's not necessary for unpacking.
+            Otherwise it's not necessary for unpacking. See :term:`idmap`.
 
         :param proxy_into: *(optional)* An instance of :py:class:`BufferProxyObject` that will be turned into
             a proxy of the right kind, pointing at the right offset. This is slightly faster than building a new
@@ -4460,6 +4478,27 @@ class GenericFileMapper(_ZipMapBase):
         return buffer(buf, offset - map_start, size), buf
 
 class MappedArrayProxyBase(_ZipMapBase):
+    """
+    Base class for arrays of objects with a uniform :py:class:`Schema`.
+
+    Construct a concrete class by subclassing and providing a :py:class:`Schema`::
+
+        class SomeArrayType(MappedArrayProxyBase):
+            schema = Schema.from_typed_slots(SomeClass)
+
+    Then build them into temporary files by using :py:meth:`build`::
+
+        mapped_array = SomeArrayType.build(iterable)
+
+    The returned array will be mapped from a temporary file. You can also provide
+    an explicit file where to build the array instead. See :py:meth:`build` for details.
+
+    The schema is pickled into the buffer so the array should be portable.
+
+    The array class implements the (readonly) sequence interface, supporting iteration,
+    length, random access subscripting, but not slicing.
+    """
+
     _CURRENT_VERSION = 2
     _CURRENT_MINIMUM_READER_VERSION = 2
 
@@ -4515,6 +4554,30 @@ class MappedArrayProxyBase(_ZipMapBase):
 
     @cython.locals(schema = Schema, proxy_into = BufferProxyObject)
     def getter(self, proxy_into = None, no_idmap = False):
+        """
+        Build a getter callable to quickly access items in succession.
+
+        Building a getter instead of using subscript syntax can provide a performance
+        boost, especially when specifying ``proxy_into`` to reuse proxies instead
+        of building a new one at each invocation.
+
+        When reusing proxies, have in mind that after a call to the getter,
+        any existing reference to the earlier proxy will be reset into the new
+        object::
+
+            g = array.getter(proxy_into=schema.Proxy())
+            a = getter(1)
+            b = getter(2)
+            # a and b point to the same object at this point
+
+        :type proxy_into: BufferProxyObject
+        :param proxy_into: *(optional)* A proxy object to be reused at each invocation.
+
+        :type no_idmap: bool
+        :param no_idmap: *(default False)* If true, no :term:`idmap` will be used. The resulting
+            getter will use less memory, but may break identity relationships, returning
+            copies of objects that should be identical instead.
+        """
         schema = self.schema
         proxy_class = self.proxy_class
         index = self.index
@@ -4550,6 +4613,15 @@ class MappedArrayProxyBase(_ZipMapBase):
 
     @cython.locals(i = int, schema = Schema, pmask = 'const unsigned char[:]')
     def iter_fast(self, mask=None):
+        """
+        Iterates through the array by reusing a single proxy object instead of building a new one per item.
+        See :py:meth:`getter`.
+
+        :param mask: *(optional)* If given, it should be a numpy array or typed memoryview of bytes,
+            with a length equal to the length of the array, with a mask flagging the items that are
+            to be retrieved with a nonzero value. It implements the same semantic as indexing a numpy
+            array with a boolean mask.
+        """
         # getter inlined
         schema = self.schema
         proxy_class = self.proxy_class
@@ -4578,6 +4650,38 @@ class MappedArrayProxyBase(_ZipMapBase):
     @cython.locals(schema = Schema, data_pos = cython.size_t, initial_pos = cython.size_t, current_pos = object,
         schema_pos = cython.size_t, schema_end = cython.size_t)
     def build(cls, initializer, destfile = None, tempdir = None, idmap = None, return_mapper=True):
+        """
+        Builds an array of objects with a uniform :py:class:`Schema` into a memory mapped temporary file.
+
+        :type initializer: iterable
+        :param initializer: Content of the array.
+
+        :type destfile: file or file-like
+        :param destfile: *(optional)* An explicit file where the mapping should be built. If ``return_mapper``
+            is Ture (the default), this has to be an actual file. Otherwise, it can be any file-like object
+            that supports seeking and overwriting. The array will be written at the current position,
+            and mapped from it.
+
+        :type tempdir: str
+        :param tempdir: *(optional)* A directory into which temporary files will be constructed. The build
+            process needs temporary storage, so it will be used even when an explicit ``destfile`` is given.
+
+        :type idmap: dict-like or StrongIdMap
+        :param idmap: An :term:`idmap` to be used during the construction. If not given, a temporary
+            :term:`idmap` is constructed for each object that is written, preventing instance deduplication
+            across items but reducing memory usage.
+
+        :type return_mapper: bool
+        :param return_mapper: *(default True)* If false, only the final writing position will be returned,
+            instead of the actual mapped array. This allows both embedding of the array into a larger
+            structure (further objects can be appended at the returne position) and construction onto
+            file-like objects (mapping is only supported from actual file objects, and not generally
+            from file-like objects).
+
+        :rtype: MappedArrayProxyBase or int
+        :returns: Either the mapped array when ``return_mapper`` is True, or the position within the file
+            where the array ends if it is False.
+        """
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
 
@@ -4634,10 +4738,32 @@ class MappedArrayProxyBase(_ZipMapBase):
 
     @classmethod
     def map_buffer(cls, buf, offset = 0):
+        """
+        Build a mapped array instance mapping the array in ``buf`` at position ``offset``
+
+        :param buf: Readable buffer to map the array from
+
+        :type offset: int
+        :param offset: *(optional)* Position within the buffer where the array is located.
+        """
         return cls(buf, offset)
 
     @classmethod
     def map_file(cls, fileobj, offset = 0, size = None):
+        """
+        Build a mapped array instance mapping the given ``fileobj`` at position ``offset``.
+        A size can optionally be given to map only the necessary portion of the file.
+
+        :type fileobj: file
+        :param fileobj: Memory-mappable file where the array is located
+
+        :type offset: int
+        :param offset: *(optional)* Position within the file where the array is located.
+
+        :type size: int
+        :param size: *(optional)* Size of the array data. If given, it will be used to reduce
+            the mapped portion of the file to the minimum necessary mapping.
+        """
         if isinstance(fileobj, zipfile.ZipExtFile):
             return cls.map_zipfile(fileobj, offset, size)
 
@@ -4915,6 +5041,21 @@ if cython.compiled:
         return ix
 
     def hinted_bsearch(a, hkey, hint):
+        """
+        Search into the sorted array ``a`` the value ``hkey``, assuming it should
+        be close to ``hint``.
+
+        :type a: ndarray
+        :param a: Sorted array of one of the supported types (see :py:func:`bsearch`).
+
+        :param hkey: Value to search for
+
+        :type hint: int
+        :param hint: Expected location of ``hkey``
+
+        :rtype: int
+        :returns: Location where ``hkey`` should be, if it is there. See :py:func:`bsearch`.
+        """
         hi = len(a)
         lo = 0
         return _hinted_bsearch(a, hkey, hint, lo, hi, False)
@@ -4929,13 +5070,46 @@ else:
     globals()['_hinted_bsearch'] = _py__hinted_bsearch
 
     def _py_hinted_bsearch(a, hkey, hint):
+        """
+        Search into the sorted array ``a`` the value ``hkey``, assuming it should
+        be close to ``hint``.
+
+        :type a: ndarray
+        :param a: Sorted array of one of the supported types (see :py:func:`bsearch`).
+
+        :param hkey: Value to search for
+
+        :type hint: int
+        :param hint: Expected location of ``hkey``
+
+        :rtype: int
+        :returns: Location where ``hkey`` should be, if it is there. See :py:func:`bsearch`.
+        """
         return bisect.bisect_left(a, hkey)
+    _py_hinted_bsearch.__name__ = 'hinted_bsearch'
     globals()['hinted_bsearch'] = _py_hinted_bsearch
 
 #@cython.ccall
 @cython.locals(lo = cython.size_t, hi = cython.size_t)
 #@cython.returns(cython.size_t)
 def bsearch(a, hkey):
+    """
+    Search into the sorted array ``a`` the value ``hkey``.
+
+    :type a: ndarray
+    :param a: Sorted array of one of the supported types:
+
+        * ints of 8, 16, 32 and 64 bits, signed and unsigned
+
+        * floats of 32 and 64 bits
+
+    :param hkey: Value to search for.
+
+    :rtype: int
+    :returns: Location where ``hkey`` should be, if it is there. The caller has to double-check.
+        If the value isn't present, the returned index can be out of bounds. The return
+        value has the same semantic as that of :py:func:`bisect.bisect_left`.
+    """
     hi = len(a)
     lo = 0
     return _hinted_bsearch(a, hkey, (lo+hi)//2, lo, hi, False)
@@ -4944,6 +5118,14 @@ def bsearch(a, hkey):
 @cython.locals(hi = cython.size_t, ix = cython.size_t, hint = cython.size_t)
 #@cython.returns(cython.bint)
 def hinted_sorted_contains(a, hkey, hint):
+    """
+    Search into the sorted array ``a`` the value ``hkey``, assuming it should be near ``hint``.
+
+    See :py:func:`hinted_bsearch`.
+
+    :rtype: bool
+    :returns: Whether the value is present or not
+    """
     hi = len(a)
     ix = _hinted_bsearch(a, hkey, hint, 0, hi, True)
     return ix < hi
@@ -4952,6 +5134,14 @@ def hinted_sorted_contains(a, hkey, hint):
 @cython.locals(hi = cython.size_t, ix = cython.size_t)
 #@cython.returns(cython.bint)
 def sorted_contains(a, hkey):
+    """
+    Search into the sorted array ``a`` the value ``hkey``, assuming it should be near ``hint``.
+
+    See :py:func:`bsearch`.
+
+    :rtype: bool
+    :returns: Whether the value is present or not
+    """
     hi = len(a)
     ix = _hinted_bsearch(a, hkey, hi//2, 0, hi, True)
     return ix < hi
@@ -5369,6 +5559,13 @@ def _numeric_id_get_gen(self, elem, startpos, hkey, nitems):
 
 @cython.cclass
 class NumericIdMapper(_CZipMapBase):
+    """
+    A numerical :term:`Id Mapper`, providing a mapping from 64-bit unsigned integers
+    to 64-bit unsigned integers, adequate for object mappings where the keys are unsigned integers.
+
+    As all :term:`Id Mapper` s, it implements a dict-like interface.
+    """
+
     dtype = npuint64
 
     # Num-items, Index-pos
@@ -5451,6 +5648,9 @@ class NumericIdMapper(_CZipMapBase):
         return self.get(key) is not None
 
     def preload(self):
+        """
+        Make sure the whole mapping is loaded into memory to prime it for faster future access.
+        """
         # Just touch everything in sequential order
         self.index.max()
 
@@ -5634,6 +5834,32 @@ class NumericIdMapper(_CZipMapBase):
         discard_duplicates = cython.bint, discard_duplicate_keys = cython.bint)
     def build(cls, initializer, destfile = None, tempdir = None,
             discard_duplicates = False, discard_duplicate_keys = False, return_mapper=True):
+        """
+        Builds a :py:class:`NumericIdMapper` from the given iterable. The iterable should
+        yield ``(key, value)`` pairs, in which both key and value are numbers fitting the range
+        of the :term:`Id Mapper`.
+
+        :param initializer: Iterable of items that will be built onto the resulting :term:`Id Mapper`.
+
+        :type destfile: file or file-like
+        :param destfile: *(optional)* An explicit file object where the mapper will be built. The same
+            restrictions apply than in the case of :py:meth:`MappedArrayProxyBase.build`.
+
+        :type tempdir: str
+        :param tempdir: Directory where temporary files may be placed if needed.
+
+        :type discard_duplicates: bool
+        :param discard_duplicates: If True, duplicate items will be removed from the mapping. Requires
+            extra effort during build.
+
+        :type duscard_duplicate_keys: bool
+        :param discard_duplicate_keys: If True, duplicate keys will be discarded from the mapping. Only
+            an arbitrary item will remain. Requires extra effort during build.
+
+        :type return_mapper: bool
+        :param return_mapper: Whether to return the mapped :term:`Id Mapper` or the ending offset.
+            See the same argument of :py:meth:`MappedArrayProxyBase.build` for a detailed description.
+        """
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
         partsfile = partswrite = None
@@ -5766,11 +5992,33 @@ class NumericIdMapper(_CZipMapBase):
 
     @classmethod
     def map_buffer(cls, buf, offset = 0):
+        """
+        Build an :term:`Id Mapper` from the data in ``buf`` at position ``offset``
+
+        :param buf: Readable buffer to map the :term:`Id Mapper` from
+
+        :type offset: int
+        :param offset: *(optional)* Position within the buffer where the data is located.
+        """
         return cls(buf, offset)
 
     @classmethod
     @cython.locals(rv = 'NumericIdMapper')
     def map_file(cls, fileobj, offset = 0, size = None):
+        """
+        Build an :term:`Id Mapper` from the data in ``fileobj`` at position ``offset``.
+        A size can optionally be given to map only the necessary portion of the file.
+
+        :type fileobj: file
+        :param fileobj: Memory-mappable file where the data is located
+
+        :type offset: int
+        :param offset: *(optional)* Position within the file where the data is located.
+
+        :type size: int
+        :param size: *(optional)* Size of the data. If given, it will be used to reduce
+            the mapped portion of the file to the minimum necessary mapping.
+        """
         if isinstance(fileobj, zipfile.ZipExtFile):
             return cls.map_zipfile(fileobj, offset, size)
 
@@ -5794,6 +6042,14 @@ class NumericIdMapper(_CZipMapBase):
         mapper = 'NumericIdMapper')
     def merge(cls, parts, destfile = None, tempdir = None,
             discard_duplicates = False, discard_duplicate_keys = False):
+        """
+        Merge two or more :py:class:`NumericIdMapper` s into a single one efficiently.
+
+        :type parts: iterable
+        :param parts: Iterable of :py:class:`NumericIdMapper` instances to be merged.
+
+        See :py:meth:`build` for a description of the remaining arguments.
+        """
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
 
@@ -5828,6 +6084,10 @@ class NumericIdMapper(_CZipMapBase):
 
 @cython.cclass
 class NumericId32Mapper(NumericIdMapper):
+    """
+    Like :py:class:`NumericIdMapper` but for 32-bit unsigned integer keys and values.
+    Hence, more compact, but also more limited.
+    """
     dtype = npuint32
 
 @cython.ccall
@@ -5859,6 +6119,13 @@ def _obj_id_get_gen(self, elem, startpos, hkey, key, default):
 
 @cython.cclass
 class ObjectIdMapper(_CZipMapBase):
+    """
+    A generic :term:`Id Mapper`, providing a mapping from :term:`hashable objects`
+    to 64-bit unsigned integers, adequate for object mappings where the keys are arbitrary :term:`hashable objects`.
+
+    As all :term:`Id Mapper` s, it implements a dict-like interface.
+    """
+
     dtype = npuint64
 
     # Num-items, Index-pos
@@ -6205,6 +6472,13 @@ class ObjectIdMapper(_CZipMapBase):
         ukpos = cython.ulonglong)
     def build(cls, initializer, destfile = None, tempdir = None, return_mapper=True, min_buf_size=128, idmap=None,
             implicit_offs=0):
+        """
+        Builds the mapper from the iterable of items passed in ``initializer``. The items should be
+        ``(key, value)`` pairs where keys can be any :term:`hashable object`, and values are integers
+        in the supported range for this mapper.
+
+        See :py:meth:`NumericIdMapper.build` for the other arguments.
+        """
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
 
@@ -6336,11 +6610,17 @@ class ObjectIdMapper(_CZipMapBase):
 
     @classmethod
     def map_buffer(cls, buf, offset = 0):
+        """
+        See :py:meth:`NumericIdMapper.map_buffer`
+        """
         return cls(buf, offset)
 
     @classmethod
     @cython.locals(rv = 'ObjectIdMapper')
     def map_file(cls, fileobj, offset = 0, size = None):
+        """
+        See :py:meth:`NumericIdMapper.map_file`
+        """
         if isinstance(fileobj, zipfile.ZipExtFile):
             return cls.map_zipfile(fileobj, offset, size)
 
@@ -6394,6 +6674,13 @@ def _str_id_get_gen(self, elem, pbkey, blen, startpos, hkey, pbuf_ptr, pbuf_len,
 
 @cython.cclass
 class StringIdMapper(_CZipMapBase):
+    """
+    An :term:`Id Mapper`, providing a mapping from strings
+    to 64-bit unsigned integers, adequate for object mappings where the keys are unsigned integers.
+
+    As all :term:`Id Mapper` s, it implements a dict-like interface.
+    """
+
     encode = staticmethod(safe_utf8)
     dtype = npuint64
     xxh = xxhash.xxh64
@@ -6732,6 +7019,13 @@ class StringIdMapper(_CZipMapBase):
         basepos = cython.Py_ssize_t, curpos = cython.Py_ssize_t, endpos = cython.Py_ssize_t, finalpos = cython.Py_ssize_t,
         dtypemax = cython.ulonglong)
     def build(cls, initializer, destfile = None, tempdir = None, return_mapper=True):
+        """
+        Builds the mapper from the iterable of items passed in ``initializer``. The items should be
+        ``(key, value)`` pairs where keys are strings, and the values are integers
+        in the supported range for this mapper.
+
+        See :py:meth:`NumericIdMapper.build` for the other arguments.
+        """
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
 
@@ -6822,11 +7116,17 @@ class StringIdMapper(_CZipMapBase):
 
     @classmethod
     def map_buffer(cls, buf, offset = 0):
+        """
+        See :py:meth:`NumericIdMapper.map_buffer`
+        """
         return cls(buf, offset)
 
     @classmethod
     @cython.locals(rv = 'StringIdMapper')
     def map_file(cls, fileobj, offset = 0, size = None):
+        """
+        See :py:meth:`NumericIdMapper.map_file`
+        """
         if isinstance(fileobj, zipfile.ZipExtFile):
             return cls.map_zipfile(fileobj, offset, size)
 
@@ -6845,6 +7145,10 @@ class StringIdMapper(_CZipMapBase):
 
 @cython.cclass
 class StringId32Mapper(StringIdMapper):
+    """
+    An :term:`Id Mapper` like :py:class:`StringIdMapper` whose values are 32-bit unsigned integers,
+    and thus more compact, but limited to smaller indexes.
+    """
     dtype = npuint32
     xxh = xxhash.xxh32
 
@@ -6905,6 +7209,14 @@ def _numeric_id_multi_has_gen(self, elem, startpos, hkey):
 
 @cython.cclass
 class NumericIdMultiMapper(NumericIdMapper):
+    """
+    A numeric :term:`Id Multi Mapper`, providing a mapping from 64-bit unsigned integers
+    to 64-bit unsigned integers, adequate for object mappings where the keys are unsigned integers.
+
+    As all :term:`Id Multi Mapper` s, it implements a dict-like interface whose values are lists
+    of matches, rather than singular matches.
+    """
+
     @cython.ccall
     def _encode_key(self, key):
         return key
@@ -6996,6 +7308,10 @@ class NumericIdMultiMapper(NumericIdMapper):
         stride0 = cython.size_t, stride1 = cython.size_t,
         indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
     def get_iter(self, key):
+        """
+        Like :py:meth:`~NumericIdMapper.get`, except it returns an iterator instead of an actual list.
+        It can be faster when there are a large number of matches.
+        """
         key = self._encode_key(key)
         if not isinstance(key, (int, long)):
             return
@@ -7064,6 +7380,12 @@ class NumericIdMultiMapper(NumericIdMapper):
 
 @cython.cclass
 class NumericId32MultiMapper(NumericIdMultiMapper):
+    """
+    A numeric :term:`Id Multi Mapper`, providing a mapping from 32-bit unsigned integers
+    to 32-bit unsigned integers, adequate for object mappings where the keys are unsigned integers.
+
+    Like :py:class:`NumericIdMultiMapper`, but more compact and limited to smaller indexes.
+    """
     dtype = npuint32
 
 @cython.ccall
@@ -7124,6 +7446,13 @@ def _str_id_multi_has_gen(self, elem, pbkey, blen, startpos, hkey, pbuf_ptr, pbu
 
 @cython.cclass
 class StringIdMultiMapper(StringIdMapper):
+    """
+    An :term:`Id Multi Mapper`, providing a mapping from strings
+    to 64-bit unsigned integers, adequate for object mappings where the keys are strings.
+
+    As all :term:`Id Multi Mapper` s, it implements a dict-like interface whose values are lists
+    of matches, rather than singular matches.
+    """
 
     @cython.ccall
     @cython.locals(
@@ -7194,6 +7523,9 @@ class StringIdMultiMapper(StringIdMapper):
         blen = cython.size_t, pbkey = 'const char *', pybuf = 'Py_buffer', indexbuf = 'Py_buffer',
         stride0 = cython.size_t, stride1 = cython.size_t, pindex = cython.p_char)
     def get_iter(self, key):
+        """
+        See :py:meth:`NuericIdMultiMapper.get_iter`
+        """
         if not isinstance(key, basestring):
             return
 
@@ -7339,11 +7671,23 @@ class StringIdMultiMapper(StringIdMapper):
 
 @cython.cclass
 class StringId32MultiMapper(StringIdMultiMapper):
+    """
+    An :term:`Id Multi Mapper` like :py:class:`StringIdMultiMapper`, where values are limited
+    to 32-bit unsigned integers, and thus more compact but limited.
+    """
     dtype = npuint32
     xxh = xxhash.xxh32
 
 @cython.cclass
 class ApproxStringIdMultiMapper(NumericIdMultiMapper):
+    """
+    An :term:`Approximate Id Multi Mapper`, providing a mapping from strings
+    to 64-bit unsigned integers, adequate for object mappings where the keys are strings
+    and a small number of false matches are acceptable.
+
+    As all :term:`Approximate Id Multi Mapper` s, it implements a dict-like interface whose values are lists
+    of matches, rather than singular matches.
+    """
     encode = staticmethod(safe_utf8)
     xxh = xxhash.xxh64
 
@@ -7367,6 +7711,12 @@ class ApproxStringIdMultiMapper(NumericIdMultiMapper):
 
     @classmethod
     def build(cls, initializer, *p, **kw):
+        """
+        Constructs the mapping from an iterable of items. The items should be `(key, value)` pairs
+        where keys are strings, and values are integers that fit the range of the mapper.
+
+        See :py:meth:`NumericIdMultiMapper.build` for the other arguments.
+        """
         xxh = cls.xxh
         encode = cls.encode
         def wrapped_initializer():
@@ -7376,6 +7726,13 @@ class ApproxStringIdMultiMapper(NumericIdMultiMapper):
 
 @cython.cclass
 class ApproxStringId32MultiMapper(ApproxStringIdMultiMapper):
+    """
+    A numeric :term:`Approximate Id Multi Mapper`, providing a mapping from strings
+    to 32-bit unsigned integers, adequate for object mappings where the keys are unsigned integers.
+
+    Like :py:class:`ApproxStringIdMultiMapper`, but more compact and limited to smaller indexes,
+    with a false positive rate slightly higher as well.
+    """
     xxh = xxhash.xxh32
     dtype = npuint32
 
