@@ -32,6 +32,7 @@ Schemas can be declared with fields of any of the built-in primitive types:
   or by their built-in implementations, which can customize their proxying behavior, :py:class:`mapped_tuple`,
   :py:class:`mapped_list`, :py:class:`mapped_dict`, :py:class:`mapped_frozenset`, :py:class:`proxied_tuple`,
   :py:class:`proxied_list`, :py:class:`proxied_dict`, :py:class:`proxied_frozenset`.
+* *Numpy arrays*, by declaring them as :py:class:`proxied_ndarray`.
 
 Fields can also be declared of *dynamic* type, which means the value will be wrapped with
 runtime type information, and it will accept any value of any supported type, by declaring
@@ -3549,6 +3550,11 @@ class Schema(object):
 
     @property
     def Proxy(self):
+        """
+        A factory callable that constructs proxies of the right kind, pointing to nowhere.
+        The caller is expected to :py:meth:`~BufferProxyObject._init` the proxy and repoint
+        it somewhere useful after building it.
+        """
         return functools.partial(self._Proxy, "\x00" * self.bitmap_size, 0, 0, None)
 
     @property

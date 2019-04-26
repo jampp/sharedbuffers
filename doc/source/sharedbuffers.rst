@@ -8,10 +8,9 @@ sharedbuffers.mapped\_struct module
     :member-order: groupwise
     :members: Schema, MappedArrayProxyBase, GenericFileMapper,
         NumericIdMapper, NumericId32Mapper, NumericIdMultiMapper, NumericId32MultiMapper,
-        ObjectIdMapper,
-        StringIdMapper, StringId32Mapper, StringIdMultiMapper, StringId32MultiMapper,
+        ObjectIdMapper, StringIdMapper, StringId32Mapper, StringIdMultiMapper, StringId32MultiMapper,
         ApproxStringIdMultiMapper, ApproxStringId32MultiMapper,
-        MappedMappingProxyBase, MappedMultiMappingProxyBase, StrongIdMap,
+        MappedMappingProxyBase, MappedMultiMappingProxyBase,
         bsearch, hinted_bsearch, sorted_contains, hinted_sorted_contains, index_merge
     :undoc-members:
     :show-inheritance:
@@ -24,6 +23,22 @@ sharedbuffers.mapped\_struct module
         :undoc-members:
 
         Check out :ref:`composite-types` for examples on how to use this class.
+
+mapped\_struct module internals
+...............................
+
+These are public functions and classes that, while useful, are meant for advanced use.
+Make sure you're using the higher level concepts properly before resorting to these
+lower-level primitives.
+
+.. autoclass:: BufferProxyObject
+    :show-inheritance:
+    :members: _reset, _init
+    :undoc-members:
+
+.. autoclass:: StrongIdMap
+    :show-inheritance:
+    :undoc-members:
 
 sharedbuffers.pool module
 -------------------------
