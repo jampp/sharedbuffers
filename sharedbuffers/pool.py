@@ -87,7 +87,7 @@ class BaseObjectPool(object):
         :param dict temp_kwargs: Keywords passed to :py:class:`tempfile.TemporaryFile` to
             customize tempfile allocation.
 
-        :param dict idmap_kwargs: Keywords passed when constructing new :py:class:`StrongIdMap`
+        :param dict idmap_kwargs: Keywords passed when constructing new :class:`.StrongIdMap`
             instances. Particularly useful to pass a stable set of known stable objects
             to improve reference deduplication.
 
