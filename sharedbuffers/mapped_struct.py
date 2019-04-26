@@ -2809,6 +2809,29 @@ class mapped_object(object):
 
     @classmethod
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+        """
+        Packs an :term:`RTTI`-wrapped value into ``buf`` at offset ``offs``.
+
+        :param obj: The object to be packed. Must be one of the supported types, or an instance
+            of a type registered with :py:meth:`register_schema`.
+
+        :param buf: A writeable buffer onto which the object should be packed. Like a bytearray.
+
+        :param offs: The offset within ``buf`` where to place the object.
+
+        :param idmap: *(optional)* A mapping (dict-like or an instance of :py:class:`StrongIdMap`) used to
+            deduplicate references to recurring objects. If not given, a temporary :py:class:`StrongIdMap` will
+            be constructed for the operation if necessary.
+
+        :param implicit_offs: *(optional)* The implicit offset of ``buf`` within a larger data structure.
+            If either ``buf`` is a slice of a larger buffer or if its contents will be copied onto a larger
+            buffer, this should be the starting point of ``buf``, so new entries on the ``idmap`` are
+            created with the proper absolute offset. Otherwise, idmap mixups are likely to corrupt the resulting
+            buffer.
+
+        :return: The offset where writing finished. Further objects can be placed at this offset when
+            packing multiple instances.
+        """
         if not isinstance(obj, cls):
             obj = cls(obj)
         typecode = obj.typecode
@@ -2831,6 +2854,25 @@ class mapped_object(object):
     @cython.locals(cpadding=cython.size_t, cpacker_size=cython.size_t, offs=cython.size_t,
         unpacker_info=tuple)
     def unpack_from(cls, buf, offs, idmap = None, proxy_into = None):
+        """
+        Unpacks an :term:`RTTI`-wrapped value from ``buf`` at offset ``offs``.
+
+        :param buf: The buffer where the value is.
+
+        :param offs: The position within ``buf`` where the value starts.
+
+        :param idmap: *(optional)* A dict-like mapping that will be used to store references to already-unpacked
+            objects, to preserve object identity (ie: to unpack the same offset into a reference to the same object).
+            If object identity matters, be it for memory efficiency or some other reason, one should be provided.
+            Otherwise it's not necessary for unpacking.
+
+        :param proxy_into: *(optional)* An instance of :py:class:`BufferProxyObject` that will be turned into
+            a proxy of the right kind, pointing at the right offset. This is slightly faster than building a new
+            proxy every time. Otherwise a new proxy is constructed and returned.
+
+        :return: The unpacked object or proxy, depending on the type.
+
+        """
         cpadding = 7
         cpacker_size = 1
         buf = _likerobuffer(buf)
@@ -2858,6 +2900,27 @@ class mapped_object(object):
 
     @classmethod
     def register_schema(cls, typ, schema, typecode):
+        """
+        Registers the :py:class:`Schema` of instances of type ``typ`` and assigns it
+        a typecode for :term:`RTTI`. This makes objects of those types able to be wrapped in
+        :term:`RTTI` and thus referenceable as dynamically typed values, like from within
+        container structures (lists, dicts, etc).
+
+        :param typ: The type (python class) of objects represented with ``schema``.
+
+        :type schema: Schema
+        :param schema: A :py:class:`Schema` that describes the shape of objects of type ``typ``.
+
+        :type typecode: bytes
+        :param typecode: A globally unique typecode (a single char) that will idenfity this type. If
+            incompatible types are registered under the same typecode, an error will be raised. The typecode
+            needs not be ASCII, it can be any byte, as long as it's unused. Several bytes are used by
+            built-in types, see :py:attr:`TYPE_CODES`.
+
+        :rtype: mapped_object_with_schema
+        :return: An instance of :py:class:`mapped_obect_with_schema` that can be used to pack
+            instances of the registered type.
+        """
         if typecode is not None:
             if typ in cls.TYPE_CODES:
                 if cls.TYPE_CODES[typ] != typecode or cls.OBJ_PACKERS[typecode][2].schema is not schema:
@@ -2892,6 +2955,16 @@ class mapped_object(object):
 
     @classmethod
     def register_subclass(cls, typ, supertyp):
+        """
+        Registers type ``typ`` as a subclass of ``supertyp``, which means it will be treated
+        as ``supertyp`` for packing/unpacking purposes. Since :term:`RTTI` will encode the supertype,
+        returned proxies will be of the supertype, not the subtype, something that may need
+        to be accounted for in client code.
+
+        :rtype: mapped_object_with_schema
+        :return: An instance of :py:class:`mapped_obect_with_schema` that can be used to pack
+            instances of the registered type.
+        """
         if supertyp not in cls.TYPE_CODES:
             raise ValueError("Superclass not registered: %r" % (supertyp,))
 
@@ -2987,6 +3060,12 @@ del t
 
 @cython.cclass
 class BufferProxyObject(object):
+    """
+    A base class for object proxies.
+
+    See :py:func:`GenericProxyClass` for a higher level way to construct these.
+    """
+
     cython.declare(
         __weakref__ = object,
         buf = object,
@@ -3495,6 +3574,33 @@ PROXY_TYPES = {
 }
 
 def GenericProxyClass(slot_keys, slot_types, present_bitmap, base_offs, bases = None):
+    """
+    Construct a subclass of :py:class:`BufferProxyObject` with the given shape.
+
+    Since the shape depends on the attributes that are present with an explicit value,
+    a different proxy type will be necessary for values with different sets of missing/null
+    attributes.
+
+    :type slot_keys: sequence[str]
+    :param slot_keys: An ordered list of attribute names.
+
+    :type slot_types: sequence[type]
+    :param slot_types: For each attribute in ``slot_keys``, its type
+
+    :type present_bitmap: int
+    :param present_bitmap: A bitmap specifying which attributes are actually present.
+        That is, those that have an explicit not-None value.
+
+    :type base_offs: int
+    :param base_offs: The offset of the first attribute's value relative to the object's
+        initial offset.
+
+    :type bases: tuple or None
+    :param bases: *(optional)* If given, the returned class will inherit from ``bases``.
+
+    :return: Subtype of :py:class:`BufferProxyObject` implementing the specified attributes
+        through readable data properties.
+    """
     class GenericProxyClass(BufferProxyObject):
         i = typ = slot = None
         value_offs = base_offs
@@ -3519,6 +3625,26 @@ _GenericProxy_new = cython.declare(object, _GenericProxy.__new__)
 
 @cython.cclass
 class Schema(object):
+    """
+    A declaration of an object's shape, or *schema*.
+
+    A schema is constructed out of a mapping of attribute names to attribute types
+    with :py:meth:`from_typed_slots`.
+
+    After construction, the schema instance can be used to :py:meth:`pack_into` and
+    :py:meth:`unpack_from` shared memory buffers. When unpacking, proxies will be
+    created automatically based on the underlying object's shape.
+
+    Schemas are picklable, so you may store the schema alongside the buffer itself
+    to make portable buffers that should be compatible across versions, as long as
+    the data itself is compatible (ie: no missing attributes that the application
+    really needs).
+
+    Proxies can be made to inherit from a base class or classes by using :py:meth:`set_proxy_bases`.
+    This can be useful if the objects stored in the shared buffer have behavior that the
+    proxies should also exhibit.
+    """
+
     cython.declare(
         slot_types = dict,
         pack_buffer_size = int,
@@ -3559,6 +3685,10 @@ class Schema(object):
 
     @property
     def ProxyClass(self):
+        """
+        Returns the type of returned proxies, a subtype of :py:class:`BufferProxyObject` generated
+        with :py:func:`GenericProxyClass`.
+        """
         return self._Proxy
 
     def __init__(self, slot_types, alignment = 8, pack_buffer_size = 65536, packer_cache = None, unpacker_cache = None,
@@ -3595,6 +3725,14 @@ class Schema(object):
             self.set_proxy_bases(bases)
 
     def set_proxy_bases(self, bases):
+        """
+        Sets the bases of future constructed proxies.
+        It should be called before unpacking objects, or wrong proxy classes could
+        remain in the proxy cache for quite a while.
+
+        :type bases: tuple
+        :param bases: The base classes of constructed proxies.
+        """
         self._proxy_bases = bases
 
     def set_prewrite_hook(self, hook):
@@ -3613,6 +3751,11 @@ class Schema(object):
 
     @cython.locals(other_schema = 'Schema')
     def compatible(self, other):
+        """
+        Checks whether this schema is compatible with ``other``.
+
+        Compatible schemas are those that have binary-compatible in-buffer data representations.
+        """
         if not isinstance(other, Schema):
             return False
 
@@ -3632,6 +3775,25 @@ class Schema(object):
 
     @classmethod
     def from_typed_slots(cls, struct_class_or_slot_types, *p, **kw):
+        """
+        Constructs a :py:class:`Schema` out of a description of attribute (slot) types.
+
+        :param struct_class_or_slot_types: Either a class with a ``__slot_types__`` attribute,
+            or the mapping of attribute names to attribute types itself.
+
+        :type alignment: int
+        :keyword alignment: *(default 8)* Enforce alignment on object sizes. Having objects
+            aligned to a native word size helps with performance.
+
+        :type pack_buffer_size: int
+        :param pack_buffer_size: *(default 64k)* Initial :py:meth:`pack` buffer size. Will auto-expand when necessary,
+            but having it sized correctly from the start can help avoid the performance impact of such resizing.
+
+        :type max_pack_buffer_size: int
+        :param max_pack_buffer_size: *(optional)* Maximum :py:meth:`pack` buffer size. Will not auto-expand beyond this.
+
+        :rtype: Schema
+        """
         if hasattr(struct_class_or_slot_types, '__slot_types__'):
             return cls(struct_class_or_slot_types.__slot_types__, *p, **kw)
         elif isinstance(struct_class_or_slot_types, dict):
@@ -3640,6 +3802,9 @@ class Schema(object):
             raise ValueError("Cant build a schema out of %r" % (type(struct_class_or_slot_types),))
 
     def set_pack_buffer_size(self, newsize):
+        """
+        Sets a new :py:meth:`pack` buffer size. See :py:meth:`from_typed_slots`.
+        """
         self.pack_buffer_size = newsize
         self._pack_buffer = bytearray(self.pack_buffer_size)
 
@@ -3941,6 +4106,12 @@ class Schema(object):
 
     @cython.ccall
     def pack_into(self, obj, buf, offs, idmap = None, packer = None, padding = None, implicit_offs = 0):
+        """
+        Pack ``obj`` into ``buf`` at offset ``ofs``. The object just needs to have the attributes
+        declared in the schema, its type is unimportant.
+
+        See :py:meth:`mapped_object.pack_into` for a description of the arguments.
+        """
         if idmap is None:
             idmap = StrongIdMap()
         if packer is None:
@@ -3980,6 +4151,11 @@ class Schema(object):
 
     @cython.ccall
     def pack(self, obj, idmap = None, packer = None, padding = None, implicit_offs = 0):
+        """
+        Pack ``obj`` into a byte array and return the corresponding slice.
+
+        See :py:meth:`pack_into` for a description of the arguments.
+        """
         buf = self._acquire_pack_buffer()
         try:
             for i in xrange(24):
@@ -4004,6 +4180,11 @@ class Schema(object):
         proxy_into = BufferProxyObject,
         pbuf = 'char *', pbuf2 = 'char *', pformat = 'char *', formatchar = 'char', pybuf='Py_buffer')
     def unpack_from(self, buf, offs = 0, idmap = None, factory_class_new = None, proxy_into = None):
+        """
+        Unpack data from ``buf`` at offset ``ofs``.
+
+        See :py:meth:`mapped_object.unpack_from` for a description of the arguments.
+        """
         baseoffs = offs
 
         if cython.compiled:
@@ -4170,10 +4351,21 @@ class Schema(object):
                 PyBuffer_Release(cython.address(pybuf))  # lint:ok
 
     def unpack(self, buf, idmap = None, factory_class_new = None, proxy_into = None):
+        """
+        Unpack data from ``buf``.
+
+        See :py:meth:`unpack_from` for a description of the arguments.
+        """
         return self.unpack_from(buffer(buf), 0, idmap, factory_class_new, proxy_into)
 
 @cython.cclass
 class mapped_object_with_schema(object):
+    """
+    An object that can be used to pack and unpack objects with the given :py:class:`Schema`.
+
+    Used mostly internally for schema pickling.
+    """
+
     cython.declare(_schema = Schema)
 
     def __init__(self, schema):
@@ -4181,12 +4373,25 @@ class mapped_object_with_schema(object):
 
     @property
     def schema(self):
+        """
+        The objects' :py:class:`Schema`
+        """
         return self._schema
 
     def pack_into(self, obj, buf, offs, idmap = None, implicit_offs = 0):
+        """
+        Packs ``obj`` with :py:attr:`schema`.
+
+        See also :py:meth:`mapped_object.pack_into`
+        """
         return self._schema.pack_into(obj, buf, offs, idmap, None, None, implicit_offs)
 
     def unpack_from(self, buf, offs, idmap = None, proxy_into = None):
+        """
+        Unpacks ``obj`` with :py:attr:`schema`.
+
+        See also :py:meth:`mapped_object.pack_into`
+        """
         return self._schema.unpack_from(buf, offs, idmap, None, proxy_into)
 
     def __reduce__(self):
