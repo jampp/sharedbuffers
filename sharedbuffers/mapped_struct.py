@@ -2926,11 +2926,9 @@ class mapped_object(object):
 
         :param typ: The type (python class) of objects represented with ``schema``.
 
-        :type schema: Schema
-        :param schema: A :py:class:`Schema` that describes the shape of objects of type ``typ``.
+        :param Schema schema: A :py:class:`Schema` that describes the shape of objects of type ``typ``.
 
-        :type typecode: bytes
-        :param typecode: A globally unique typecode (a single char) that will idenfity this type. If
+        :param bytes typecode: A globally unique typecode (a single char) that will idenfity this type. If
             incompatible types are registered under the same typecode, an error will be raised. The typecode
             needs not be ASCII, it can be any byte, as long as it's unused. Several bytes are used by
             built-in types, see :py:attr:`TYPE_CODES`.
@@ -3605,12 +3603,10 @@ def GenericProxyClass(slot_keys, slot_types, present_bitmap, base_offs, bases = 
     :type slot_types: sequence[type]
     :param slot_types: For each attribute in ``slot_keys``, its type
 
-    :type present_bitmap: int
-    :param present_bitmap: A bitmap specifying which attributes are actually present.
+    :param int present_bitmap: A bitmap specifying which attributes are actually present.
         That is, those that have an explicit not-None value.
 
-    :type base_offs: int
-    :param base_offs: The offset of the first attribute's value relative to the object's
+    :param int base_offs: The offset of the first attribute's value relative to the object's
         initial offset.
 
     :type bases: tuple or None
@@ -3748,8 +3744,7 @@ class Schema(object):
         It should be called before unpacking objects, or wrong proxy classes could
         remain in the proxy cache for quite a while.
 
-        :type bases: tuple
-        :param bases: The base classes of constructed proxies.
+        :param tuple bases: The base classes of constructed proxies.
         """
         self._proxy_bases = bases
 
@@ -3799,16 +3794,15 @@ class Schema(object):
         :param struct_class_or_slot_types: Either a class with a ``__slot_types__`` attribute,
             or the mapping of attribute names to attribute types itself.
 
-        :type alignment: int
-        :keyword alignment: *(default 8)* Enforce alignment on object sizes. Having objects
+        :keyword int alignment: *(default 8)* Enforce alignment on object sizes. Having objects
             aligned to a native word size helps with performance.
 
-        :type pack_buffer_size: int
-        :param pack_buffer_size: *(default 64k)* Initial :py:meth:`pack` buffer size. Will auto-expand when necessary,
-            but having it sized correctly from the start can help avoid the performance impact of such resizing.
+        :param int pack_buffer_size: *(default 64k)* Initial :py:meth:`pack` buffer size. Will auto-expand when
+            necessary, but having it sized correctly from the start can help avoid the performance impact of
+            such resizing.
 
-        :type max_pack_buffer_size: int
-        :param max_pack_buffer_size: *(optional)* Maximum :py:meth:`pack` buffer size. Will not auto-expand beyond this.
+        :param int max_pack_buffer_size: *(optional)* Maximum :py:meth:`pack` buffer size. Will not auto-expand
+            beyond this.
 
         :rtype: Schema
         """
@@ -4570,11 +4564,9 @@ class MappedArrayProxyBase(_ZipMapBase):
             b = getter(2)
             # a and b point to the same object at this point
 
-        :type proxy_into: BufferProxyObject
-        :param proxy_into: *(optional)* A proxy object to be reused at each invocation.
+        :param BufferProxyObject proxy_into: *(optional)* A proxy object to be reused at each invocation.
 
-        :type no_idmap: bool
-        :param no_idmap: *(default False)* If true, no :term:`idmap` will be used. The resulting
+        :param bool no_idmap: *(default False)* If true, no :term:`idmap` will be used. The resulting
             getter will use less memory, but may break identity relationships, returning
             copies of objects that should be identical instead.
         """
@@ -4653,8 +4645,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         """
         Builds an array of objects with a uniform :py:class:`Schema` into a memory mapped temporary file.
 
-        :type initializer: iterable
-        :param initializer: Content of the array.
+        :param iterable initializer: Content of the array.
 
         :type destfile: file or file-like
         :param destfile: *(optional)* An explicit file where the mapping should be built. If ``return_mapper``
@@ -4662,8 +4653,7 @@ class MappedArrayProxyBase(_ZipMapBase):
             that supports seeking and overwriting. The array will be written at the current position,
             and mapped from it.
 
-        :type tempdir: str
-        :param tempdir: *(optional)* A directory into which temporary files will be constructed. The build
+        :param str tempdir: *(optional)* A directory into which temporary files will be constructed. The build
             process needs temporary storage, so it will be used even when an explicit ``destfile`` is given.
 
         :type idmap: dict-like or StrongIdMap
@@ -4671,8 +4661,7 @@ class MappedArrayProxyBase(_ZipMapBase):
             :term:`idmap` is constructed for each object that is written, preventing instance deduplication
             across items but reducing memory usage.
 
-        :type return_mapper: bool
-        :param return_mapper: *(default True)* If false, only the final writing position will be returned,
+        :param bool return_mapper: *(default True)* If false, only the final writing position will be returned,
             instead of the actual mapped array. This allows both embedding of the array into a larger
             structure (further objects can be appended at the returne position) and construction onto
             file-like objects (mapping is only supported from actual file objects, and not generally
@@ -4743,8 +4732,7 @@ class MappedArrayProxyBase(_ZipMapBase):
 
         :param buf: Readable buffer to map the array from
 
-        :type offset: int
-        :param offset: *(optional)* Position within the buffer where the array is located.
+        :param int offset: *(optional)* Position within the buffer where the array is located.
         """
         return cls(buf, offset)
 
@@ -4754,14 +4742,11 @@ class MappedArrayProxyBase(_ZipMapBase):
         Build a mapped array instance mapping the given ``fileobj`` at position ``offset``.
         A size can optionally be given to map only the necessary portion of the file.
 
-        :type fileobj: file
-        :param fileobj: Memory-mappable file where the array is located
+        :param file fileobj: Memory-mappable file where the array is located
 
-        :type offset: int
-        :param offset: *(optional)* Position within the file where the array is located.
+        :param int offset: *(optional)* Position within the file where the array is located.
 
-        :type size: int
-        :param size: *(optional)* Size of the array data. If given, it will be used to reduce
+        :param int size: *(optional)* Size of the array data. If given, it will be used to reduce
             the mapped portion of the file to the minimum necessary mapping.
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
@@ -5045,13 +5030,11 @@ if cython.compiled:
         Search into the sorted array ``a`` the value ``hkey``, assuming it should
         be close to ``hint``.
 
-        :type a: ndarray
-        :param a: Sorted array of one of the supported types (see :py:func:`bsearch`).
+        :param ndarray a: Sorted array of one of the supported types (see :py:func:`bsearch`).
 
         :param hkey: Value to search for
 
-        :type hint: int
-        :param hint: Expected location of ``hkey``
+        :param int hint: Expected location of ``hkey``
 
         :rtype: int
         :returns: Location where ``hkey`` should be, if it is there. See :py:func:`bsearch`.
@@ -5074,13 +5057,11 @@ else:
         Search into the sorted array ``a`` the value ``hkey``, assuming it should
         be close to ``hint``.
 
-        :type a: ndarray
-        :param a: Sorted array of one of the supported types (see :py:func:`bsearch`).
+        :param ndarray a: Sorted array of one of the supported types (see :py:func:`bsearch`).
 
         :param hkey: Value to search for
 
-        :type hint: int
-        :param hint: Expected location of ``hkey``
+        :param int hint: Expected location of ``hkey``
 
         :rtype: int
         :returns: Location where ``hkey`` should be, if it is there. See :py:func:`bsearch`.
@@ -5096,8 +5077,7 @@ def bsearch(a, hkey):
     """
     Search into the sorted array ``a`` the value ``hkey``.
 
-    :type a: ndarray
-    :param a: Sorted array of one of the supported types:
+    :param ndarray a: Sorted array of one of the supported types:
 
         * ints of 8, 16, 32 and 64 bits, signed and unsigned
 
@@ -5845,19 +5825,15 @@ class NumericIdMapper(_CZipMapBase):
         :param destfile: *(optional)* An explicit file object where the mapper will be built. The same
             restrictions apply than in the case of :py:meth:`MappedArrayProxyBase.build`.
 
-        :type tempdir: str
-        :param tempdir: Directory where temporary files may be placed if needed.
+        :param str tempdir: Directory where temporary files may be placed if needed.
 
-        :type discard_duplicates: bool
-        :param discard_duplicates: If True, duplicate items will be removed from the mapping. Requires
+        :param bool discard_duplicates: If True, duplicate items will be removed from the mapping. Requires
             extra effort during build.
 
-        :type duscard_duplicate_keys: bool
-        :param discard_duplicate_keys: If True, duplicate keys will be discarded from the mapping. Only
+        :param bool discard_duplicate_keys: If True, duplicate keys will be discarded from the mapping. Only
             an arbitrary item will remain. Requires extra effort during build.
 
-        :type return_mapper: bool
-        :param return_mapper: Whether to return the mapped :term:`Id Mapper` or the ending offset.
+        :param bool return_mapper: Whether to return the mapped :term:`Id Mapper` or the ending offset.
             See the same argument of :py:meth:`MappedArrayProxyBase.build` for a detailed description.
         """
         if destfile is None:
@@ -5997,8 +5973,7 @@ class NumericIdMapper(_CZipMapBase):
 
         :param buf: Readable buffer to map the :term:`Id Mapper` from
 
-        :type offset: int
-        :param offset: *(optional)* Position within the buffer where the data is located.
+        :param int offset: *(optional)* Position within the buffer where the data is located.
         """
         return cls(buf, offset)
 
@@ -6009,14 +5984,11 @@ class NumericIdMapper(_CZipMapBase):
         Build an :term:`Id Mapper` from the data in ``fileobj`` at position ``offset``.
         A size can optionally be given to map only the necessary portion of the file.
 
-        :type fileobj: file
-        :param fileobj: Memory-mappable file where the data is located
+        :param file fileobj: Memory-mappable file where the data is located
 
-        :type offset: int
-        :param offset: *(optional)* Position within the file where the data is located.
+        :param int offset: *(optional)* Position within the file where the data is located.
 
-        :type size: int
-        :param size: *(optional)* Size of the data. If given, it will be used to reduce
+        :param int size: *(optional)* Size of the data. If given, it will be used to reduce
             the mapped portion of the file to the minimum necessary mapping.
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
@@ -6045,8 +6017,7 @@ class NumericIdMapper(_CZipMapBase):
         """
         Merge two or more :py:class:`NumericIdMapper` s into a single one efficiently.
 
-        :type parts: iterable
-        :param parts: Iterable of :py:class:`NumericIdMapper` instances to be merged.
+        :param iterable parts: Iterable of :py:class:`NumericIdMapper` instances to be merged.
 
         See :py:meth:`build` for a description of the remaining arguments.
         """
@@ -7846,16 +7817,13 @@ class MappedMappingProxyBase(_ZipMapBase):
         """
         Builds a mapping of keys to objects with a uniform :py:class:`Schema` into a memory mapped temporary file.
 
-        :type initializer: iterable
-        :param initializer: Content of the mapping.
+        :param iterable initializer: Content of the mapping.
 
-        :type destfile: file
-        :param destfile: *(optional)* An explicit file where the mapping should be built.
+        :param file destfile: *(optional)* An explicit file where the mapping should be built.
             This has to be an actual file, since it needs to be memory-mapped.
             The mapping will be written at the current position, and memory-mapped from it.
 
-        :type tempdir: str
-        :param tempdir: *(optional)* A directory into which temporary files will be constructed. The build
+        :param str tempdir: *(optional)* A directory into which temporary files will be constructed. The build
             process needs temporary storage, so it will be used even when an explicit ``destfile`` is given.
 
         :type idmap: dict-like or StrongIdMap
@@ -7863,12 +7831,10 @@ class MappedMappingProxyBase(_ZipMapBase):
             :term:`idmap` is constructed for each object that is written, preventing instance deduplication
             across items but reducing memory usage.
 
-        :type value_array_kwargs: dict
-        :param value_array_kwargs: Custom keyword arguments to be passed when invoking
+        :param dict value_array_kwargs: Custom keyword arguments to be passed when invoking
             :py:attr:`ValueArray` . :py:meth:`~MappedArrayProxyBase.build`.
 
-        :type id_mapper_kwargs: dict
-        :param id_mapper_kwargs: Custom keyword arguments to be passed when invoking
+        :param dict id_mapper_kwargs: Custom keyword arguments to be passed when invoking
             :py:attr:`IdMapper` . :py:meth:`~NumericIdMapper.build`.
 
         :rtype: MappedMappingProxyBase
@@ -7917,11 +7883,9 @@ class MappedMappingProxyBase(_ZipMapBase):
         read correctly. If the mapping is embedded on a larger buffer, a slice must be taken
         prior to calling this method, so the caller needs to know the size of the mapping beforehand.
 
-        :type buf: buffer
-        :param buf: A read buffer where the data is located. The mapping must end where the buffer ends.
+        :param buffer buf: A read buffer where the data is located. The mapping must end where the buffer ends.
 
-        :type offset: int
-        :param offset: *(optional)* The offset where the mapping starts.
+        :param int offset: *(optional)* The offset where the mapping starts.
         """
         values_pos, = cls._Footer.unpack_from(buf, offset + len(buf) - cls._Footer.size)
         value_array = cls.ValueArray.map_buffer(buf, offset + values_pos)
@@ -7939,15 +7903,12 @@ class MappedMappingProxyBase(_ZipMapBase):
         read correctly. If the mapping is embedded on a larger buffer, a slice must be taken
         prior to calling this method, so the caller needs to know the size of the mapping beforehand.
 
-        :type fileobj: file
-        :param fileobj: A file object where the data is located. The mapping must end where the file ends,
+        :param file fileobj: A file object where the data is located. The mapping must end where the file ends,
             or an explicit ``size`` must be given.
 
-        :type offset: int
-        :param offset: *(optional)* The offset where the mapping starts.
+        :param int offset: *(optional)* The offset where the mapping starts.
 
-        :type size: int
-        :param size: *(optional)* The size of the mapping relative to its starting offset. It must be
+        :param int size: *(optional)* The size of the mapping relative to its starting offset. It must be
             given if the mapping doesn't end at the EOF, to be able to locate the footer.
         """
         if isinstance(fileobj, zipfile.ZipExtFile):

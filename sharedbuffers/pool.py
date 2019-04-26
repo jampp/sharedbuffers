@@ -82,20 +82,16 @@ class BaseObjectPool(object):
     def __init__(self, section_size=DEFAULT_SECTION_SIZE, temp_kwargs={}, idmap_kwargs={},
             section_freelist=None):
         """
-        :type section_size: int
-        :param section_size: The size of each section in the pool
+        :param int section_size: The size of each section in the pool
 
-        :type temp_kwargs: dict
-        :param temp_kwargs: Keywords passed to :py:class:`tempfile.TemporaryFile` to
+        :param dict temp_kwargs: Keywords passed to :py:class:`tempfile.TemporaryFile` to
             customize tempfile allocation.
 
-        :type idmap_kwargs: dict
-        :param idmap_kwargs: Keywords passed when constructing new :py:class:`StrongIdMap`
+        :param dict idmap_kwargs: Keywords passed when constructing new :py:class:`StrongIdMap`
             instances. Particularly useful to pass a stable set of known stable objects
             to improve reference deduplication.
 
-        :type section_freelist: list
-        :param section_freelist: *(optional)* If given, a list to hold section freed
+        :param list section_freelist: *(optional)* If given, a list to hold section freed
             when :py:meth:`close` is invoked. If multiple pools are constructed in
             succession, this can speed up the process of allocating new sections
             by reusing discarded sections.
@@ -187,26 +183,22 @@ class BaseObjectPool(object):
         """
         Add an object to the pool, and return a proxy to it.
 
-        :type schema: Schema
-        :param schema: The :py:class:`Schema` of the object data being pushed
+        :param Schema schema: The :py:class:`Schema` of the object data being pushed
 
         :param obj: Object to be packed into the pool.
 
-        :type min_pack_buffer: int
-        :param min_pack_buffer: *(optional)* Minimum required free space in the section. If the section contains
+        :param int min_pack_buffer: *(optional)* Minimum required free space in the section. If the section contains
             less than this amount of free space, a new empty section is allocated without even trying
             to pack the object in the almost-full section.
 
-        :type clear_idmaps_on_new_section: bool
-        :param clear_idmaps_on_new_section: *(default True)* Whether to clear the :term:`idmap` s of full sections
+        :param bool clear_idmaps_on_new_section: *(default True)* Whether to clear the :term:`idmap` s of full sections
             when new sections are allocated. Doing this can keep memory usage low, but prevent efficient reuse of free
             section space. The default is usually ok.
 
-        :type pack_buffer: bytearray
-        :param pack_buffer: *(optional)* A buffer used to build the object data before copying it into the pool.
-            If none is provided, one is allocated automatically.
+        :param bytearray pack_buffer: *(optional)* A buffer used to build the object data before copying it into the
+            pool. If none is provided, one is allocated automatically.
 
-        :rtype: (int, proxy)
+        :rtype: tuple[int, proxy]
         :returns: A pair with the location of the added object and a proxy to the object itself.
         """
         sections = self.sections
@@ -235,13 +227,11 @@ class BaseObjectPool(object):
 
         Make sure the contents of ``buf`` are relocatable (ie: have no external references)
 
-        :type schema: Schema
-        :param schema: The :py:class:`Schema` of the object data being pushed
+        :param Schema schema: The :py:class:`Schema` of the object data being pushed
 
-        :type buf: buffer
-        :param buf: Object data produced with :py:meth:`Schema.pack_into` or a similar method.
+        :param buffer buf: Object data produced with :py:meth:`Schema.pack_into` or a similar method.
 
-        :rtype: (int, proxy)
+        :rtype: tuple[int, proxy]
         :returns: A pair with the location of the added object and a proxy to the object itself.
         """
         sections = self.sections
@@ -270,8 +260,7 @@ class BaseObjectPool(object):
         objects a lot, but the objects will be repeated on each section, so they should
         be small or their size overhead will outweight their benefit.
 
-        :type schema: Schema
-        :param schema: The :py:class:`Schema` describing the object's shape
+        :param Schema schema: The :py:class:`Schema` describing the object's shape
 
         :param obj: The object to be preloaded. It will automatically be packed each time
             a new section is added.
@@ -291,11 +280,9 @@ class BaseObjectPool(object):
         """
         Unpacks object data from the logical position ``pos`` using the given :py:class:`Schema`.
 
-        :type schema: Schema
-        :param schema: The expected schema of the object at ``pos``.
+        :param Schema schema: The expected schema of the object at ``pos``.
 
-        :type pos: int
-        :param pos: The logical position from which to unpack the object.
+        :param int pos: The logical position from which to unpack the object.
 
         :return: A proxy to the object.
         """
