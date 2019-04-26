@@ -84,7 +84,7 @@ class BaseObjectPool(object):
         """
         :param int section_size: The size of each section in the pool
 
-        :param dict temp_kwargs: Keywords passed to :py:class:`tempfile.TemporaryFile` to
+        :param dict temp_kwargs: Keywords passed to :class:`tempfile.TemporaryFile` to
             customize tempfile allocation.
 
         :param dict idmap_kwargs: Keywords passed when constructing new :class:`.StrongIdMap`
@@ -92,7 +92,7 @@ class BaseObjectPool(object):
             to improve reference deduplication.
 
         :param list section_freelist: *(optional)* If given, a list to hold section freed
-            when :py:meth:`close` is invoked. If multiple pools are constructed in
+            when :meth:`close` is invoked. If multiple pools are constructed in
             succession, this can speed up the process of allocating new sections
             by reusing discarded sections.
         """
@@ -183,7 +183,7 @@ class BaseObjectPool(object):
         """
         Add an object to the pool, and return a proxy to it.
 
-        :param Schema schema: The :py:class:`Schema` of the object data being pushed
+        :param Schema schema: The :class:`~sharedbuffers.mapped_struct.Schema` of the object data being pushed
 
         :param obj: Object to be packed into the pool.
 
@@ -227,9 +227,10 @@ class BaseObjectPool(object):
 
         Make sure the contents of ``buf`` are relocatable (ie: have no external references)
 
-        :param Schema schema: The :py:class:`Schema` of the object data being pushed
+        :param Schema schema: The :class:`~sharedbuffers.mapped_struct.Schema` of the object data being pushed
 
-        :param buffer buf: Object data produced with :py:meth:`Schema.pack_into` or a similar method.
+        :param buffer buf: Object data produced with :meth:`sharedbuffers.mapped_struct.Schema.pack_into`
+            or a similar method.
 
         :rtype: tuple[int, proxy]
         :returns: A pair with the location of the added object and a proxy to the object itself.
@@ -260,7 +261,7 @@ class BaseObjectPool(object):
         objects a lot, but the objects will be repeated on each section, so they should
         be small or their size overhead will outweight their benefit.
 
-        :param Schema schema: The :py:class:`Schema` describing the object's shape
+        :param Schema schema: The :class:`~sharedbuffers.mapped_struct.Schema` describing the object's shape
 
         :param obj: The object to be preloaded. It will automatically be packed each time
             a new section is added.
@@ -278,7 +279,8 @@ class BaseObjectPool(object):
 
     def unpack(self, schema, pos):
         """
-        Unpacks object data from the logical position ``pos`` using the given :py:class:`Schema`.
+        Unpacks object data from the logical position ``pos`` using the given
+        :class:`~sharedbuffers.mapped_struct.Schema`.
 
         :param Schema schema: The expected schema of the object at ``pos``.
 
@@ -337,7 +339,7 @@ class BaseObjectPool(object):
 
 class TemporaryObjectPool(BaseObjectPool):
     """
-    Implementation of :py:class:`BaseObjectPool` using anonymous temporary files.
+    Implementation of :class:`BaseObjectPool` using anonymous temporary files.
     """
 
     def _mktemp(self):
