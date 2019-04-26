@@ -4763,7 +4763,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         return rv
 
 if not cython.compiled:
-    globals.update(dict(
+    globals().update(dict(
         numeric_A = object,
         numeric_B = object,
     ))
