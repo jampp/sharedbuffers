@@ -28,5 +28,5 @@ Glossary
     hashable objects
         As in python, mappings require that objects be hashable. In contrast with python, sharedbuffers needs
         a stable hash implementation (one that will be portable across processes and implementations). As such,
-        not every hashable python object is hashable for sharedbuffers' purposes. See :py:func:`_stable_hash` for
-        details.
+        not every hashable python object is hashable for sharedbuffers' purposes.
+        See :py:func:`~sharedbuffers.mapped_struct._stable_hash` for details.
