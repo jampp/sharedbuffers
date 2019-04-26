@@ -4762,6 +4762,11 @@ class MappedArrayProxyBase(_ZipMapBase):
         rv._mmap = buf
         return rv
 
+if not cython.compiled:
+    globals.update(dict(
+        numeric_A = object,
+        numeric_B = object,
+    ))
 if cython.compiled:
 
     # We need as many of these definitions as different parameters are
@@ -5510,7 +5515,7 @@ def _discard_duplicates(apart, struct_dt, discard_duplicate_keys, discard_duplic
     return apart
 
 @cython.cfunc
-@cython.locals(self = 'NumericIdMapper', elem = 'numeric_A', indexbuf = 'Py_buffer',
+@cython.locals(self = 'NumericIdMapper', elem = numeric_A, indexbuf = 'Py_buffer',
     pybuf = 'Py_buffer', startpos = int, hkey = cython.ulonglong,
     stride0 = cython.size_t, stride1 = cython.size_t,
     pindex = cython.p_char, pindexend = cython.p_char, nitems = int)
@@ -6062,7 +6067,7 @@ class NumericId32Mapper(NumericIdMapper):
     dtype = npuint32
 
 @cython.ccall
-@cython.locals(self = 'ObjectIdMapper', elem = 'numeric_A', indexbuf = 'Py_buffer',
+@cython.locals(self = 'ObjectIdMapper', elem = numeric_A, indexbuf = 'Py_buffer',
     startpos = int, hkey = cython.ulonglong, stride0 = cython.size_t,
     stride1 = cython.size_t, pindex = cython.p_char, pindexend = cython.p_char)
 def _obj_id_get_gen(self, elem, startpos, hkey, key, default):
@@ -6618,7 +6623,7 @@ def safe_utf8(x):
         return x
 
 @cython.ccall
-@cython.locals(self = 'StringIdMapper', elem = 'numeric_A', pbkey = 'const char *',
+@cython.locals(self = 'StringIdMapper', elem = numeric_A, pbkey = 'const char *',
     blen = cython.size_t, indexbuf = 'Py_buffer', startpos = int, hkey = cython.ulonglong,
     stride0 = cython.size_t, stride1 = cython.size_t, pbuf_ptr = 'const char *')
 def _str_id_get_gen(self, elem, pbkey, blen, startpos, hkey, pbuf_ptr, pbuf_len, default):
@@ -7124,7 +7129,7 @@ class StringId32Mapper(StringIdMapper):
     xxh = xxhash.xxh32
 
 @cython.ccall
-@cython.locals(self = 'NumericIdMapper', elem = 'numeric_A', rv = list, hkey = cython.ulonglong,
+@cython.locals(self = 'NumericIdMapper', elem = numeric_A, rv = list, hkey = cython.ulonglong,
     startpos = int, pybuf = 'Py_buffer', indexbuf = 'Py_buffer',
     pindex = cython.p_char, pindexend = cython.p_char)
 def _numeric_id_multi_get_gen(self, elem, rv, hkey, startpos, default):
@@ -7154,7 +7159,7 @@ def _numeric_id_multi_get_gen(self, elem, rv, hkey, startpos, default):
     #lint:enable
 
 @cython.ccall
-@cython.locals(self = 'NumericIdMultiMapper', elem = 'numeric_A', startpos = int,
+@cython.locals(self = 'NumericIdMultiMapper', elem = numeric_A, startpos = int,
     hkey = cython.ulonglong, nitems = int, pybuf = 'Py_buffer',
     indexbuf = 'Py_buffer', pindex = cython.p_char, pindexend = cython.p_char)
 def _numeric_id_multi_has_gen(self, elem, startpos, hkey):
@@ -7360,7 +7365,7 @@ class NumericId32MultiMapper(NumericIdMultiMapper):
     dtype = npuint32
 
 @cython.ccall
-@cython.locals(self = 'StringIdMultiMapper', elem = 'numeric_A', rv = list, pbkey = 'const char *',
+@cython.locals(self = 'StringIdMultiMapper', elem = numeric_A, rv = list, pbkey = 'const char *',
     blen = cython.size_t, startpos = int, hkey = cython.ulonglong, pbuf_ptr = 'const char *',
     pbuf_len = cython.size_t, indexbuf = 'Py_buffer', stride0 = cython.size_t,
     stride1 = cython.size_t, pindex = cython.p_char)
@@ -7387,7 +7392,7 @@ def _str_id_multi_get_gen(self, elem, rv, pbkey, blen, startpos, hkey, pbuf_ptr,
         PyBuffer_Release(cython.address(indexbuf))
 
 @cython.ccall
-@cython.locals(self = 'StringIdMultiMapper', elem = 'numeric_A', pbkey = 'const char *',
+@cython.locals(self = 'StringIdMultiMapper', elem = numeric_A, pbkey = 'const char *',
     startpos = int, pbuf_ptr = 'const char *', pbuf_len = cython.size_t,
     hkey = cython.ulonglong, blen = cython.size_t, indexbuf = 'Py_buffer', stride0 = cython.size_t,
     stride1 = cython.size_t, pindex = cython.p_char, pindexend = cython.p_char)
