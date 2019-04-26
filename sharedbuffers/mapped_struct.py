@@ -6,7 +6,7 @@ This modules implements marshalling of complex structures into shared memory buf
 and proxy classes needed to access the information within them in an efficient manner
 without previous deserialization.
 
-The :py:class:`Schema` class represents a particular structure's shape in shared
+The :class:`Schema` class represents a particular structure's shape in shared
 memory. Shared buffers can span complex structures by placing an object of a known
 schema at a known location. Then :py:meth:`Schema.unpack_from` can be used to
 get a proxy to that buffer that will expose the whole structure accessible in
@@ -20,32 +20,32 @@ supported in this fashion.
 
 Schemas can be declared with fields of any of the built-in primitive types:
 
-* *Numbers*: :py:class:`ubyte`, :py:class:`byte`, :py:class:`ushort`, :py:class:`short`,
-  :py:class:`uint32`, :py:class:`int32`, :py:class:`uint64`, :py:class:`int64`,
-  :py:class:`float32`, :py:class:`float64`, or their python type, :py:class:`Decimal`,
-  :py:class:`int`, :py:class:`float`, :py:class:`bool`.
-* *Dates*: :py:class:`datetime.datetime`, :py:class:`datetime.date`.
-* *Strings*: by their python type, :py:class:`str`, :py:class:`bytes`, :py:class:`unicode`,
-  or explicitly by their built-in implementation type :py:class:`mapped_bytes`, :py:class:`mapped_unicode`.
-* *Buffers*: by python's :py:class:`buffer` or :py:class:`mapped_buffer`.
-* *Containers*: by python's :py:class:`list`, :py:class:`tuple`, :py:class:`frozenset`, :py:class:`dict`,
-  or by their built-in implementations, which can customize their proxying behavior, :py:class:`mapped_tuple`,
-  :py:class:`mapped_list`, :py:class:`mapped_dict`, :py:class:`mapped_frozenset`, :py:class:`proxied_tuple`,
-  :py:class:`proxied_list`, :py:class:`proxied_dict`, :py:class:`proxied_frozenset`.
-* *Numpy arrays*, by declaring them as :py:class:`proxied_ndarray`.
+* *Numbers*: :class:`ubyte`, :class:`byte`, :class:`ushort`, :class:`short`,
+  :class:`uint32`, :class:`int32`, :class:`uint64`, :class:`int64`,
+  :class:`float32`, :class:`float64`, or their python type, :class:`Decimal`,
+  :class:`int`, :class:`float`, :class:`bool`.
+* *Dates*: :class:`datetime.datetime`, :class:`datetime.date`.
+* *Strings*: by their python type, :class:`str`, :class:`bytes`, :class:`unicode`,
+  or explicitly by their built-in implementation type :class:`mapped_bytes`, :class:`mapped_unicode`.
+* *Buffers*: by python's :class:`buffer` or :class:`mapped_buffer`.
+* *Containers*: by python's :class:`list`, :class:`tuple`, :class:`frozenset`, :class:`dict`,
+  or by their built-in implementations, which can customize their proxying behavior, :class:`mapped_tuple`,
+  :class:`mapped_list`, :class:`mapped_dict`, :class:`mapped_frozenset`, :class:`proxied_tuple`,
+  :class:`proxied_list`, :class:`proxied_dict`, :class:`proxied_frozenset`.
+* *Numpy arrays*, by declaring them as :class:`proxied_ndarray`.
 
 Fields can also be declared of *dynamic* type, which means the value will be wrapped with
 runtime type information, and it will accept any value of any supported type, by declaring
-them as :py:class:`object` (or :py:class:`mapped_object` to be more explicit).
+them as :class:`object` (or :class:`mapped_object` to be more explicit).
 
-Once a :py:class:`Schema` is initialized, data can be placed in any writable buffer by
+Once a :class:`Schema` is initialized, data can be placed in any writable buffer by
 invoking :py:meth:`~Schema.pack_into`, and accessed through a proxy construced by :py:meth:`~Schema.unpack_from`.
 
-In order to make fields reference objects other than the built-in types, their :py:class:`Schema` has to be
+In order to make fields reference objects other than the built-in types, their :class:`Schema` has to be
 described and registered with :py:meth:`mapped_object.register_schema`, after which it can be used in field
 type declarations as if it were another built-in type, and within containers or dynamically typed values.
 
-:py:class:`Schema` instances are pickleable, which means they can be embedded into shared memory buffers
+:class:`Schema` instances are pickleable, which means they can be embedded into shared memory buffers
 to make them portable. This is not done automatically except in some high level data structures, when documented.
 """
 
@@ -999,12 +999,12 @@ def _stable_hash(key):
 
     Stable hashing is implemented for:
 
-    * :py:class:`basestring`
-    * :py:class:`int`
-    * :py:class:`long`
-    * :py:class:`float`
-    * :py:class:`tuple` and :py:class:`proxied_tuple`
-    * :py:class:`frozenset` and :py:class:`proxied_frozenset`
+    * :class:`basestring`
+    * :class:`int`
+    * :class:`long`
+    * :class:`float`
+    * :class:`tuple` and :class:`proxied_tuple`
+    * :class:`frozenset` and :class:`proxied_frozenset`
 
     Containers need to have hashable contents to be hashable.
 
@@ -2837,8 +2837,8 @@ class mapped_object(object):
 
         :param offs: The offset within ``buf`` where to place the object.
 
-        :param idmap: *(optional)* A mapping (dict-like or an instance of :py:class:`StrongIdMap`) used to
-            deduplicate references to recurring objects. If not given, a temporary :py:class:`StrongIdMap` will
+        :param idmap: *(optional)* A mapping (dict-like or an instance of :class:`StrongIdMap`) used to
+            deduplicate references to recurring objects. If not given, a temporary :class:`StrongIdMap` will
             be constructed for the operation if necessary. See :term:`idmap`.
 
         :param implicit_offs: *(optional)* The implicit offset of ``buf`` within a larger data structure.
@@ -2884,7 +2884,7 @@ class mapped_object(object):
             If object identity matters, be it for memory efficiency or some other reason, one should be provided.
             Otherwise it's not necessary for unpacking. See :term:`idmap`.
 
-        :param proxy_into: *(optional)* An instance of :py:class:`BufferProxyObject` that will be turned into
+        :param proxy_into: *(optional)* An instance of :class:`BufferProxyObject` that will be turned into
             a proxy of the right kind, pointing at the right offset. This is slightly faster than building a new
             proxy every time. Otherwise a new proxy is constructed and returned.
 
@@ -2919,14 +2919,14 @@ class mapped_object(object):
     @classmethod
     def register_schema(cls, typ, schema, typecode):
         """
-        Registers the :py:class:`Schema` of instances of type ``typ`` and assigns it
+        Registers the :class:`Schema` of instances of type ``typ`` and assigns it
         a typecode for :term:`RTTI`. This makes objects of those types able to be wrapped in
         :term:`RTTI` and thus referenceable as dynamically typed values, like from within
         container structures (lists, dicts, etc).
 
         :param typ: The type (python class) of objects represented with ``schema``.
 
-        :param Schema schema: A :py:class:`Schema` that describes the shape of objects of type ``typ``.
+        :param Schema schema: A :class:`Schema` that describes the shape of objects of type ``typ``.
 
         :param bytes typecode: A globally unique typecode (a single char) that will idenfity this type. If
             incompatible types are registered under the same typecode, an error will be raised. The typecode
@@ -2934,7 +2934,7 @@ class mapped_object(object):
             built-in types, see :py:attr:`TYPE_CODES`.
 
         :rtype: mapped_object_with_schema
-        :return: An instance of :py:class:`mapped_obect_with_schema` that can be used to pack
+        :return: An instance of :class:`mapped_obect_with_schema` that can be used to pack
             instances of the registered type.
         """
         if typecode is not None:
@@ -2978,7 +2978,7 @@ class mapped_object(object):
         to be accounted for in client code.
 
         :rtype: mapped_object_with_schema
-        :return: An instance of :py:class:`mapped_obect_with_schema` that can be used to pack
+        :return: An instance of :class:`mapped_obect_with_schema` that can be used to pack
             instances of the registered type.
         """
         if supertyp not in cls.TYPE_CODES:
@@ -3591,16 +3591,16 @@ PROXY_TYPES = {
 
 def GenericProxyClass(slot_keys, slot_types, present_bitmap, base_offs, bases = None):
     """
-    Construct a subclass of :py:class:`BufferProxyObject` with the given shape.
+    Construct a subclass of :class:`BufferProxyObject` with the given shape.
 
     Since the shape depends on the attributes that are present with an explicit value,
     a different proxy type will be necessary for values with different sets of missing/null
     attributes.
 
-    :type slot_keys: sequence[str]
+    :class: slot_keys:class:: sequence[str]
     :param slot_keys: An ordered list of attribute names.
 
-    :type slot_types: sequence[type]
+    :class: slot_types: sequence[type]
     :param slot_types: For each attribute in ``slot_keys``, its type
 
     :param int present_bitmap: A bitmap specifying which attributes are actually present.
@@ -3609,10 +3609,10 @@ def GenericProxyClass(slot_keys, slot_types, present_bitmap, base_offs, bases = 
     :param int base_offs: The offset of the first attribute's value relative to the object's
         initial offset.
 
-    :type bases: tuple or None
+    :class: bases: tuple or None
     :param bases: *(optional)* If given, the returned class will inherit from ``bases``.
 
-    :return: Subtype of :py:class:`BufferProxyObject` implementing the specified attributes
+    :return: Subtype of :class:`BufferProxyObject` implementing the specified attributes
         through readable data properties.
     """
     class GenericProxyClass(BufferProxyObject):
@@ -3700,7 +3700,7 @@ class Schema(object):
     @property
     def ProxyClass(self):
         """
-        Returns the type of returned proxies, a subtype of :py:class:`BufferProxyObject` generated
+        Returns the type of returned proxies, a subtype of :class:`BufferProxyObject` generated
         with :py:func:`GenericProxyClass`.
         """
         return self._Proxy
@@ -3784,12 +3784,12 @@ class Schema(object):
 
     @staticmethod
     def _map_types(slot_types):
-        return { k:TYPES.get(v,v) for k,v in slot_types.iteritems() }
+        return { k:class:S.get(v,v) for k,v in slot_types.iteritems() }
 
     @classmethod
     def from_typed_slots(cls, struct_class_or_slot_types, *p, **kw):
         """
-        Constructs a :py:class:`Schema` out of a description of attribute (slot) types.
+        Constructs a :class:`Schema` out of a description of attribute (slot) types.
 
         :param struct_class_or_slot_types: Either a class with a ``__slot_types__`` attribute,
             or the mapping of attribute names to attribute types itself.
@@ -4373,7 +4373,7 @@ class Schema(object):
 @cython.cclass
 class mapped_object_with_schema(object):
     """
-    An object that can be used to pack and unpack objects with the given :py:class:`Schema`.
+    An object that can be used to pack and unpack objects with the given :class:`Schema`.
 
     Used mostly internally for schema pickling.
     """
@@ -4386,7 +4386,7 @@ class mapped_object_with_schema(object):
     @property
     def schema(self):
         """
-        The objects' :py:class:`Schema`
+        The objects' :class:`Schema`
         """
         return self._schema
 
@@ -4473,9 +4473,9 @@ class GenericFileMapper(_ZipMapBase):
 
 class MappedArrayProxyBase(_ZipMapBase):
     """
-    Base class for arrays of objects with a uniform :py:class:`Schema`.
+    Base class for arrays of objects with a uniform :class:`Schema`.
 
-    Construct a concrete class by subclassing and providing a :py:class:`Schema`::
+    Construct a concrete class by subclassing and providing a :class:`Schema`::
 
         class SomeArrayType(MappedArrayProxyBase):
             schema = Schema.from_typed_slots(SomeClass)
@@ -4643,11 +4643,11 @@ class MappedArrayProxyBase(_ZipMapBase):
         schema_pos = cython.size_t, schema_end = cython.size_t)
     def build(cls, initializer, destfile = None, tempdir = None, idmap = None, return_mapper=True):
         """
-        Builds an array of objects with a uniform :py:class:`Schema` into a memory mapped temporary file.
+        Builds an array of objects with a uniform :class:`Schema` into a memory mapped temporary file.
 
         :param iterable initializer: Content of the array.
 
-        :type destfile: file or file-like
+        :class: destfile: file or file-like
         :param destfile: *(optional)* An explicit file where the mapping should be built. If ``return_mapper``
             is True (the default), this has to be an actual file. Otherwise, it can be any file-like object
             that supports seeking and overwriting. The array will be written at the current position,
@@ -4656,7 +4656,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         :param str tempdir: *(optional)* A directory into which temporary files will be constructed. The build
             process needs temporary storage, so it will be used even when an explicit ``destfile`` is given.
 
-        :type idmap: dict-like or StrongIdMap
+        :class: idmap: dict-like or StrongIdMap
         :param idmap: An :term:`idmap` to be used during the construction. If not given, a temporary
             :term:`idmap` is constructed for each object that is written, preventing instance deduplication
             across items but reducing memory usage.
@@ -5815,13 +5815,13 @@ class NumericIdMapper(_CZipMapBase):
     def build(cls, initializer, destfile = None, tempdir = None,
             discard_duplicates = False, discard_duplicate_keys = False, return_mapper=True):
         """
-        Builds a :py:class:`NumericIdMapper` from the given iterable. The iterable should
+        Builds a :class:`NumericIdMapper` from the given iterable. The iterable should
         yield ``(key, value)`` pairs, in which both key and value are numbers fitting the range
         of the :term:`Id Mapper`.
 
         :param initializer: Iterable of items that will be built onto the resulting :term:`Id Mapper`.
 
-        :type destfile: file or file-like
+        :class: destfile: file or file-like
         :param destfile: *(optional)* An explicit file object where the mapper will be built. The same
             restrictions apply than in the case of :py:meth:`MappedArrayProxyBase.build`.
 
@@ -6015,9 +6015,9 @@ class NumericIdMapper(_CZipMapBase):
     def merge(cls, parts, destfile = None, tempdir = None,
             discard_duplicates = False, discard_duplicate_keys = False):
         """
-        Merge two or more :py:class:`NumericIdMapper` s into a single one efficiently.
+        Merge two or more :class:`NumericIdMapper` s into a single one efficiently.
 
-        :param iterable parts: Iterable of :py:class:`NumericIdMapper` instances to be merged.
+        :param iterable parts: Iterable of :class:`NumericIdMapper` instances to be merged.
 
         See :py:meth:`build` for a description of the remaining arguments.
         """
@@ -6056,7 +6056,7 @@ class NumericIdMapper(_CZipMapBase):
 @cython.cclass
 class NumericId32Mapper(NumericIdMapper):
     """
-    Like :py:class:`NumericIdMapper` but for 32-bit unsigned integer keys and values.
+    Like :class:`NumericIdMapper` but for 32-bit unsigned integer keys and values.
     Hence, more compact, but also more limited.
     """
     dtype = npuint32
@@ -7117,7 +7117,7 @@ class StringIdMapper(_CZipMapBase):
 @cython.cclass
 class StringId32Mapper(StringIdMapper):
     """
-    An :term:`Id Mapper` like :py:class:`StringIdMapper` whose values are 32-bit unsigned integers,
+    An :term:`Id Mapper` like :class:`StringIdMapper` whose values are 32-bit unsigned integers,
     and thus more compact, but limited to smaller indexes.
     """
     dtype = npuint32
@@ -7355,7 +7355,7 @@ class NumericId32MultiMapper(NumericIdMultiMapper):
     A numeric :term:`Id Multi Mapper`, providing a mapping from 32-bit unsigned integers
     to 32-bit unsigned integers, adequate for object mappings where the keys are unsigned integers.
 
-    Like :py:class:`NumericIdMultiMapper`, but more compact and limited to smaller indexes.
+    Like :class:`NumericIdMultiMapper`, but more compact and limited to smaller indexes.
     """
     dtype = npuint32
 
@@ -7643,7 +7643,7 @@ class StringIdMultiMapper(StringIdMapper):
 @cython.cclass
 class StringId32MultiMapper(StringIdMultiMapper):
     """
-    An :term:`Id Multi Mapper` like :py:class:`StringIdMultiMapper`, where values are limited
+    An :term:`Id Multi Mapper` like :class:`StringIdMultiMapper`, where values are limited
     to 32-bit unsigned integers, and thus more compact but limited.
     """
     dtype = npuint32
@@ -7701,7 +7701,7 @@ class ApproxStringId32MultiMapper(ApproxStringIdMultiMapper):
     A numeric :term:`Approximate Id Multi Mapper`, providing a mapping from strings
     to 32-bit unsigned integers, adequate for object mappings where the keys are unsigned integers.
 
-    Like :py:class:`ApproxStringIdMultiMapper`, but more compact and limited to smaller indexes,
+    Like :class:`ApproxStringIdMultiMapper`, but more compact and limited to smaller indexes,
     with a false positive rate slightly higher as well.
     """
     xxh = xxhash.xxh32
@@ -7733,7 +7733,7 @@ def _iter_key_dump(keys_file):
 
 class MappedMappingProxyBase(_ZipMapBase):
     """
-    Base class for mappings of keys to objects with a uniform :py:class:`Schema`.
+    Base class for mappings of keys to objects with a uniform :class:`Schema`.
 
     Construct a concrete class by subclassing and providing an array class and an :term:`Id Mapper`::
 
@@ -7815,7 +7815,7 @@ class MappedMappingProxyBase(_ZipMapBase):
             value_array_kwargs = {},
             id_mapper_kwargs = {}):
         """
-        Builds a mapping of keys to objects with a uniform :py:class:`Schema` into a memory mapped temporary file.
+        Builds a mapping of keys to objects with a uniform :class:`Schema` into a memory mapped temporary file.
 
         :param iterable initializer: Content of the mapping.
 
@@ -7826,7 +7826,7 @@ class MappedMappingProxyBase(_ZipMapBase):
         :param str tempdir: *(optional)* A directory into which temporary files will be constructed. The build
             process needs temporary storage, so it will be used even when an explicit ``destfile`` is given.
 
-        :type idmap: dict-like or StrongIdMap
+        :class: idmap: dict-like or StrongIdMap
         :param idmap: An :term:`idmap` to be used during the construction. If not given, a temporary
             :term:`idmap` is constructed for each object that is written, preventing instance deduplication
             across items but reducing memory usage.
@@ -7933,7 +7933,7 @@ class MappedMappingProxyBase(_ZipMapBase):
 
 class MappedMultiMappingProxyBase(MappedMappingProxyBase):
     """
-    A base class for mappings like :py:class:`MappedMappingProxyBase`, but which accepts multiple
+    A base class for mappings like :class:`MappedMappingProxyBase`, but which accepts multiple
     values for a key. It has to be paired with :term:`Id Multi Mapper` s instead.
     """
     def __getitem__(self, key):
