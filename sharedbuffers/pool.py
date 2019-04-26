@@ -50,12 +50,56 @@ class Section(object):
         self.idmap = StrongIdMap(**idmap_kwargs)
 
 class BaseObjectPool(object):
+    """
+    Base abstract class for object pools. Use a concrete implementation instead.
+
+    An object pool can be dynamically grown by appending object data one object
+    at a time.
+
+    The object pool is split into large-ish sections that are memory-mapped files.
+    Big data structures can be built onto them without requiring equal amounts of
+    memory by handling object proxies instead of actual objects.
+
+    Each section has its own :term:`idmap`, which means object deduplication cannot
+    work across sections, so section size has to be balanced to be large, but not
+    too large, since the pool grows in whole-section increments.
+
+    Object pools can be useful to parallelize the construction of big data structures.
+    Relocatable object data can be packed in a process pool, and returned as a byte
+    string that can then be added to the object pool. This construction method isn't
+    as effective at reference deduplication, since relocatable object data needs to
+    be closed (have no external references), but in many cases the bulk of big data
+    structures is composed of easy to close objects.
+
+    They can also help in building large object graphs that don't fit in memory, by
+    replacing heavy objects with lightweight proxies as they are built and pushed
+    into the pool one object at a time.
+    """
 
     def _mktemp(self):
         raise NotImplementedError
 
     def __init__(self, section_size=DEFAULT_SECTION_SIZE, temp_kwargs={}, idmap_kwargs={},
             section_freelist=None):
+        """
+        :type section_size: int
+        :param section_size: The size of each section in the pool
+
+        :type temp_kwargs: dict
+        :param temp_kwargs: Keywords passed to :py:class:`tempfile.TemporaryFile` to
+            customize tempfile allocation.
+
+        :type idmap_kwargs: dict
+        :param idmap_kwargs: Keywords passed when constructing new :py:class:`StrongIdMap`
+            instances. Particularly useful to pass a stable set of known stable objects
+            to improve reference deduplication.
+
+        :type section_freelist: list
+        :param section_freelist: *(optional)* If given, a list to hold section freed
+            when :py:meth:`close` is invoked. If multiple pools are constructed in
+            succession, this can speed up the process of allocating new sections
+            by reusing discarded sections.
+        """
         self.temp_kwargs = temp_kwargs
         self.idmap_kwargs = idmap_kwargs
         self.section_size = section_size
@@ -66,6 +110,9 @@ class BaseObjectPool(object):
 
     @property
     def size(self):
+        """
+        Total size in bytes of all data appended to this pool.
+        """
         if self.sections:
             last_section = self.sections[-1]
             return last_section.implicit_offs + last_section.write_pos
@@ -73,6 +120,9 @@ class BaseObjectPool(object):
             return 0
 
     def add_section(self):
+        """
+        Append a new section to the pool, and return it.
+        """
         f = None
         try:
             new_section = None
@@ -134,6 +184,31 @@ class BaseObjectPool(object):
 
     def pack(self, schema, obj, min_pack_buffer=DEFAULT_PACK_BUFFER, clear_idmaps_on_new_section=True,
             pack_buffer=None):
+        """
+        Add an object to the pool, and return a proxy to it.
+
+        :type schema: Schema
+        :param schema: The :py:class:`Schema` of the object data being pushed
+
+        :param obj: Object to be packed into the pool.
+
+        :type min_pack_buffer: int
+        :param min_pack_buffer: *(optional)* Minimum required free space in the section. If the section contains
+            less than this amount of free space, a new empty section is allocated without even trying
+            to pack the object in the almost-full section.
+
+        :type clear_idmaps_on_new_section: bool
+        :param clear_idmaps_on_new_section: *(default True)* Whether to clear the :term:`idmap` s of full sections
+            when new sections are allocated. Doing this can keep memory usage low, but prevent efficient reuse of free
+            section space. The default is usually ok.
+
+        :type pack_buffer: bytearray
+        :param pack_buffer: *(optional)* A buffer used to build the object data before copying it into the pool.
+            If none is provided, one is allocated automatically.
+
+        :rtype: (int, proxy)
+        :returns: A pair with the location of the added object and a proxy to the object itself.
+        """
         sections = self.sections
         _min_pack_buffer=[min_pack_buffer]
         for section in reversed(sections):
@@ -156,7 +231,18 @@ class BaseObjectPool(object):
 
     def add(self, schema, buf, clear_idmaps_on_new_section=True):
         """
-        Make sure the contents of buf are relocatable (ie: have no external references)
+        Add object data to the pool, and return a proxy to it.
+
+        Make sure the contents of ``buf`` are relocatable (ie: have no external references)
+
+        :type schema: Schema
+        :param schema: The :py:class:`Schema` of the object data being pushed
+
+        :type buf: buffer
+        :param buf: Object data produced with :py:meth:`Schema.pack_into` or a similar method.
+
+        :rtype: (int, proxy)
+        :returns: A pair with the location of the added object and a proxy to the object itself.
         """
         sections = self.sections
         for section in sections:
@@ -179,28 +265,62 @@ class BaseObjectPool(object):
     def add_preload(self, schema, obj):
         """
         Preload this object and all its contents into all the individual sections.
-        Fix those in the per-section idmap. Can improve both speed and reduce size
+        Fix those in the per-section idmap. It can improve both speed and reduce size
         if the objects to be appended references the objects contained in the preloaded
-        objects a lot.
+        objects a lot, but the objects will be repeated on each section, so they should
+        be small or their size overhead will outweight their benefit.
+
+        :type schema: Schema
+        :param schema: The :py:class:`Schema` describing the object's shape
+
+        :param obj: The object to be preloaded. It will automatically be packed each time
+            a new section is added.
         """
         self.idmap_preload.append((schema, obj))
 
     def find_section(self, pos):
+        """
+        :rtype: Section
+        :returns: The section where the logical position ``pos`` resides.
+        """
         for section in self.sections:
             if section.implicit_offs <= pos < section.implicit_offs + len(section.buf):
                 return section
 
     def unpack(self, schema, pos):
+        """
+        Unpacks object data from the logical position ``pos`` using the given :py:class:`Schema`.
+
+        :type schema: Schema
+        :param schema: The expected schema of the object at ``pos``.
+
+        :type pos: int
+        :param pos: The logical position from which to unpack the object.
+
+        :return: A proxy to the object.
+        """
         section = self.find_section(pos)
         if section is None:
             raise IndexError("Position %d out of bounds for object pool" % pos)
         return schema.unpack_from(section.real_buf, pos - section.implicit_offs)
 
     def clear_idmaps(self):
+        """
+        Clears all :term:`idmap` s in all sections.
+        """
         for section in self.sections:
             section.idmap.clear()
 
     def dump(self, fileobj):
+        """
+        Dump the whole pool's content into ``fileobj``.
+
+        :type fileobj: file-like
+        :param fileobj: The file or file-like object onto which to dump all data.
+
+        :rtype: int
+        :returns: The amount of data written
+        """
         if not self.sections:
             return 0
 
@@ -215,6 +335,9 @@ class BaseObjectPool(object):
         return section.implicit_offs + write_bytes
 
     def close(self):
+        """
+        Release all pool resources. Resets the pool to empty state.
+        """
         sections = self.sections
         self.sections = []
 
@@ -226,6 +349,9 @@ class BaseObjectPool(object):
         self.total_size = 0
 
 class TemporaryObjectPool(BaseObjectPool):
+    """
+    Implementation of :py:class:`BaseObjectPool` using anonymous temporary files.
+    """
 
     def _mktemp(self):
         return tempfile.TemporaryFile(**self.temp_kwargs)

@@ -12,7 +12,7 @@ sharedbuffers.mapped\_struct module
         ApproxStringIdMultiMapper, ApproxStringId32MultiMapper,
         MappedMappingProxyBase, MappedMultiMappingProxyBase,
         bsearch, hinted_bsearch, sorted_contains, hinted_sorted_contains, index_merge
-    :undoc-members:
+    :no-undoc-members:
     :show-inheritance:
 
     For a high-level overview of how to use this module,
@@ -62,5 +62,5 @@ sharedbuffers.pool module
 .. automodule:: sharedbuffers.pool
     :member-order: groupwise
     :members: BaseObjectPool, TemporaryObjectPool
-    :undoc-members:
+    :no-undoc-members:
     :show-inheritance:

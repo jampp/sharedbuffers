@@ -4658,7 +4658,7 @@ class MappedArrayProxyBase(_ZipMapBase):
 
         :type destfile: file or file-like
         :param destfile: *(optional)* An explicit file where the mapping should be built. If ``return_mapper``
-            is Ture (the default), this has to be an actual file. Otherwise, it can be any file-like object
+            is True (the default), this has to be an actual file. Otherwise, it can be any file-like object
             that supports seeking and overwriting. The array will be written at the current position,
             and mapped from it.
 
@@ -7761,6 +7761,31 @@ def _iter_key_dump(keys_file):
             break
 
 class MappedMappingProxyBase(_ZipMapBase):
+    """
+    Base class for mappings of keys to objects with a uniform :py:class:`Schema`.
+
+    Construct a concrete class by subclassing and providing an array class and an :term:`Id Mapper`::
+
+        class SomeArrayType(MappedArrayProxyBase):
+            schema = Schema.from_typed_slots(SomeClass)
+
+        class SomeMappingType(MappedMappingProxyBase):
+            ValueArray = SomeArrayType
+            IdMapper = NumericIdMapper
+
+    Then build them into temporary files by using :py:meth:`build`::
+
+        mapped_mapping = SomeMappingType.build(iterable)
+
+    The returned mapping will be memory-mapped from a temporary file. You can also provide
+    an explicit file where to build the mapping instead. See :py:meth:`build` for details.
+
+    The schema is pickled into the buffer so the mapping should be portable.
+
+    The class implements a (readonly) dict-like interface, supporting iteration of keys, values and items,
+    length, and random access subscripting.
+    """
+
     # Must subclass to select mapping strategies
 
     # A MappedArrayProxyBase subclass for values
@@ -7818,6 +7843,37 @@ class MappedMappingProxyBase(_ZipMapBase):
     def build(cls, initializer, destfile = None, tempdir = None, idmap = None,
             value_array_kwargs = {},
             id_mapper_kwargs = {}):
+        """
+        Builds a mapping of keys to objects with a uniform :py:class:`Schema` into a memory mapped temporary file.
+
+        :type initializer: iterable
+        :param initializer: Content of the mapping.
+
+        :type destfile: file
+        :param destfile: *(optional)* An explicit file where the mapping should be built.
+            This has to be an actual file, since it needs to be memory-mapped.
+            The mapping will be written at the current position, and memory-mapped from it.
+
+        :type tempdir: str
+        :param tempdir: *(optional)* A directory into which temporary files will be constructed. The build
+            process needs temporary storage, so it will be used even when an explicit ``destfile`` is given.
+
+        :type idmap: dict-like or StrongIdMap
+        :param idmap: An :term:`idmap` to be used during the construction. If not given, a temporary
+            :term:`idmap` is constructed for each object that is written, preventing instance deduplication
+            across items but reducing memory usage.
+
+        :type value_array_kwargs: dict
+        :param value_array_kwargs: Custom keyword arguments to be passed when invoking
+            :py:attr:`ValueArray` . :py:meth:`~MappedArrayProxyBase.build`.
+
+        :type id_mapper_kwargs: dict
+        :param id_mapper_kwargs: Custom keyword arguments to be passed when invoking
+            :py:attr:`IdMapper` . :py:meth:`~NumericIdMapper.build`.
+
+        :rtype: MappedMappingProxyBase
+        :returns: The constructed mapping
+        """
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
 
@@ -7853,6 +7909,20 @@ class MappedMappingProxyBase(_ZipMapBase):
 
     @classmethod
     def map_buffer(cls, buf, offset = 0):
+        """
+        Builds a mapping proxy out of the data in ``buf`` at offset ``offset``.
+
+        The way mappings are constructed requires metadata to be at a footer, and not a header.
+        This means the buffer should end where the mapping ends, or the mapping won't be
+        read correctly. If the mapping is embedded on a larger buffer, a slice must be taken
+        prior to calling this method, so the caller needs to know the size of the mapping beforehand.
+
+        :type buf: buffer
+        :param buf: A read buffer where the data is located. The mapping must end where the buffer ends.
+
+        :type offset: int
+        :param offset: *(optional)* The offset where the mapping starts.
+        """
         values_pos, = cls._Footer.unpack_from(buf, offset + len(buf) - cls._Footer.size)
         value_array = cls.ValueArray.map_buffer(buf, offset + values_pos)
         id_mapper = cls.IdMapper.map_buffer(buf, offset)
@@ -7860,6 +7930,26 @@ class MappedMappingProxyBase(_ZipMapBase):
 
     @classmethod
     def map_file(cls, fileobj, offset = 0, size = None):
+        """
+        Builds a mapping proxy out of the data in ``fileobj`` at offset ``offset``
+        and size ``size``.
+
+        The way mappings are constructed requires metadata to be at a footer, and not a header.
+        This means the buffer should end where the mapping ends, or the mapping won't be
+        read correctly. If the mapping is embedded on a larger buffer, a slice must be taken
+        prior to calling this method, so the caller needs to know the size of the mapping beforehand.
+
+        :type fileobj: file
+        :param fileobj: A file object where the data is located. The mapping must end where the file ends,
+            or an explicit ``size`` must be given.
+
+        :type offset: int
+        :param offset: *(optional)* The offset where the mapping starts.
+
+        :type size: int
+        :param size: *(optional)* The size of the mapping relative to its starting offset. It must be
+            given if the mapping doesn't end at the EOF, to be able to locate the footer.
+        """
         if isinstance(fileobj, zipfile.ZipExtFile):
             return cls.map_zipfile(fileobj, offset, size)
 
@@ -7881,6 +7971,10 @@ class MappedMappingProxyBase(_ZipMapBase):
 
 
 class MappedMultiMappingProxyBase(MappedMappingProxyBase):
+    """
+    A base class for mappings like :py:class:`MappedMappingProxyBase`, but which accepts multiple
+    values for a key. It has to be paired with :term:`Id Multi Mapper` s instead.
+    """
     def __getitem__(self, key):
         ids = self.id_mapper[key]
         return [ self.value_array[id_] for id_ in ids ]
