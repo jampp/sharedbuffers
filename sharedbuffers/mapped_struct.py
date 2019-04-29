@@ -5559,7 +5559,7 @@ class NumericIdMapper(_CZipMapBase):
     A numerical :term:`Id Mapper`, providing a mapping from 64-bit unsigned integers
     to 64-bit unsigned integers, adequate for object mappings where the keys are unsigned integers.
 
-    As all :term:`Id Mapper` s, it implements a dict-like interface.
+    As all :term:`Id Mapper`\ s, it implements a dict-like interface.
     """
 
     dtype = npuint64
@@ -6110,7 +6110,7 @@ class ObjectIdMapper(_CZipMapBase):
     A generic :term:`Id Mapper`, providing a mapping from :term:`hashable objects`
     to 64-bit unsigned integers, adequate for object mappings where the keys are arbitrary :term:`hashable objects`.
 
-    As all :term:`Id Mapper` s, it implements a dict-like interface.
+    As all :term:`Id Mapper`\ s, it implements a dict-like interface.
     """
 
     dtype = npuint64
@@ -6665,7 +6665,7 @@ class StringIdMapper(_CZipMapBase):
     An :term:`Id Mapper`, providing a mapping from strings
     to 64-bit unsigned integers, adequate for object mappings where the keys are unsigned integers.
 
-    As all :term:`Id Mapper` s, it implements a dict-like interface.
+    As all :term:`Id Mapper`\ s, it implements a dict-like interface.
     """
 
     encode = staticmethod(safe_utf8)
@@ -7200,7 +7200,7 @@ class NumericIdMultiMapper(NumericIdMapper):
     A numeric :term:`Id Multi Mapper`, providing a mapping from 64-bit unsigned integers
     to 64-bit unsigned integers, adequate for object mappings where the keys are unsigned integers.
 
-    As all :term:`Id Multi Mapper` s, it implements a dict-like interface whose values are lists
+    As all :term:`Id Multi Mapper`\ s, it implements a dict-like interface whose values are lists
     of matches, rather than singular matches.
     """
 
@@ -7437,7 +7437,7 @@ class StringIdMultiMapper(StringIdMapper):
     An :term:`Id Multi Mapper`, providing a mapping from strings
     to 64-bit unsigned integers, adequate for object mappings where the keys are strings.
 
-    As all :term:`Id Multi Mapper` s, it implements a dict-like interface whose values are lists
+    As all :term:`Id Multi Mapper`\ s, it implements a dict-like interface whose values are lists
     of matches, rather than singular matches.
     """
 
@@ -7672,7 +7672,7 @@ class ApproxStringIdMultiMapper(NumericIdMultiMapper):
     to 64-bit unsigned integers, adequate for object mappings where the keys are strings
     and a small number of false matches are acceptable.
 
-    As all :term:`Approximate Id Multi Mapper` s, it implements a dict-like interface whose values are lists
+    As all :term:`Approximate Id Multi Mapper`\ s, it implements a dict-like interface whose values are lists
     of matches, rather than singular matches.
     """
     encode = staticmethod(safe_utf8)
