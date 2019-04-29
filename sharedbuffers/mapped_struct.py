@@ -20,19 +20,30 @@ supported in this fashion.
 
 Schemas can be declared with fields of any of the built-in primitive types:
 
-* *Numbers*: :class:`ubyte`, :class:`byte`, :class:`ushort`, :class:`short`,
+Numbers
+  :class:`ubyte`, :class:`byte`, :class:`ushort`, :class:`short`,
   :class:`uint32`, :class:`int32`, :class:`uint64`, :class:`int64`,
   :class:`float32`, :class:`float64`, or their python type, :class:`Decimal`,
   :class:`int`, :class:`float`, :class:`bool`.
-* *Dates*: :class:`datetime.datetime`, :class:`datetime.date`.
-* *Strings*: by their python type, :class:`str`, :class:`bytes`, :class:`unicode`,
+
+Dates
+  :class:`datetime.datetime`, :class:`datetime.date`.
+
+Strings
+  by their python type, :class:`str`, :class:`bytes`, :class:`unicode`,
   or explicitly by their built-in implementation type :class:`mapped_bytes`, :class:`mapped_unicode`.
-* *Buffers*: by python's :class:`buffer` or :class:`mapped_buffer`.
-* *Containers*: by python's :class:`list`, :class:`tuple`, :class:`frozenset`, :class:`dict`,
+
+Buffers
+  by python's :class:`buffer` or :class:`mapped_buffer`.
+
+Containers
+  by python's :class:`list`, :class:`tuple`, :class:`frozenset`, :class:`dict`,
   or by their built-in implementations, which can customize their proxying behavior, :class:`mapped_tuple`,
   :class:`mapped_list`, :class:`mapped_dict`, :class:`mapped_frozenset`, :class:`proxied_tuple`,
   :class:`proxied_list`, :class:`proxied_dict`, :class:`proxied_frozenset`.
-* *Numpy arrays*, by declaring them as :class:`proxied_ndarray`.
+
+Numpy arrays
+  by declaring them as :class:`proxied_ndarray`.
 
 Fields can also be declared of *dynamic* type, which means the value will be wrapped with
 runtime type information, and it will accept any value of any supported type, by declaring
