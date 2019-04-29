@@ -14,7 +14,7 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('..'))
+sys.path.insert(0, os.path.abspath('../..'))
 
 
 # -- Project information -----------------------------------------------------
@@ -151,7 +151,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     (master_doc, 'sharedbuffers', u'sharedbuffers Documentation',
-     author, 'sharedbuffers', 'One line description of project.',
+     author, 'sharedbuffers', 'Efficient shared-memory typed buffers.',
      'Miscellaneous'),
 ]
 
