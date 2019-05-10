@@ -110,9 +110,14 @@ From then on, `SomeStruct` can be used as any other type when declaring field ty
 Container structures
 --------------------
 
-High-level typed container_ classes can be created by inheriting the proper base class. Currently, there are
-three kind of mappings supported: string-to-object, uint-to-object and a generic object-to-object. The first
-two are provided for efficiency's sake; use the generic one when the others won't do.
+High-level typed container_ classes can be created by inheriting the proper base class.
+
+The API for these high-level container objects is aimed at collections that don't really fit in RAM in their
+pure-python form, so they must be built using an iterator over the items (ideally a generator that doesn't
+put the whole collection in memory at once), and then mapped from the resulting file or buffer.
+
+Currently, there are three kind of mappings supported: string-to-object, uint-to-object and a generic object-to-object.
+The first two are provided for efficiency's sake; use the generic one when the others won't do.
 
 .. code:: python
 
@@ -128,9 +133,7 @@ two are provided for efficiency's sake; use the generic one when the others won'
         IdMapper = mapped_struct.ObjectIdMapper
         ValueArray = StructArray
 
-The API for these high-level container objects is aimed at collections that don't really fit in RAM in their
-pure-python form, so they must be built using an iterator over the items (ideally a generator that doesn't
-put the whole collection in memory at once), and then mapped from the resulting file or buffer. An example:
+An example:
 
 .. code:: python
 
