@@ -151,7 +151,7 @@ An example:
 
 .. _idmap-usage:
 
-When using nested hierarchies, it's possible to unify references to the same object by specifying an idmap dict.
+When using nested hierarchies, it's possible to unify references to the same object by specifying an :term:`idmap` dict.
 However, since the idmap will map objects by their `id()`, objects must be kept alive by holding references to
 them while they're still referenced in the idmap, so its usage is non-trivial. An example technique:
 
