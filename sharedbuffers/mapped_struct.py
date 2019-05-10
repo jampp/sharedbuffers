@@ -57,7 +57,8 @@ described and registered with :meth:`mapped_object.register_schema`, after which
 type declarations as if it were another built-in type, and within containers or dynamically typed values.
 
 :class:`Schema` instances are pickleable, which means they can be embedded into shared memory buffers
-to make them portable. This is not done automatically except in some high level data structures, when documented.
+to make them portable. This is not done automatically except in some high level data structures,
+when explicitly stated.
 """
 
 import struct
