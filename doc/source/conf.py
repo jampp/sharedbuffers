@@ -40,6 +40,7 @@ release = u'0.6'
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.intersphinx',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -177,3 +178,7 @@ epub_exclude_files = ['search.html']
 # -- Extension configuration -------------------------------------------------
 
 autoclass_content = "both"
+
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/2', None)
+}

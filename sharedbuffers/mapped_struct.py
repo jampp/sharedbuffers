@@ -23,7 +23,7 @@ Schemas can be declared with fields of any of the built-in primitive types:
 Numbers
   :class:`ubyte`, :class:`byte`, :class:`ushort`, :class:`short`,
   :class:`uint32`, :class:`int32`, :class:`uint64`, :class:`int64`,
-  :class:`float32`, :class:`float64`, or their python type, :class:`Decimal`,
+  :class:`float32`, :class:`float64`, or their python type, :class:`~decimal.Decimal`,
   :class:`int`, :class:`float`, :class:`bool`.
 
 Dates
