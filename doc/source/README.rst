@@ -79,8 +79,13 @@ Using the schema is thus straightforward:
     s.__schema__.pack(s) # returns a bytearray
 
     buf = bytearray(1000)
-    s.__schema__.pack_into(s, buf, 10) # writes in offset 10 of buf, returns the size of the written object
-    p = s.__schema__.unpack_from(s, buf, 10) # returns a proxy for the object just packed into buf, does not deserialize
+
+    # writes in offset 10 of buf, returns the size of the written object
+    s.__schema__.pack_into(s, buf, 10)
+
+    # returns a proxy for the object just packed into buf, does not deserialize
+    p = s.__schema__.unpack_from(s, buf, 10)
+
     print p.a
     print p.s
     print p.fset
@@ -90,7 +95,7 @@ Using the schema is thus straightforward:
 Declaring compound types
 ------------------------
 
-Typed objects can be nested, but for that a typecode must be assigned to each type in order for RTTI to properly
+Typed objects can be nested, but for that a typecode must be assigned to each type in order for :term:`RTTI` to properly
 identify the custom types:
 
 .. code:: python
@@ -105,7 +110,7 @@ From then on, `SomeStruct` can be used as any other type when declaring field ty
 Container structures
 --------------------
 
-High-level typed container classes can be created by inheriting the proper base class. Currently, there are
+High-level typed container_ classes can be created by inheriting the proper base class. Currently, there are
 three kind of mappings supported: string-to-object, uint-to-object and a generic object-to-object. The first
 two are provided for efficiency's sake; use the generic one when the others won't do.
 
@@ -198,3 +203,4 @@ Alternatively, running it on docker can be done with the following command:
 
   $> docker run -v ${PWD}:/opt/sharedbuffers -w /opt/sharedbuffers python:2.7 /bin/sh run-tests.sh
 
+.. _container: https://en.wikipedia.org/wiki/Container_(abstract_data_type)
