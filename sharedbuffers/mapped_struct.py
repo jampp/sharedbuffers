@@ -2900,7 +2900,6 @@ class mapped_object(object):
             proxy every time. Otherwise a new proxy is constructed and returned.
 
         :return: The unpacked object or proxy, depending on the type.
-
         """
         cpadding = 7
         cpacker_size = 1
@@ -3808,11 +3807,11 @@ class Schema(object):
         :keyword int alignment: *(default 8)* Enforce alignment on object sizes. Having objects
             aligned to a native word size helps with performance.
 
-        :param int pack_buffer_size: *(default 64k)* Initial :meth:`pack` buffer size. Will auto-expand when
+        :keyword int pack_buffer_size: *(default 64k)* Initial :meth:`pack` buffer size. Will auto-expand when
             necessary, but having it sized correctly from the start can help avoid the performance impact of
             such resizing.
 
-        :param int max_pack_buffer_size: *(optional)* Maximum :meth:`pack` buffer size. Will not auto-expand
+        :keyword int max_pack_buffer_size: *(optional)* Maximum :meth:`pack` buffer size. Will not auto-expand
             beyond this.
 
         :rtype: Schema
