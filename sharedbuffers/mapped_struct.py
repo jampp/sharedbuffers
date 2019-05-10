@@ -205,7 +205,7 @@ class StrongIdMap(object):
 
         :param preallocate: Passed to `strong_class` as a kwarg
 
-        :param strong_class: The cache constructor used for the strong referece list. By default, it uses a kind
+        :param strong_class: The cache constructor used for the strong reference list. By default, it uses a kind
             of LRU cache. The constructor should accept `preallocate` as kwarg and `strong_limit` as
             first positional argument. When given `preallocate=true`, the structure should be preallocated
             to accommodate `strong_limit` elements. It should also accept an `eviction_callback` kwarg
@@ -4675,7 +4675,7 @@ class MappedArrayProxyBase(_ZipMapBase):
 
         :param bool return_mapper: *(default True)* If false, only the final writing position will be returned,
             instead of the actual mapped array. This allows both embedding of the array into a larger
-            structure (further objects can be appended at the returne position) and construction onto
+            structure (further objects can be appended at the returned position) and construction onto
             file-like objects (mapping is only supported from actual file objects, and not generally
             from file-like objects).
 
