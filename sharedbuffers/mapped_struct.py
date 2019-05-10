@@ -2941,7 +2941,8 @@ class mapped_object(object):
         :param bytes typecode: A globally unique typecode (a single char) that will idenfity this type. If
             incompatible types are registered under the same typecode, an error will be raised. The typecode
             needs not be ASCII, it can be any byte, as long as it's unused. Several bytes are used by
-            built-in types, see :attr:`TYPE_CODES`.
+            built-in types, see :attr:`TYPE_CODES`. The region above 127 (``'\x80'`` and beyond) will be
+            explicitly reserved for used types, so it is guaranteed to be unused by built-in types.
 
         :rtype: mapped_object_with_schema
         :return: An instance of :class:`mapped_obect_with_schema` that can be used to pack
