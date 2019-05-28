@@ -3177,22 +3177,103 @@ class BaseBufferProxyProperty(object):
     def __delete__(self, obj):
         raise TypeError("Proxy objects are read-only")
 
+
+if cython.compiled:
+    # We need as many of these definitions as different parameters are
+    # used per-function; otherwise, cython will deduce that they are of
+    # the same type. Sigh ...
+
+    numeric_A = cython.fused_type(
+        cython.char,
+        cython.uchar,
+        cython.short,
+        cython.ushort,
+        cython.int,
+        cython.uint,
+        cython.long,
+        cython.ulong,
+        cython.longlong,
+        cython.ulonglong,
+        cython.float,
+        cython.double,
+    )
+
+    numeric_B = cython.fused_type(
+        cython.char,
+        cython.uchar,
+        cython.short,
+        cython.ushort,
+        cython.int,
+        cython.uint,
+        cython.long,
+        cython.ulong,
+        cython.longlong,
+        cython.ulonglong,
+        cython.float,
+        cython.double,
+    )
+else:
+    globals().update(dict(
+        numeric_A = object,
+        numeric_B = object,
+    ))
+
+
+if cython.compiled:
+    @cython.cfunc
+    @cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject)
+    def _c_buffer_proxy_get_gen(self, obj, elem):
+        if obj is None:
+            return self
+        elif obj.none_bitmap & self.mask:
+            return None
+        else:
+            assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
+            mfence_full()   # acquire
+            return cython.cast('numeric_A *',
+                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]   #lint:ok
+
+    @cython.cfunc
+    @cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject)
+    def _c_buffer_proxy_set_gen(self, obj, elem):
+        if obj is not None and not (self.none_bitmap & self.mask):
+            assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
+            cython.cast('numeric_A *',
+                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0] = elem   #lint:ok
+            mfence_full()   # release
+
+else:
+    def _buffer_proxy_get(self, obj, code):
+        if obj is None:
+            return self
+        elif obj.none_bitmap & self.mask:
+            return None
+        else:
+            return struct.unpack_from(code, obj.buf, obj.offs + self.offs)[0]
+
+    def _buffer_proxy_set(self, obj, code, elem):
+        if obj is not None and not (obj.none_bitmap & self.mask):
+            struct.pack_into(code, obj.buf, obj.offs + self.offs, elem)
+
+
 @cython.cclass
 class BoolBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.uchar) if cython.compiled else struct.Struct('B').size
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.uchar)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.bint, cython.cast(cython.p_uchar,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0])  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.uchar](self, obj, 0)
         else:
-            return struct.unpack_from('B', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'B')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.uchar)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.uchar](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'B', elem)
+
 
 @cython.cclass
 class UByteBufferProxyProperty(BaseBufferProxyProperty):
@@ -3200,16 +3281,18 @@ class UByteBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.uchar)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_uchar,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.uchar](self, obj, 0)
         else:
-            return struct.unpack_from('B', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'B')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.uchar)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.uchar](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'B', elem)
+
 
 @cython.cclass
 class ByteBufferProxyProperty(BaseBufferProxyProperty):
@@ -3217,16 +3300,17 @@ class ByteBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.char)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_char,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.char](self, obj, 0)
         else:
-            return struct.unpack_from('b', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'b')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.char)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.char](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'b', elem)
 
 @cython.cclass
 class UShortBufferProxyProperty(BaseBufferProxyProperty):
@@ -3234,16 +3318,17 @@ class UShortBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.ushort)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_ushort,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.ushort](self, obj, 0)
         else:
-            return struct.unpack_from('H', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'H')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.ushort)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.ushort](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'H', elem)
 
 @cython.cclass
 class ShortBufferProxyProperty(BaseBufferProxyProperty):
@@ -3251,16 +3336,17 @@ class ShortBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.short)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_short,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.short](self, obj, 0)
         else:
-            return struct.unpack_from('h', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'h')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.short)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.short](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'h', elem)
 
 @cython.cclass
 class UIntBufferProxyProperty(BaseBufferProxyProperty):
@@ -3268,16 +3354,17 @@ class UIntBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.uint)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_uint,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.uint](self, obj, 0)
         else:
-            return struct.unpack_from('I', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'I')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.uint)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.uint](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'I', elem)
 
 @cython.cclass
 class IntBufferProxyProperty(BaseBufferProxyProperty):
@@ -3285,16 +3372,17 @@ class IntBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.int)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_int,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.int](self, obj, 0)
         else:
-            return struct.unpack_from('i', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'i')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.int)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.int](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'i', elem)
 
 @cython.cclass
 class ULongBufferProxyProperty(BaseBufferProxyProperty):
@@ -3317,22 +3405,30 @@ class ULongBufferProxyProperty(BaseBufferProxyProperty):
         else:
             return struct.unpack_from('Q', obj.buf, obj.offs + self.offs)[0]
 
+    @cython.locals(obj = BufferProxyObject, elem = cython.ulonglong)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.ulonglong](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'Q', elem)
+
 @cython.cclass
 class LongBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.long)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_longlong,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.longlong](self, obj, 0)
         else:
-            return struct.unpack_from('q', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'q')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.longlong)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.longlong](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'q', elem)
 
 @cython.cclass
 class DoubleBufferProxyProperty(BaseBufferProxyProperty):
@@ -3340,16 +3436,17 @@ class DoubleBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.double)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_double,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.double](self, obj, 0)
         else:
-            return struct.unpack_from('d', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'd')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.double)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.double](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'd', elem)
 
 @cython.cclass
 class FloatBufferProxyProperty(BaseBufferProxyProperty):
@@ -3357,16 +3454,17 @@ class FloatBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.float)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_float,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.float](self, obj, 0)
         else:
-            return struct.unpack_from('f', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'f')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.float)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.float](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'f', elem)
 
 @cython.cclass
 class BytesBufferProxyProperty(BaseBufferProxyProperty):
@@ -4774,46 +4872,8 @@ class MappedArrayProxyBase(_ZipMapBase):
         rv._mmap = buf
         return rv
 
-if not cython.compiled:
-    globals().update(dict(
-        numeric_A = object,
-        numeric_B = object,
-    ))
+
 if cython.compiled:
-
-    # We need as many of these definitions as different parameters are
-    # used per-function; otherwise, cython will deduce that they are of
-    # the same type. Sigh ...
-
-    numeric_A = cython.fused_type(
-        cython.char,
-        cython.uchar,
-        cython.short,
-        cython.ushort,
-        cython.int,
-        cython.uint,
-        cython.long,
-        cython.ulong,
-        cython.longlong,
-        cython.ulonglong,
-        cython.float,
-        cython.double,
-    )
-
-    numeric_B = cython.fused_type(
-        cython.char,
-        cython.uchar,
-        cython.short,
-        cython.ushort,
-        cython.int,
-        cython.uint,
-        cython.long,
-        cython.ulong,
-        cython.longlong,
-        cython.ulonglong,
-        cython.float,
-        cython.double,
-    )
 
     @cython.cfunc
     @cython.locals(

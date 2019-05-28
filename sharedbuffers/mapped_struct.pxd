@@ -52,6 +52,10 @@ cpdef unsigned long long _stable_hash(key) except? 0
 
 cdef extern from *:
     cdef int __builtin_popcountll(unsigned long long x)
+    cdef void __sync_synchronize()
 
 cdef inline int popcount(unsigned long long x):
     return __builtin_popcountll(x)
+
+cdef inline void mfence_full():
+    __sync_synchronize()
