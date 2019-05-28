@@ -3236,7 +3236,9 @@ if cython.compiled:
     @cython.cfunc
     @cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject)
     def _c_buffer_proxy_set_gen(self, obj, elem):
-        if obj is not None and not (self.none_bitmap & self.mask):
+        if obj.pybuf.readonly:
+            raise TypeError('cannot set object in read-only buffer')
+        elif obj is not None and not (self.none_bitmap & self.mask):
             assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
             cython.cast('numeric_A *',
                 cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0] = elem   #lint:ok
