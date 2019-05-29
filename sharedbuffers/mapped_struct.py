@@ -3236,7 +3236,8 @@ if cython.compiled:
         assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
         ptr = cython.cast('numeric_A *',
             cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)   #lint: ok
-        mfence_full()   # acquire
+        if not obj.pybuf.readonly:
+            mfence_full()   # acquire
         return ptr[0]
 
     @cython.cfunc
