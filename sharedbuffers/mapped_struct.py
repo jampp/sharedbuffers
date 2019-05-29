@@ -3221,7 +3221,8 @@ else:
 
 if cython.compiled:
     @cython.cfunc
-    @cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject)
+    @cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject,
+        ptr = 'numeric_A *')
     def _c_buffer_proxy_get_gen(self, obj, elem):
         if obj is None:
             return self
@@ -3229,15 +3230,16 @@ if cython.compiled:
             return None
         else:
             assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
+            ptr = cython.cast('numeric_A *',
+                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)   #lint: ok
             mfence_full()   # acquire
-            return cython.cast('numeric_A *',
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]   #lint:ok
+            return ptr[0]
 
     @cython.cfunc
     @cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject)
     def _c_buffer_proxy_set_gen(self, obj, elem):
         if obj.pybuf.readonly:
-            raise TypeError('cannot set object in read-only buffer')
+            raise TypeError('cannot set attribute in read-only buffer')
         elif obj is not None and not (self.none_bitmap & self.mask):
             assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
             cython.cast('numeric_A *',
@@ -4566,7 +4568,7 @@ class _CZipMapBase(object):
 
 class GenericFileMapper(_ZipMapBase):
     @classmethod
-    def map_file(cls, fileobj, offset = 0, size = None):
+    def map_file(cls, fileobj, offset = 0, size = None, rw_access = False):
         """
         Returns a buffer mapping the file object's requested
         range, and the underlying mmap object as a tuple.
@@ -4579,8 +4581,11 @@ class GenericFileMapper(_ZipMapBase):
             size = fileobj.tell() - offset
         fileobj.seek(offset)
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
+        access = mmap.ACCESS_READ
+        if rw_access:
+            access |= mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), size + offset - map_start,
-            access = mmap.ACCESS_READ, offset = map_start)
+            access = access, offset = map_start)
         return buffer(buf, offset - map_start, size), buf
 
 class MappedArrayProxyBase(_ZipMapBase):
@@ -4849,7 +4854,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         return cls(buf, offset)
 
     @classmethod
-    def map_file(cls, fileobj, offset = 0, size = None):
+    def map_file(cls, fileobj, offset = 0, size = None, rw_access = False):
         """
         Build a mapped array instance mapping the given ``fileobj`` at position ``offset``.
         A size can optionally be given to map only the necessary portion of the file.
@@ -4860,6 +4865,9 @@ class MappedArrayProxyBase(_ZipMapBase):
 
         :param int size: *(optional)* Size of the array data. If given, it will be used to reduce
             the mapped portion of the file to the minimum necessary mapping.
+
+        :param bool rw_access: *(optional)* Whether read-write access should be requested
+            for the mapping. By default, mappings will be read-only.
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
             return cls.map_zipfile(fileobj, offset, size)
@@ -4867,8 +4875,11 @@ class MappedArrayProxyBase(_ZipMapBase):
         fileobj.seek(offset)
         total_size = cls._Header.unpack(fileobj.read(cls._Header.size))[0]
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
+        access = mmap.ACCESS_READ
+        if rw_access:
+            access |= mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), total_size + offset - map_start,
-            access = mmap.ACCESS_READ, offset = map_start)
+            access = access, offset = map_start)
         rv = cls(buffer(buf, offset - map_start))
         rv._file = fileobj
         rv._mmap = buf
@@ -6058,7 +6069,7 @@ class NumericIdMapper(_CZipMapBase):
 
     @classmethod
     @cython.locals(rv = 'NumericIdMapper')
-    def map_file(cls, fileobj, offset = 0, size = None):
+    def map_file(cls, fileobj, offset = 0, size = None, rw_access = False):
         """
         Build an :term:`Id Mapper` from the data in ``fileobj`` at position ``offset``.
         A size can optionally be given to map only the necessary portion of the file.
@@ -6081,7 +6092,10 @@ class NumericIdMapper(_CZipMapBase):
             map_size = size + offset - map_start
 
         fileobj.seek(map_start)
-        buf = mmap.mmap(fileobj.fileno(), map_size, access = mmap.ACCESS_READ, offset = map_start)
+        access = mmap.ACCESS_READ
+        if rw_access:
+            access |= mmap.ACCESS_WRITE
+        buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
         return rv
@@ -6667,7 +6681,7 @@ class ObjectIdMapper(_CZipMapBase):
 
     @classmethod
     @cython.locals(rv = 'ObjectIdMapper')
-    def map_file(cls, fileobj, offset = 0, size = None):
+    def map_file(cls, fileobj, offset = 0, size = None, rw_access = False):
         """
         See :meth:`NumericIdMapper.map_file`
         """
@@ -6682,7 +6696,10 @@ class ObjectIdMapper(_CZipMapBase):
             map_size = size + offset - map_start
 
         fileobj.seek(map_start)
-        buf = mmap.mmap(fileobj.fileno(), map_size, access = mmap.ACCESS_READ, offset = map_start)
+        access = mmap.ACCESS_READ
+        if rw_access:
+            access |= mmap.ACCESS_WRITE
+        buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
         return rv
@@ -7173,7 +7190,7 @@ class StringIdMapper(_CZipMapBase):
 
     @classmethod
     @cython.locals(rv = 'StringIdMapper')
-    def map_file(cls, fileobj, offset = 0, size = None):
+    def map_file(cls, fileobj, offset = 0, size = None, rw_access = False):
         """
         See :meth:`NumericIdMapper.map_file`
         """
@@ -7188,7 +7205,10 @@ class StringIdMapper(_CZipMapBase):
             map_size = size + offset - map_start
 
         fileobj.seek(map_start)
-        buf = mmap.mmap(fileobj.fileno(), map_size, access = mmap.ACCESS_READ, offset = map_start)
+        access = mmap.ACCESS_READ
+        if rw_access:
+            access |= mmap.ACCESS_WRITE
+        buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
         return rv
