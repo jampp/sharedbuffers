@@ -3160,7 +3160,7 @@ class BufferProxyObject(object):
 
 @cython.cclass
 class BaseBufferProxyProperty(object):
-    cython.declare(offs = cython.Py_ssize_t, mask = cython.ulonglong)
+    cython.declare(offs = cython.Py_ssize_t, mask = cython.ulonglong, read_only = cython.bint)
 
     def __init__(self, offs, mask):
         self.offs = offs
@@ -3228,23 +3228,23 @@ if cython.compiled:
             return self
         elif obj.none_bitmap & self.mask:
             return None
-        else:
-            assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
-            ptr = cython.cast('numeric_A *',
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)   #lint: ok
-            mfence_full()   # acquire
-            return ptr[0]
+        assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
+        ptr = cython.cast('numeric_A *',
+            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)   #lint: ok
+        mfence_full()   # acquire
+        return ptr[0]
 
     @cython.cfunc
     @cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject)
     def _c_buffer_proxy_set_gen(self, obj, elem):
-        if obj.pybuf.readonly:
+        if obj is None or (obj.none_bitmap & self.mask):
+            return
+        elif obj.pybuf.readonly:
             raise TypeError('cannot set attribute in read-only buffer')
-        elif obj is not None and not (self.none_bitmap & self.mask):
-            assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
-            cython.cast('numeric_A *',
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0] = elem   #lint:ok
-            mfence_full()   # release
+        assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
+        cython.cast('numeric_A *',
+            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0] = elem   #lint:ok
+        mfence_full()   # release
 
 else:
     def _buffer_proxy_get(self, obj, code):
@@ -4540,7 +4540,7 @@ def __pyx_unpickle_mapped_object_with_schema(__pyx_type, __pyx_checksum, __pyx_s
     return result
 
 @cython.ccall
-def _map_zipfile(cls, fileobj, offset, size, rw_access):
+def _map_zipfile(cls, fileobj, offset, size, read_only):
     # Open underlying file
     if fileobj._compress_type != zipfile.ZIP_STORED:
         raise ValueError("Can only map uncompressed elements of a zip file")
@@ -4553,28 +4553,28 @@ def _map_zipfile(cls, fileobj, offset, size, rw_access):
         size = min(size, fileobj._compress_size - offset)
     offset += fileobj._fileobj.tell()
 
-    return cls.map_file(fileobj._fileobj, offset, size, rw_access)
+    return cls.map_file(fileobj._fileobj, offset, size, read_only)
 
 class _ZipMapBase(object):
     @classmethod
-    def map_zipfile(cls, fileobj, offset = 0, size = None, rw_access = False):
-        return _map_zipfile(cls, fileobj, offset, size, rw_access)
+    def map_zipfile(cls, fileobj, offset = 0, size = None, read_only = True):
+        return _map_zipfile(cls, fileobj, offset, size, read_only)
 
 @cython.cclass
 class _CZipMapBase(object):
     @classmethod
-    def map_zipfile(cls, fileobj, offset = 0, size = None, rw_access = False):
-        return _map_zipfile(cls, fileobj, offset, size, rw_access)
+    def map_zipfile(cls, fileobj, offset = 0, size = None, read_only = True):
+        return _map_zipfile(cls, fileobj, offset, size, read_only)
 
 class GenericFileMapper(_ZipMapBase):
     @classmethod
-    def map_file(cls, fileobj, offset = 0, size = None, rw_access = False):
+    def map_file(cls, fileobj, offset = 0, size = None, read_only = True):
         """
         Returns a buffer mapping the file object's requested
         range, and the underlying mmap object as a tuple.
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
-            return cls.map_zipfile(fileobj, offset, size)
+            return cls.map_zipfile(fileobj, offset, size, read_only = read_only)
 
         if size is None:
             fileobj.seek(0, os.SEEK_END)
@@ -4582,7 +4582,7 @@ class GenericFileMapper(_ZipMapBase):
         fileobj.seek(offset)
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
         access = mmap.ACCESS_READ
-        if rw_access:
+        if not read_only:
             access |= mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), size + offset - map_start,
             access = access, offset = map_start)
@@ -4663,7 +4663,7 @@ class MappedArrayProxyBase(_ZipMapBase):
     def __getitem__(self, pos):
         return self.getter()(pos)
 
-    @cython.locals(schema = Schema, proxy_into = BufferProxyObject)
+    @cython.locals(schema = Schema, proxy_into = BufferProxyObject, read_only = cython.bint)
     def getter(self, proxy_into = None, no_idmap = False):
         """
         Build a getter callable to quickly access items in succession.
@@ -4692,13 +4692,14 @@ class MappedArrayProxyBase(_ZipMapBase):
         index = self.index
         idmap = self.idmap if not no_idmap else None
         buf = self.buf
+        read_only = self._readonly
 
         if proxy_class is not None:
             proxy_class_new = functools.partial(proxy_class.__new__, proxy_class)
         else:
             proxy_class_new = None
 
-        @cython.locals(pos=int)
+        @cython.locals(pos = int)
         def getter(pos):
             return schema.unpack_from(buf, index[pos], idmap, proxy_class_new, proxy_into)
         return getter
@@ -4759,7 +4760,7 @@ class MappedArrayProxyBase(_ZipMapBase):
     @cython.locals(schema = Schema, data_pos = cython.size_t, initial_pos = cython.size_t, current_pos = object,
         schema_pos = cython.size_t, schema_end = cython.size_t)
     def build(cls, initializer, destfile = None, tempdir = None, idmap = None,
-            return_mapper = True, rw_access = False):
+            return_mapper = True, read_only = True):
         """
         Builds an array of objects with a uniform :class:`Schema` into a memory mapped temporary file.
 
@@ -4785,8 +4786,8 @@ class MappedArrayProxyBase(_ZipMapBase):
             file-like objects (mapping is only supported from actual file objects, and not generally
             from file-like objects).
 
-        :param bool rw_access: *(optional)* Whether read-write access should be requested
-            for the mapping. By default, mappings will be read-only.
+        :param bool read_only: *(optional)* Whether the mapping should be read-only, of if write access
+            should also be requested. Defaults to true.
 
         :rtype: MappedArrayProxyBase or int
         :returns: Either the mapped array when ``return_mapper`` is True, or the position within the file
@@ -4842,7 +4843,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         destfile.seek(final_pos)
 
         if return_mapper:
-            return cls.map_file(destfile, initial_pos, rw_access = rw_access)
+            return cls.map_file(destfile, initial_pos, read_only = read_only)
         else:
             return final_pos
 
@@ -4858,7 +4859,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         return cls(buf, offset)
 
     @classmethod
-    def map_file(cls, fileobj, offset = 0, size = None, rw_access = False):
+    def map_file(cls, fileobj, offset = 0, size = None, read_only = True):
         """
         Build a mapped array instance mapping the given ``fileobj`` at position ``offset``.
         A size can optionally be given to map only the necessary portion of the file.
@@ -4870,17 +4871,17 @@ class MappedArrayProxyBase(_ZipMapBase):
         :param int size: *(optional)* Size of the array data. If given, it will be used to reduce
             the mapped portion of the file to the minimum necessary mapping.
 
-        :param bool rw_access: *(optional)* Whether read-write access should be requested
-            for the mapping. By default, mappings will be read-only.
+        :param bool read_only: *(optional)* Whether the mapping should be read-only, or if
+            write access should also be requested. Defaults to true.
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
-            return cls.map_zipfile(fileobj, offset, size)
+            return cls.map_zipfile(fileobj, offset, size, read_only = read_only)
 
         fileobj.seek(offset)
         total_size = cls._Header.unpack(fileobj.read(cls._Header.size))[0]
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
         access = mmap.ACCESS_READ
-        if rw_access:
+        if not read_only:
             access |= mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), total_size + offset - map_start,
             access = access, offset = map_start)
@@ -5907,7 +5908,7 @@ class NumericIdMapper(_CZipMapBase):
         basepos = cython.Py_ssize_t, curpos = cython.Py_ssize_t, endpos = cython.Py_ssize_t, finalpos = cython.Py_ssize_t,
         discard_duplicates = cython.bint, discard_duplicate_keys = cython.bint)
     def build(cls, initializer, destfile = None, tempdir = None,
-            discard_duplicates = False, discard_duplicate_keys = False, return_mapper = True, rw_access = False):
+            discard_duplicates = False, discard_duplicate_keys = False, return_mapper = True, read_only = True):
         """
         Builds a :class:`NumericIdMapper` from the given iterable. The iterable should
         yield ``(key, value)`` pairs, in which both key and value are numbers fitting the range
@@ -5929,6 +5930,9 @@ class NumericIdMapper(_CZipMapBase):
 
         :param bool return_mapper: Whether to return the mapped :term:`Id Mapper` or the ending offset.
             See the same argument of :meth:`MappedArrayProxyBase.build` for a detailed description.
+
+        :param bool read_only: *(optional)* Whether the mapping should be read-only, or if
+            write access should also be requested. Defaults to true.
         """
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
@@ -6054,7 +6058,7 @@ class NumericIdMapper(_CZipMapBase):
         destfile.flush()
 
         if return_mapper:
-            rv = cls.map_file(destfile, basepos, size = finalpos - basepos, rw_access = rw_access)
+            rv = cls.map_file(destfile, basepos, size = finalpos - basepos, read_only = read_only)
             destfile.seek(finalpos)
         else:
             rv = finalpos
@@ -6073,7 +6077,7 @@ class NumericIdMapper(_CZipMapBase):
 
     @classmethod
     @cython.locals(rv = 'NumericIdMapper')
-    def map_file(cls, fileobj, offset = 0, size = None, rw_access = False):
+    def map_file(cls, fileobj, offset = 0, size = None, read_only = True):
         """
         Build an :term:`Id Mapper` from the data in ``fileobj`` at position ``offset``.
         A size can optionally be given to map only the necessary portion of the file.
@@ -6085,11 +6089,11 @@ class NumericIdMapper(_CZipMapBase):
         :param int size: *(optional)* Size of the data. If given, it will be used to reduce
             the mapped portion of the file to the minimum necessary mapping.
 
-        :param bool rw_access: *(optional)* Whether read-write access should be requested
-            for the mapping. By default, mappings will be read-only.
+        :param bool read_only: *(optional)* Whether the mapping should be read-only, or if
+            write access should also be requested. Defaults to true.
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
-            return cls.map_zipfile(fileobj, offset, size)
+            return cls.map_zipfile(fileobj, offset, size, read_only = read_only)
 
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
 
@@ -6100,7 +6104,7 @@ class NumericIdMapper(_CZipMapBase):
 
         fileobj.seek(map_start)
         access = mmap.ACCESS_READ
-        if rw_access:
+        if not read_only:
             access |= mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
@@ -6542,7 +6546,7 @@ class ObjectIdMapper(_CZipMapBase):
         dtypemax = cython.ulonglong, implicit_offs = cython.Py_ssize_t, widmap = StrongIdMap, kpos = cython.longlong,
         ukpos = cython.ulonglong)
     def build(cls, initializer, destfile = None, tempdir = None, return_mapper = True,
-            min_buf_size = 128, idmap = None, implicit_offs = 0, rw_access = False):
+            min_buf_size = 128, idmap = None, implicit_offs = 0, read_only = True):
         """
         Builds the mapper from the iterable of items passed in ``initializer``. The items should be
         ``(key, value)`` pairs where keys can be any :term:`hashable object`, and values are integers
@@ -6673,7 +6677,7 @@ class ObjectIdMapper(_CZipMapBase):
         destfile.flush()
 
         if return_mapper:
-            rv = cls.map_file(destfile, basepos, size = finalpos - basepos, rw_access = rw_access)
+            rv = cls.map_file(destfile, basepos, size = finalpos - basepos, read_only = read_only)
             destfile.seek(finalpos)
         else:
             rv = finalpos
@@ -6688,12 +6692,12 @@ class ObjectIdMapper(_CZipMapBase):
 
     @classmethod
     @cython.locals(rv = 'ObjectIdMapper')
-    def map_file(cls, fileobj, offset = 0, size = None, rw_access = False):
+    def map_file(cls, fileobj, offset = 0, size = None, read_only = True):
         """
         See :meth:`NumericIdMapper.map_file`
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
-            return cls.map_zipfile(fileobj, offset, size)
+            return cls.map_zipfile(fileobj, offset, size, read_only = read_only)
 
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
 
@@ -6704,7 +6708,7 @@ class ObjectIdMapper(_CZipMapBase):
 
         fileobj.seek(map_start)
         access = mmap.ACCESS_READ
-        if rw_access:
+        if not read_only:
             access |= mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
@@ -7092,7 +7096,7 @@ class StringIdMapper(_CZipMapBase):
     @cython.locals(
         basepos = cython.Py_ssize_t, curpos = cython.Py_ssize_t, endpos = cython.Py_ssize_t, finalpos = cython.Py_ssize_t,
         dtypemax = cython.ulonglong)
-    def build(cls, initializer, destfile = None, tempdir = None, return_mapper = True, rw_access = False):
+    def build(cls, initializer, destfile = None, tempdir = None, return_mapper = True, read_only = True):
         """
         Builds the mapper from the iterable of items passed in ``initializer``. The items should be
         ``(key, value)`` pairs where keys are strings, and the values are integers
@@ -7182,7 +7186,7 @@ class StringIdMapper(_CZipMapBase):
         destfile.flush()
 
         if return_mapper:
-            rv = cls.map_file(destfile, basepos, size = finalpos - basepos, rw_access = rw_access)
+            rv = cls.map_file(destfile, basepos, size = finalpos - basepos, read_only = read_only)
             destfile.seek(finalpos)
         else:
             rv = finalpos
@@ -7197,12 +7201,12 @@ class StringIdMapper(_CZipMapBase):
 
     @classmethod
     @cython.locals(rv = 'StringIdMapper')
-    def map_file(cls, fileobj, offset = 0, size = None, rw_access = False):
+    def map_file(cls, fileobj, offset = 0, size = None, read_only = True):
         """
         See :meth:`NumericIdMapper.map_file`
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
-            return cls.map_zipfile(fileobj, offset, size)
+            return cls.map_zipfile(fileobj, offset, size, read_only = read_only)
 
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
 
@@ -7213,7 +7217,7 @@ class StringIdMapper(_CZipMapBase):
 
         fileobj.seek(map_start)
         access = mmap.ACCESS_READ
-        if rw_access:
+        if not read_only:
             access |= mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
@@ -7999,7 +8003,7 @@ class MappedMappingProxyBase(_ZipMapBase):
         return cls(value_array, id_mapper)
 
     @classmethod
-    def map_file(cls, fileobj, offset = 0, size = None, rw_access = False):
+    def map_file(cls, fileobj, offset = 0, size = None, read_only = True):
         """
         Builds a mapping proxy out of the data in ``fileobj`` at offset ``offset``
         and size ``size``.
@@ -8016,9 +8020,12 @@ class MappedMappingProxyBase(_ZipMapBase):
 
         :param int size: *(optional)* The size of the mapping relative to its starting offset. It must be
             given if the mapping doesn't end at the EOF, to be able to locate the footer.
+
+        :param bool read_only: *(optional)* Whether the mapping should be read-only, or if
+            write access should also be requested. Defaults to true.
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
-            return cls.map_zipfile(fileobj, offset, size)
+            return cls.map_zipfile(fileobj, offset, size, read_only = read_only)
 
         # If no size is given, it's the whole file by default
         if size is None:
@@ -8031,9 +8038,9 @@ class MappedMappingProxyBase(_ZipMapBase):
         fileobj.seek(offset)
 
         # Map everything
-        id_mapper = cls.IdMapper.map_file(fileobj, offset, size = values_pos, rw_access = rw_access)
+        id_mapper = cls.IdMapper.map_file(fileobj, offset, size = values_pos, read_only = read_only)
         value_array = cls.ValueArray.map_file(fileobj, offset + values_pos,
-            size = size - cls._Footer.size - values_pos, rw_access = rw_access)
+            size = size - cls._Footer.size - values_pos, read_only = read_only)
         return cls(value_array, id_mapper)
 
 
