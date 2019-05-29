@@ -2319,3 +2319,77 @@ class CustomBasesTest(unittest.TestCase):
         dx = self.schema.unpack(self.schema.pack(x))
         self.assertIsInstance(dx, BehavioralStruct)
         self.assertEqual(dx.somefunc(), 'someresult')
+
+class WriteableMappingTest(unittest.TestCase):
+    class Numeric(object):
+        __slot_types__ = {
+            'Bx': mapped_struct.ubyte,
+            'bx': mapped_struct.byte,
+            'Hx': mapped_struct.uint16,
+            'hx': mapped_struct.int16,
+            'Ix': mapped_struct.uint32,
+            'ix': mapped_struct.int32,
+            'Qx': mapped_struct.uint64,
+            'qx': mapped_struct.int64,
+            'dx': mapped_struct.float64,
+            'fx': mapped_struct.float32
+        }
+        __slots__ = __slot_types__.keys()
+        __schema__ = mapped_struct.Schema.from_typed_slots(__slot_types__)
+
+        def __init__(self):
+            self.Bx = self.bx = 0
+            self.Hx = self.hx = 0
+            self.Ix = self.ix = 0
+            self.Qx = self.qx = 0
+            self.dx = self.fx = 0
+
+    def setUp(self):
+        self.schema = WriteableMappingTest.Numeric.__schema__
+        class MappedNumericClass(mapped_struct.MappedArrayProxyBase):
+            schema = self.schema
+        self.mapped_class = MappedNumericClass
+        self.single_value = WriteableMappingTest.Numeric()
+
+    def _assert_load_store(self, proxy):
+        proxy.Bx = 100
+        proxy.bx = -100
+        proxy.Hx = 1000
+        proxy.hx = -1000
+        proxy.Ix = 100000
+        proxy.ix = -100000
+        proxy.Qx = 10000000000L
+        proxy.qx = -10000000000L
+        proxy.dx = 1.5
+        proxy.fx = -1.5
+        self.assertAlmostEqual(0.0, proxy.Bx + proxy.bx + proxy.Hx + proxy.hx +
+            proxy.Ix + proxy.ix + proxy.Qx + proxy.qx + proxy.dx + proxy.fx)
+
+    def testWritableBuffer(self):
+        n = self.single_value
+        buf = bytearray(1000)
+        self.schema.pack_into(n, buf, 0)
+        proxy = self.schema.unpack_from(buf, 0)
+        self._assert_load_store(proxy)
+
+    def testWriteableFile(self):
+        values = [self.single_value]
+        with tempfile.NamedTemporaryFile() as destfile:
+            self.mapped_class.build(values, destfile = destfile, idmap = {})
+            proxy = self.mapped_class.map_file(destfile, read_only = False)[0]
+            self._assert_load_store(proxy)
+
+    def testWriteableZip(self):
+        values = [self.single_value]
+        with tempfile.NamedTemporaryFile() as destfile:
+            self.mapped_class.build(values, destfile = destfile, idmap = {})
+            with tempfile.NamedTemporaryFile() as tempzip:
+                zf = zipfile.ZipFile(tempzip, 'w')
+                zf.write(destfile.name, 'bundle', zipfile.ZIP_STORED)
+                zf.writestr('otherdata', 'blablabla')
+                zf.close()
+
+                tempzip.seek(0)
+                zf = zipfile.ZipFile(tempzip, 'r')
+                proxy = self.mapped_class.map_file(zf.open('bundle'), read_only = False)[0]
+                self._assert_load_store(proxy)
