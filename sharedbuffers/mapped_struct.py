@@ -3137,13 +3137,6 @@ class BufferProxyObject(object):
         self.none_bitmap = none_bitmap
 
         if cython.compiled:
-            if type(buf) is buffer:
-                # We know buffers are read-only, and the vast majority of proxies
-                # are built on top of them, so we don't bother trying to create
-                # a writable object.
-                PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)   #lint: ok
-                return
-
             try:
                 PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_WRITABLE)  # lint:ok
             except BufferError:
