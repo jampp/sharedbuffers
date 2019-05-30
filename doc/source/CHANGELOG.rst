@@ -7,7 +7,7 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
-v0.6.4 - 2019-05-30
+v0.6.5 - Unreleased
 ===================
 
 Added
@@ -15,6 +15,9 @@ Added
 
 - Allow writing to numeric proxy properties when the mapping
   was specified as read-write.
+
+v0.6.4 - 2019-05-30
+===================
 
 Bugfixes
 --------
