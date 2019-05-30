@@ -10,6 +10,12 @@ The format is largely inspired by keepachangelog_.
 v0.6.3 - Unreleased
 ===================
 
+Added
+-----
+
+- Allow writing to numeric proxy properties when the mapping
+  was specified as read-write.
+
 Bugfixes
 --------
 
