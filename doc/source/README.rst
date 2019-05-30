@@ -95,7 +95,7 @@ Using the schema is thus straightforward:
 Declaring compound types
 ------------------------
 
-Typed objects can be nested, but for that a typecode must be assigned to each type in order for :term:`RTTI` to properly
+Typed objects can be nested, but for that a typecode must be assigned to each type in order for `RTTI` to properly
 identify the custom types:
 
 .. code:: python
@@ -151,7 +151,7 @@ An example:
 
 .. _idmap-usage:
 
-When using nested hierarchies, it's possible to unify references to the same object by specifying an :term:`idmap` dict.
+When using nested hierarchies, it's possible to unify references to the same object by specifying an `idmap` dict.
 However, since the idmap will map objects by their `id()`, objects must be kept alive by holding references to
 them while they're still referenced in the idmap, so its usage is non-trivial. An example technique:
 

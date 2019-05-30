@@ -7,7 +7,7 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
-v0.6.3 - Unreleased
+v0.6.4 - 2019-05-30
 ===================
 
 Added
@@ -22,6 +22,12 @@ Bugfixes
 - Disallow registering schemas with typecodes that conflict
   with builtin types' typecodes. This would cause all sorts
   of subtle breakage.
+
+v0.6.3 - 2019-05-30
+===================
+
+This release was removed from pypi due to a build error.
+It's otherwise identical to 0.6.4
 
 v0.6.2 - 2019-02-21
 ===================
