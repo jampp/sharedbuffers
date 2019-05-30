@@ -3174,7 +3174,7 @@ class BufferProxyObject(object):
 
 @cython.cclass
 class BaseBufferProxyProperty(object):
-    cython.declare(offs = cython.Py_ssize_t, mask = cython.ulonglong, read_only = cython.bint)
+    cython.declare(offs = cython.Py_ssize_t, mask = cython.ulonglong)
 
     def __init__(self, offs, mask):
         self.offs = offs
