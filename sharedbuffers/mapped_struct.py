@@ -112,6 +112,8 @@ npndarray = cython.declare(object, numpy.ndarray)
 
 frexp = cython.declare(object, math.frexp)
 
+ctypes_Array = cython.declare(object, ctypes.Array)
+
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
     buffer = cython.declare(object, buffer)  # lint:ok
@@ -166,7 +168,7 @@ def _likebuffer(buf):
     Takes a buffer object as parameter and returns a writable object with buffer protocol.
     """
     if type(buf) is buffer or type(buf) is bytearray or type(buf) is bytes or (
-            isinstance(buf, bytes) or isinstance(buf, ctypes.Array)):
+            isinstance(buf, bytes) or isinstance(buf, ctypes_Array)):
         return buf
     else:
         return buffer(buf)
@@ -3135,9 +3137,16 @@ class BufferProxyObject(object):
         self.none_bitmap = none_bitmap
 
         if cython.compiled:
+            if type(buf) is buffer:
+                # We know buffers are read-only, and the vast majority of proxies
+                # are built on top of them, so we don't bother trying to create
+                # a writable object.
+                PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)   #lint: ok
+                return
+
             try:
                 PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_WRITABLE)  # lint:ok
-            except:
+            except BufferError:
                 PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
 
     @cython.ccall
@@ -4635,6 +4644,7 @@ class MappedArrayProxyBase(_ZipMapBase):
             self.buf = buf = buffer(buf, offset)
         else:
             self.buf = buf
+        self.wr_buf = buf   # May be overriden by map_file
         self.total_size, self.index_offset, self.index_elements = self._Header.unpack_from(buf, 0)
         self.index = npfrombuffer(buf,
             offset = self.index_offset,
@@ -4697,7 +4707,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         proxy_class = self.proxy_class
         index = self.index
         idmap = self.idmap if not no_idmap else None
-        buf = getattr(self, '_mmap', self.buf)
+        buf = self.wr_buf
 
         if proxy_class is not None:
             proxy_class_new = functools.partial(proxy_class.__new__, proxy_class)
@@ -4892,9 +4902,10 @@ class MappedArrayProxyBase(_ZipMapBase):
             access = access, offset = map_start)
         rv = cls(buffer(buf, offset - map_start))
         rv._file = fileobj
+        rv._mmap = buf
         if not read_only:
             offset -= map_start
-            rv._mmap = (ctypes.c_char * (len(buf) - offset)).from_buffer(buf, offset)
+            rv.wr_buf = (ctypes.c_char * (len(buf) - offset)).from_buffer(buf, offset)
         return rv
 
 
