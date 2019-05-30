@@ -173,7 +173,7 @@ setup(
     ],
 
     data_files = [
-        ("", ["LICENSE"])
+        ("", ["LICENSE", "README.rst"])
     ],
 
     zip_safe = False,
