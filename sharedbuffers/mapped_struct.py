@@ -167,8 +167,8 @@ def _likebuffer(buf):
     """
     Takes a buffer object as parameter and returns a writable object with buffer protocol.
     """
-    if type(buf) is buffer or type(buf) is bytearray or type(buf) is bytes or (
-            isinstance(buf, bytes) or isinstance(buf, ctypes_Array)):
+    if (type(buf) is buffer or type(buf) is bytearray or type(buf) is bytes or
+            isinstance(buf, (ctypes_Array, bytes))):
         return buf
     else:
         return buffer(buf)
