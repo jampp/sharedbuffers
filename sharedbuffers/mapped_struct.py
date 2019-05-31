@@ -78,6 +78,7 @@ import math
 import sys
 import collections
 import weakref
+import ctypes
 from datetime import timedelta, datetime, date
 from decimal import Decimal
 
@@ -110,6 +111,8 @@ npfrombuffer = cython.declare(object, numpy.frombuffer)
 npndarray = cython.declare(object, numpy.ndarray)
 
 frexp = cython.declare(object, math.frexp)
+
+ctypes_Array = cython.declare(object, ctypes.Array)
 
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
@@ -164,7 +167,8 @@ def _likebuffer(buf):
     """
     Takes a buffer object as parameter and returns a writable object with buffer protocol.
     """
-    if type(buf) is buffer or type(buf) is bytearray or type(buf) is bytes or isinstance(buf, bytes):
+    if (type(buf) is buffer or type(buf) is bytearray or type(buf) is bytes or
+            isinstance(buf, (ctypes_Array, bytes))):
         return buf
     else:
         return buffer(buf)
@@ -3133,7 +3137,10 @@ class BufferProxyObject(object):
         self.none_bitmap = none_bitmap
 
         if cython.compiled:
-            PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
+            try:
+                PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_WRITABLE)  # lint:ok
+            except BufferError:
+                PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
 
     @cython.ccall
     @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
@@ -3177,22 +3184,108 @@ class BaseBufferProxyProperty(object):
     def __delete__(self, obj):
         raise TypeError("Proxy objects are read-only")
 
+
+if cython.compiled:
+    # We need as many of these definitions as different parameters are
+    # used per-function; otherwise, cython will deduce that they are of
+    # the same type. Sigh ...
+
+    numeric_A = cython.fused_type(
+        cython.char,
+        cython.uchar,
+        cython.short,
+        cython.ushort,
+        cython.int,
+        cython.uint,
+        cython.long,
+        cython.ulong,
+        cython.longlong,
+        cython.ulonglong,
+        cython.float,
+        cython.double,
+    )
+
+    numeric_B = cython.fused_type(
+        cython.char,
+        cython.uchar,
+        cython.short,
+        cython.ushort,
+        cython.int,
+        cython.uint,
+        cython.long,
+        cython.ulong,
+        cython.longlong,
+        cython.ulonglong,
+        cython.float,
+        cython.double,
+    )
+else:
+    globals().update(dict(
+        numeric_A = object,
+        numeric_B = object,
+    ))
+
+
+if cython.compiled:
+    @cython.cfunc
+    @cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject,
+        ptr = 'numeric_A *')
+    def _c_buffer_proxy_get_gen(self, obj, elem):
+        if obj is None:
+            return self
+        elif obj.none_bitmap & self.mask:
+            return None
+        assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
+        ptr = cython.cast('numeric_A *',
+            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)   #lint: ok
+        if not obj.pybuf.readonly:
+            mfence_full()   # acquire
+        return ptr[0]
+
+    @cython.cfunc
+    @cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject)
+    def _c_buffer_proxy_set_gen(self, obj, elem):
+        if obj is None or (obj.none_bitmap & self.mask):
+            return
+        elif obj.pybuf.readonly:
+            raise TypeError('cannot set attribute in read-only buffer')
+        assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
+        cython.cast('numeric_A *',
+            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0] = elem   #lint:ok
+        mfence_full()   # release
+
+else:
+    def _buffer_proxy_get(self, obj, code):
+        if obj is None:
+            return self
+        elif obj.none_bitmap & self.mask:
+            return None
+        else:
+            return struct.unpack_from(code, obj.buf, obj.offs + self.offs)[0]
+
+    def _buffer_proxy_set(self, obj, code, elem):
+        if obj is not None and not (obj.none_bitmap & self.mask):
+            struct.pack_into(code, obj.buf, obj.offs + self.offs, elem)
+
+
 @cython.cclass
 class BoolBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.uchar) if cython.compiled else struct.Struct('B').size
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.uchar)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.bint, cython.cast(cython.p_uchar,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0])  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.uchar](self, obj, 0)
         else:
-            return struct.unpack_from('B', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'B')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.uchar)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.uchar](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'B', elem)
+
 
 @cython.cclass
 class UByteBufferProxyProperty(BaseBufferProxyProperty):
@@ -3200,16 +3293,18 @@ class UByteBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.uchar)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_uchar,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.uchar](self, obj, 0)
         else:
-            return struct.unpack_from('B', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'B')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.uchar)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.uchar](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'B', elem)
+
 
 @cython.cclass
 class ByteBufferProxyProperty(BaseBufferProxyProperty):
@@ -3217,16 +3312,17 @@ class ByteBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.char)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_char,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.char](self, obj, 0)
         else:
-            return struct.unpack_from('b', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'b')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.char)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.char](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'b', elem)
 
 @cython.cclass
 class UShortBufferProxyProperty(BaseBufferProxyProperty):
@@ -3234,16 +3330,17 @@ class UShortBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.ushort)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_ushort,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.ushort](self, obj, 0)
         else:
-            return struct.unpack_from('H', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'H')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.ushort)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.ushort](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'H', elem)
 
 @cython.cclass
 class ShortBufferProxyProperty(BaseBufferProxyProperty):
@@ -3251,16 +3348,17 @@ class ShortBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.short)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_short,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.short](self, obj, 0)
         else:
-            return struct.unpack_from('h', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'h')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.short)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.short](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'h', elem)
 
 @cython.cclass
 class UIntBufferProxyProperty(BaseBufferProxyProperty):
@@ -3268,16 +3366,17 @@ class UIntBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.uint)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_uint,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.uint](self, obj, 0)
         else:
-            return struct.unpack_from('I', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'I')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.uint)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.uint](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'I', elem)
 
 @cython.cclass
 class IntBufferProxyProperty(BaseBufferProxyProperty):
@@ -3285,16 +3384,17 @@ class IntBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.int)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_int,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.int](self, obj, 0)
         else:
-            return struct.unpack_from('i', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'i')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.int)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.int](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'i', elem)
 
 @cython.cclass
 class ULongBufferProxyProperty(BaseBufferProxyProperty):
@@ -3317,22 +3417,30 @@ class ULongBufferProxyProperty(BaseBufferProxyProperty):
         else:
             return struct.unpack_from('Q', obj.buf, obj.offs + self.offs)[0]
 
+    @cython.locals(obj = BufferProxyObject, elem = cython.ulonglong)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.ulonglong](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'Q', elem)
+
 @cython.cclass
 class LongBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.long)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_longlong,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.longlong](self, obj, 0)
         else:
-            return struct.unpack_from('q', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'q')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.longlong)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.longlong](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'q', elem)
 
 @cython.cclass
 class DoubleBufferProxyProperty(BaseBufferProxyProperty):
@@ -3340,16 +3448,17 @@ class DoubleBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.double)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_double,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.double](self, obj, 0)
         else:
-            return struct.unpack_from('d', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'd')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.double)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.double](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'd', elem)
 
 @cython.cclass
 class FloatBufferProxyProperty(BaseBufferProxyProperty):
@@ -3357,16 +3466,17 @@ class FloatBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
         if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.float)) <= obj.pybuf.len  # lint:ok
-            return cython.cast(cython.p_float,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+            return _c_buffer_proxy_get_gen[cython.float](self, obj, 0)
         else:
-            return struct.unpack_from('f', obj.buf, obj.offs + self.offs)[0]
+            return _buffer_proxy_get(self, obj, 'f')
+
+    @cython.locals(obj = BufferProxyObject, elem = cython.float)
+    def __set__(self, obj, elem):
+        if cython.compiled:
+            _c_buffer_proxy_set_gen[cython.float](self, obj, elem)
+        else:
+            _buffer_proxy_set(self, obj, 'f', elem)
 
 @cython.cclass
 class BytesBufferProxyProperty(BaseBufferProxyProperty):
@@ -4438,7 +4548,7 @@ def __pyx_unpickle_mapped_object_with_schema(__pyx_type, __pyx_checksum, __pyx_s
     return result
 
 @cython.ccall
-def _map_zipfile(cls, fileobj, offset, size):
+def _map_zipfile(cls, fileobj, offset, size, read_only):
     # Open underlying file
     if fileobj._compress_type != zipfile.ZIP_STORED:
         raise ValueError("Can only map uncompressed elements of a zip file")
@@ -4451,36 +4561,39 @@ def _map_zipfile(cls, fileobj, offset, size):
         size = min(size, fileobj._compress_size - offset)
     offset += fileobj._fileobj.tell()
 
-    return cls.map_file(fileobj._fileobj, offset, size)
+    return cls.map_file(fileobj._fileobj, offset, size, read_only)
 
 class _ZipMapBase(object):
     @classmethod
-    def map_zipfile(cls, fileobj, offset = 0, size = None):
-        return _map_zipfile(cls, fileobj, offset, size)
+    def map_zipfile(cls, fileobj, offset = 0, size = None, read_only = True):
+        return _map_zipfile(cls, fileobj, offset, size, read_only)
 
 @cython.cclass
 class _CZipMapBase(object):
     @classmethod
-    def map_zipfile(cls, fileobj, offset = 0, size = None):
-        return _map_zipfile(cls, fileobj, offset, size)
+    def map_zipfile(cls, fileobj, offset = 0, size = None, read_only = True):
+        return _map_zipfile(cls, fileobj, offset, size, read_only)
 
 class GenericFileMapper(_ZipMapBase):
     @classmethod
-    def map_file(cls, fileobj, offset = 0, size = None):
+    def map_file(cls, fileobj, offset = 0, size = None, read_only = True):
         """
         Returns a buffer mapping the file object's requested
         range, and the underlying mmap object as a tuple.
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
-            return cls.map_zipfile(fileobj, offset, size)
+            return cls.map_zipfile(fileobj, offset, size, read_only = read_only)
 
         if size is None:
             fileobj.seek(0, os.SEEK_END)
             size = fileobj.tell() - offset
         fileobj.seek(offset)
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
+        access = mmap.ACCESS_READ
+        if not read_only:
+            access |= mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), size + offset - map_start,
-            access = mmap.ACCESS_READ, offset = map_start)
+            access = access, offset = map_start)
         return buffer(buf, offset - map_start, size), buf
 
 class MappedArrayProxyBase(_ZipMapBase):
@@ -4524,6 +4637,7 @@ class MappedArrayProxyBase(_ZipMapBase):
             self.buf = buf = buffer(buf, offset)
         else:
             self.buf = buf
+        self.wr_buf = buf   # May be overriden by map_file
         self.total_size, self.index_offset, self.index_elements = self._Header.unpack_from(buf, 0)
         self.index = npfrombuffer(buf,
             offset = self.index_offset,
@@ -4558,7 +4672,7 @@ class MappedArrayProxyBase(_ZipMapBase):
     def __getitem__(self, pos):
         return self.getter()(pos)
 
-    @cython.locals(schema = Schema, proxy_into = BufferProxyObject)
+    @cython.locals(schema = Schema, proxy_into = BufferProxyObject, read_only = cython.bint)
     def getter(self, proxy_into = None, no_idmap = False):
         """
         Build a getter callable to quickly access items in succession.
@@ -4586,14 +4700,14 @@ class MappedArrayProxyBase(_ZipMapBase):
         proxy_class = self.proxy_class
         index = self.index
         idmap = self.idmap if not no_idmap else None
-        buf = self.buf
+        buf = self.wr_buf
 
         if proxy_class is not None:
             proxy_class_new = functools.partial(proxy_class.__new__, proxy_class)
         else:
             proxy_class_new = None
 
-        @cython.locals(pos=int)
+        @cython.locals(pos = int)
         def getter(pos):
             return schema.unpack_from(buf, index[pos], idmap, proxy_class_new, proxy_into)
         return getter
@@ -4653,7 +4767,8 @@ class MappedArrayProxyBase(_ZipMapBase):
     @classmethod
     @cython.locals(schema = Schema, data_pos = cython.size_t, initial_pos = cython.size_t, current_pos = object,
         schema_pos = cython.size_t, schema_end = cython.size_t)
-    def build(cls, initializer, destfile = None, tempdir = None, idmap = None, return_mapper=True):
+    def build(cls, initializer, destfile = None, tempdir = None, idmap = None,
+            return_mapper = True, read_only = True):
         """
         Builds an array of objects with a uniform :class:`Schema` into a memory mapped temporary file.
 
@@ -4678,6 +4793,9 @@ class MappedArrayProxyBase(_ZipMapBase):
             structure (further objects can be appended at the returned position) and construction onto
             file-like objects (mapping is only supported from actual file objects, and not generally
             from file-like objects).
+
+        :param bool read_only: *(optional)* Whether the mapping should be read-only, of if write access
+            should also be requested. Defaults to true.
 
         :rtype: MappedArrayProxyBase or int
         :returns: Either the mapped array when ``return_mapper`` is True, or the position within the file
@@ -4733,7 +4851,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         destfile.seek(final_pos)
 
         if return_mapper:
-            return cls.map_file(destfile, initial_pos)
+            return cls.map_file(destfile, initial_pos, read_only = read_only)
         else:
             return final_pos
 
@@ -4749,7 +4867,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         return cls(buf, offset)
 
     @classmethod
-    def map_file(cls, fileobj, offset = 0, size = None):
+    def map_file(cls, fileobj, offset = 0, size = None, read_only = True):
         """
         Build a mapped array instance mapping the given ``fileobj`` at position ``offset``.
         A size can optionally be given to map only the necessary portion of the file.
@@ -4760,60 +4878,31 @@ class MappedArrayProxyBase(_ZipMapBase):
 
         :param int size: *(optional)* Size of the array data. If given, it will be used to reduce
             the mapped portion of the file to the minimum necessary mapping.
+
+        :param bool read_only: *(optional)* Whether the mapping should be read-only, or if
+            write access should also be requested. Defaults to true.
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
-            return cls.map_zipfile(fileobj, offset, size)
+            return cls.map_zipfile(fileobj, offset, size, read_only = read_only)
 
         fileobj.seek(offset)
         total_size = cls._Header.unpack(fileobj.read(cls._Header.size))[0]
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
+        access = mmap.ACCESS_READ
+        if not read_only:
+            access |= mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), total_size + offset - map_start,
-            access = mmap.ACCESS_READ, offset = map_start)
+            access = access, offset = map_start)
         rv = cls(buffer(buf, offset - map_start))
         rv._file = fileobj
         rv._mmap = buf
+        if not read_only:
+            offset -= map_start
+            rv.wr_buf = (ctypes.c_char * (len(buf) - offset)).from_buffer(buf, offset)
         return rv
 
-if not cython.compiled:
-    globals().update(dict(
-        numeric_A = object,
-        numeric_B = object,
-    ))
+
 if cython.compiled:
-
-    # We need as many of these definitions as different parameters are
-    # used per-function; otherwise, cython will deduce that they are of
-    # the same type. Sigh ...
-
-    numeric_A = cython.fused_type(
-        cython.char,
-        cython.uchar,
-        cython.short,
-        cython.ushort,
-        cython.int,
-        cython.uint,
-        cython.long,
-        cython.ulong,
-        cython.longlong,
-        cython.ulonglong,
-        cython.float,
-        cython.double,
-    )
-
-    numeric_B = cython.fused_type(
-        cython.char,
-        cython.uchar,
-        cython.short,
-        cython.ushort,
-        cython.int,
-        cython.uint,
-        cython.long,
-        cython.ulong,
-        cython.longlong,
-        cython.ulonglong,
-        cython.float,
-        cython.double,
-    )
 
     @cython.cfunc
     @cython.locals(
@@ -5830,7 +5919,7 @@ class NumericIdMapper(_CZipMapBase):
         basepos = cython.Py_ssize_t, curpos = cython.Py_ssize_t, endpos = cython.Py_ssize_t, finalpos = cython.Py_ssize_t,
         discard_duplicates = cython.bint, discard_duplicate_keys = cython.bint)
     def build(cls, initializer, destfile = None, tempdir = None,
-            discard_duplicates = False, discard_duplicate_keys = False, return_mapper=True):
+            discard_duplicates = False, discard_duplicate_keys = False, return_mapper = True, read_only = True):
         """
         Builds a :class:`NumericIdMapper` from the given iterable. The iterable should
         yield ``(key, value)`` pairs, in which both key and value are numbers fitting the range
@@ -5852,6 +5941,9 @@ class NumericIdMapper(_CZipMapBase):
 
         :param bool return_mapper: Whether to return the mapped :term:`Id Mapper` or the ending offset.
             See the same argument of :meth:`MappedArrayProxyBase.build` for a detailed description.
+
+        :param bool read_only: *(optional)* Whether the mapping should be read-only, or if
+            write access should also be requested. Defaults to true.
         """
         if destfile is None:
             destfile = tempfile.NamedTemporaryFile(dir = tempdir)
@@ -5977,7 +6069,7 @@ class NumericIdMapper(_CZipMapBase):
         destfile.flush()
 
         if return_mapper:
-            rv = cls.map_file(destfile, basepos, size = finalpos - basepos)
+            rv = cls.map_file(destfile, basepos, size = finalpos - basepos, read_only = read_only)
             destfile.seek(finalpos)
         else:
             rv = finalpos
@@ -5996,7 +6088,7 @@ class NumericIdMapper(_CZipMapBase):
 
     @classmethod
     @cython.locals(rv = 'NumericIdMapper')
-    def map_file(cls, fileobj, offset = 0, size = None):
+    def map_file(cls, fileobj, offset = 0, size = None, read_only = True):
         """
         Build an :term:`Id Mapper` from the data in ``fileobj`` at position ``offset``.
         A size can optionally be given to map only the necessary portion of the file.
@@ -6007,9 +6099,12 @@ class NumericIdMapper(_CZipMapBase):
 
         :param int size: *(optional)* Size of the data. If given, it will be used to reduce
             the mapped portion of the file to the minimum necessary mapping.
+
+        :param bool read_only: *(optional)* Whether the mapping should be read-only, or if
+            write access should also be requested. Defaults to true.
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
-            return cls.map_zipfile(fileobj, offset, size)
+            return cls.map_zipfile(fileobj, offset, size, read_only = read_only)
 
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
 
@@ -6019,7 +6114,10 @@ class NumericIdMapper(_CZipMapBase):
             map_size = size + offset - map_start
 
         fileobj.seek(map_start)
-        buf = mmap.mmap(fileobj.fileno(), map_size, access = mmap.ACCESS_READ, offset = map_start)
+        access = mmap.ACCESS_READ
+        if not read_only:
+            access |= mmap.ACCESS_WRITE
+        buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
         return rv
@@ -6458,8 +6556,8 @@ class ObjectIdMapper(_CZipMapBase):
         basepos = cython.Py_ssize_t, curpos = cython.Py_ssize_t, endpos = cython.Py_ssize_t, finalpos = cython.Py_ssize_t,
         dtypemax = cython.ulonglong, implicit_offs = cython.Py_ssize_t, widmap = StrongIdMap, kpos = cython.longlong,
         ukpos = cython.ulonglong)
-    def build(cls, initializer, destfile = None, tempdir = None, return_mapper=True, min_buf_size=128, idmap=None,
-            implicit_offs=0):
+    def build(cls, initializer, destfile = None, tempdir = None, return_mapper = True,
+            min_buf_size = 128, idmap = None, implicit_offs = 0, read_only = True):
         """
         Builds the mapper from the iterable of items passed in ``initializer``. The items should be
         ``(key, value)`` pairs where keys can be any :term:`hashable object`, and values are integers
@@ -6590,7 +6688,7 @@ class ObjectIdMapper(_CZipMapBase):
         destfile.flush()
 
         if return_mapper:
-            rv = cls.map_file(destfile, basepos, size = finalpos - basepos)
+            rv = cls.map_file(destfile, basepos, size = finalpos - basepos, read_only = read_only)
             destfile.seek(finalpos)
         else:
             rv = finalpos
@@ -6605,12 +6703,12 @@ class ObjectIdMapper(_CZipMapBase):
 
     @classmethod
     @cython.locals(rv = 'ObjectIdMapper')
-    def map_file(cls, fileobj, offset = 0, size = None):
+    def map_file(cls, fileobj, offset = 0, size = None, read_only = True):
         """
         See :meth:`NumericIdMapper.map_file`
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
-            return cls.map_zipfile(fileobj, offset, size)
+            return cls.map_zipfile(fileobj, offset, size, read_only = read_only)
 
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
 
@@ -6620,7 +6718,10 @@ class ObjectIdMapper(_CZipMapBase):
             map_size = size + offset - map_start
 
         fileobj.seek(map_start)
-        buf = mmap.mmap(fileobj.fileno(), map_size, access = mmap.ACCESS_READ, offset = map_start)
+        access = mmap.ACCESS_READ
+        if not read_only:
+            access |= mmap.ACCESS_WRITE
+        buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
         return rv
@@ -7006,7 +7107,7 @@ class StringIdMapper(_CZipMapBase):
     @cython.locals(
         basepos = cython.Py_ssize_t, curpos = cython.Py_ssize_t, endpos = cython.Py_ssize_t, finalpos = cython.Py_ssize_t,
         dtypemax = cython.ulonglong)
-    def build(cls, initializer, destfile = None, tempdir = None, return_mapper=True):
+    def build(cls, initializer, destfile = None, tempdir = None, return_mapper = True, read_only = True):
         """
         Builds the mapper from the iterable of items passed in ``initializer``. The items should be
         ``(key, value)`` pairs where keys are strings, and the values are integers
@@ -7096,7 +7197,7 @@ class StringIdMapper(_CZipMapBase):
         destfile.flush()
 
         if return_mapper:
-            rv = cls.map_file(destfile, basepos, size = finalpos - basepos)
+            rv = cls.map_file(destfile, basepos, size = finalpos - basepos, read_only = read_only)
             destfile.seek(finalpos)
         else:
             rv = finalpos
@@ -7111,12 +7212,12 @@ class StringIdMapper(_CZipMapBase):
 
     @classmethod
     @cython.locals(rv = 'StringIdMapper')
-    def map_file(cls, fileobj, offset = 0, size = None):
+    def map_file(cls, fileobj, offset = 0, size = None, read_only = True):
         """
         See :meth:`NumericIdMapper.map_file`
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
-            return cls.map_zipfile(fileobj, offset, size)
+            return cls.map_zipfile(fileobj, offset, size, read_only = read_only)
 
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
 
@@ -7126,7 +7227,10 @@ class StringIdMapper(_CZipMapBase):
             map_size = size + offset - map_start
 
         fileobj.seek(map_start)
-        buf = mmap.mmap(fileobj.fileno(), map_size, access = mmap.ACCESS_READ, offset = map_start)
+        access = mmap.ACCESS_READ
+        if not read_only:
+            access |= mmap.ACCESS_WRITE
+        buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
         return rv
@@ -7910,7 +8014,7 @@ class MappedMappingProxyBase(_ZipMapBase):
         return cls(value_array, id_mapper)
 
     @classmethod
-    def map_file(cls, fileobj, offset = 0, size = None):
+    def map_file(cls, fileobj, offset = 0, size = None, read_only = True):
         """
         Builds a mapping proxy out of the data in ``fileobj`` at offset ``offset``
         and size ``size``.
@@ -7927,9 +8031,12 @@ class MappedMappingProxyBase(_ZipMapBase):
 
         :param int size: *(optional)* The size of the mapping relative to its starting offset. It must be
             given if the mapping doesn't end at the EOF, to be able to locate the footer.
+
+        :param bool read_only: *(optional)* Whether the mapping should be read-only, or if
+            write access should also be requested. Defaults to true.
         """
         if isinstance(fileobj, zipfile.ZipExtFile):
-            return cls.map_zipfile(fileobj, offset, size)
+            return cls.map_zipfile(fileobj, offset, size, read_only = read_only)
 
         # If no size is given, it's the whole file by default
         if size is None:
@@ -7942,9 +8049,9 @@ class MappedMappingProxyBase(_ZipMapBase):
         fileobj.seek(offset)
 
         # Map everything
-        id_mapper = cls.IdMapper.map_file(fileobj, offset, size = values_pos)
+        id_mapper = cls.IdMapper.map_file(fileobj, offset, size = values_pos, read_only = read_only)
         value_array = cls.ValueArray.map_file(fileobj, offset + values_pos,
-            size = size - cls._Footer.size - values_pos)
+            size = size - cls._Footer.size - values_pos, read_only = read_only)
         return cls(value_array, id_mapper)
 
 

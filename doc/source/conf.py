@@ -24,9 +24,9 @@ copyright = u'2019, Jampp'
 author = u'Jampp'
 
 # The short X.Y version
-version = u'0.6'
+version = u'0.7'
 # The full version, including alpha/beta/rc tags
-release = u'0.6.4'
+release = u'0.7.0'
 
 
 # -- General configuration ---------------------------------------------------
