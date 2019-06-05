@@ -54,6 +54,7 @@ cdef extern from *:
     cdef int __builtin_popcountll(unsigned long long x)
     cdef void __sync_synchronize()
     cdef bint __sync_bool_compare_and_swap(void *ptr, ...)
+    cdef void __sync_add_and_fetch(void *ptr, ...)
 
 cdef inline int popcount(unsigned long long x):
     return __builtin_popcountll(x)
@@ -78,6 +79,9 @@ ctypedef fused atomic_type:
 cdef inline bint _c_atomic_cas(atomic_type *ptr, atomic_type exp_val, atomic_type new_val):
     return __sync_bool_compare_and_swap(ptr, exp_val, new_val)
 
+cdef inline void _c_atomic_add(atomic_type *ptr, atomic_type value):
+    __sync_add_and_fetch(ptr, value)
+
 # These functions will probably trigger all sorts of warnings related to
 # aliasing issues. Good thing Python is compiled with -fno-strict-aliasing ;)
 
@@ -90,3 +94,17 @@ cdef inline bint _c_atomic_cas_dbl(double *ptr, double exp_val, double new_val):
     cdef long long *exp_ptr = <long long *>&exp_val
     cdef long long *new_ptr = <long long *>&new_val
     return __sync_bool_compare_and_swap(<long long *>ptr, exp_ptr[0], new_ptr[0])
+
+cdef inline void _c_atomic_add_flt(float *ptr, float value):
+    cdef float tmp
+    while 1:
+        tmp = ptr[0]
+        if _c_atomic_cas_flt(ptr, tmp, tmp + value):
+            break
+
+cdef inline void _c_atomic_add_dbl(double *ptr, double value):
+    cdef double tmp
+    while 1:
+        tmp = ptr[0]
+        if _c_atomic_cas_dbl(ptr, tmp, tmp + value):
+            break
