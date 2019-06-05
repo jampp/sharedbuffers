@@ -86,14 +86,12 @@ cdef inline void _c_atomic_add(atomic_type *ptr, atomic_type value):
 # aliasing issues. Good thing Python is compiled with -fno-strict-aliasing ;)
 
 cdef inline bint _c_atomic_cas_flt(float *ptr, float exp_val, float new_val):
-    cdef int *exp_ptr = <int *>&exp_val
-    cdef int *new_ptr = <int *>&new_val
-    return __sync_bool_compare_and_swap(<int *>ptr, exp_ptr[0], new_ptr[0])
+    return __sync_bool_compare_and_swap(<int *>ptr,
+        (<int *>&exp_val)[0], (<int *>&new_val)[0])
 
 cdef inline bint _c_atomic_cas_dbl(double *ptr, double exp_val, double new_val):
-    cdef long long *exp_ptr = <long long *>&exp_val
-    cdef long long *new_ptr = <long long *>&new_val
-    return __sync_bool_compare_and_swap(<long long *>ptr, exp_ptr[0], new_ptr[0])
+    return __sync_bool_compare_and_swap(<long long *>ptr,
+        (<long long *>&exp_val)[0], (<long long *>&new_val)[0])
 
 cdef inline void _c_atomic_add_flt(float *ptr, float value):
     cdef float tmp

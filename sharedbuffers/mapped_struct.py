@@ -3258,11 +3258,12 @@ if cython.compiled:
         mfence_full()   # release
 
     @cython.cfunc
+    @cython.inline
     @cython.locals(self = BaseBufferProxyProperty, obj = BufferProxyObject,
         exp_val = numeric_A, new_val = numeric_A, ptr = 'numeric_A *')
     def _c_buffer_proxy_atomic_cas(self, obj, exp_val, new_val):
         if obj is None or (obj.none_bitmap & self.mask):
-            return True
+            return False
         elif obj.pybuf.readonly:
             raise TypeError('cannot set attribute in read-only buffer')
         assert (obj.offs + self.offs + cython.sizeof(exp_val)) <= obj.pybuf.len   #lint:ok
@@ -3276,11 +3277,12 @@ if cython.compiled:
             return _c_atomic_cas(ptr, exp_val, new_val)
 
     @cython.cfunc
+    @cython.inline
     @cython.locals(self = BaseBufferProxyProperty, obj = BufferProxyObject,
         value = numeric_A, ptr = 'numeric_A *')
     def _c_buffer_proxy_atomic_add(self, obj, value):
         if obj is None or (obj.none_bitmap & self.mask):
-            return True
+            return
         elif obj.pybuf.readonly:
             raise TypeError('cannot set attribute in read-only buffer')
         assert (obj.offs + self.offs + cython.sizeof(value)) <= obj.pybuf.len   #lint:ok
