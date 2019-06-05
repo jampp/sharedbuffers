@@ -2446,34 +2446,34 @@ class WriteableMappingTest(unittest.TestCase):
         self.schema.pack_into(n, buf, 0)
         proxy = self.schema.unpack_from(buf, 0)
 
-        self.assertFalse(type(proxy).Bx.cas(proxy, 1, 0))
+        self.assertFalse(type(proxy).Bx.cas(proxy, 1, 2))
         self.assertEqual(proxy.Bx, 0)
 
-        self.assertFalse(type(proxy).bx.cas(proxy, 1, 0))
+        self.assertFalse(type(proxy).bx.cas(proxy, 1, 2))
         self.assertEqual(proxy.bx, 0)
 
-        self.assertFalse(type(proxy).Hx.cas(proxy, 1, 0))
+        self.assertFalse(type(proxy).Hx.cas(proxy, 1, 2))
         self.assertEqual(proxy.Hx, 0)
 
-        self.assertFalse(type(proxy).hx.cas(proxy, 1, 0))
+        self.assertFalse(type(proxy).hx.cas(proxy, 1, 2))
         self.assertEqual(proxy.hx, 0)
 
-        self.assertFalse(type(proxy).Ix.cas(proxy, 1, 0))
+        self.assertFalse(type(proxy).Ix.cas(proxy, 1, 2))
         self.assertEqual(proxy.Ix, 0)
 
-        self.assertFalse(type(proxy).ix.cas(proxy, 1, 0))
+        self.assertFalse(type(proxy).ix.cas(proxy, 1, 2))
         self.assertEqual(proxy.ix, 0)
 
-        self.assertFalse(type(proxy).Qx.cas(proxy, 1, 0))
+        self.assertFalse(type(proxy).Qx.cas(proxy, 1, 2))
         self.assertEqual(proxy.Qx, 0)
 
-        self.assertFalse(type(proxy).qx.cas(proxy, 1, 0))
+        self.assertFalse(type(proxy).qx.cas(proxy, 1, 2))
         self.assertEqual(proxy.qx, 0)
 
-        self.assertFalse(type(proxy).dx.cas(proxy, 1.0, 0.0))
+        self.assertFalse(type(proxy).dx.cas(proxy, 1.0, 2.0))
         self.assertAlmostEqual(proxy.dx, 0.0)
 
-        self.assertFalse(type(proxy).fx.cas(proxy, 1.0, 0.0))
+        self.assertFalse(type(proxy).fx.cas(proxy, 1.0, 2.0))
         self.assertAlmostEqual(proxy.fx, 0.0)
 
     def testWriteableAdd(self):

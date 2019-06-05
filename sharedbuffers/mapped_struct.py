@@ -3315,7 +3315,7 @@ else:
             if tmp == exp_val:
                 struct.pack_into(code, obj.buf, obj.offs + self.offs, new_val)
                 return True
-            return False
+        return False
 
     def _buffer_proxy_add(self, obj, code, value):
         if obj is not None and not (obj.none_bitmap & self.mask):
@@ -3347,13 +3347,6 @@ class BoolBufferProxyProperty(BaseBufferProxyProperty):
             return _c_buffer_proxy_atomic_cas[cython.uchar](self, obj, exp_val, new_val)
         else:
             return _buffer_proxy_cas(self, obj, 'B', exp_val, new_val)
-
-    @cython.locals(obj = BufferProxyObject, value = cython.uchar)
-    def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.uchar](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'B', value)
 
 
 @cython.cclass
