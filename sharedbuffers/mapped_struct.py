@@ -3587,7 +3587,7 @@ class ULongBufferProxyProperty(BaseBufferProxyProperty):
         if cython.compiled:
             _c_buffer_proxy_atomic_add[cython.ulonglong](self, obj, value)
         else:
-            _buffer_proxy_add(self, obj, 'B', value)
+            _buffer_proxy_add(self, obj, 'Q', value)
 
 @cython.cclass
 class LongBufferProxyProperty(BaseBufferProxyProperty):
