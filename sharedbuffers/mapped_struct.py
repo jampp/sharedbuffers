@@ -4719,7 +4719,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         proxy_class = self.proxy_class
         index = self.index
         idmap = self.idmap
-        buf = self.buf
+        buf = self.wr_buf
 
         if proxy_class is not None:
             proxy_class_new = functools.partial(proxy_class.__new__, proxy_class)
@@ -4745,7 +4745,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         proxy_class = self.proxy_class
         index = self.index
         idmap = self.idmap
-        buf = self.buf
+        buf = self.wr_buf
 
         if proxy_class is not None:
             proxy_class_new = functools.partial(proxy_class.__new__, proxy_class)
