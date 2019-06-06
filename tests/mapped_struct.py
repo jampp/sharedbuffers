@@ -2376,8 +2376,9 @@ class WriteableMappingTest(unittest.TestCase):
         values = [self.single_value]
         with tempfile.NamedTemporaryFile() as destfile:
             self.mapped_class.build(values, destfile = destfile, idmap = {})
-            proxy = self.mapped_class.map_file(destfile, read_only = False)[0]
-            self._assert_load_store(proxy)
+            lst = self.mapped_class.map_file(destfile, read_only = False)
+            for proxy in lst:
+                self._assert_load_store(proxy)
 
     def testWriteableZip(self):
         values = [self.single_value]
@@ -2393,3 +2394,128 @@ class WriteableMappingTest(unittest.TestCase):
                 zf = zipfile.ZipFile(tempzip, 'r')
                 proxy = self.mapped_class.map_file(zf.open('bundle'), read_only = False)[0]
                 self._assert_load_store(proxy)
+
+    def testWriteableCasSuccess(self):
+        n = self.single_value
+        buf = bytearray(1000)
+        self.schema.pack_into(n, buf, 0)
+        proxy = self.schema.unpack_from(buf, 0)
+
+        # We test not only that the member matches the expected value,
+        # but also that adjacent members weren't modified.
+
+        self.assertTrue(type(proxy).Bx.cas(proxy, 0, 1))
+        self.assertEqual(proxy.Bx, 1)
+        self.assertEqual(proxy.bx, 0)
+
+        self.assertTrue(type(proxy).bx.cas(proxy, 0, -1))
+        self.assertEqual(proxy.bx, -1)
+        self.assertEqual(proxy.Bx + proxy.bx, 0)
+
+        self.assertTrue(type(proxy).Hx.cas(proxy, 0, 1))
+        self.assertEqual(proxy.Hx, 1)
+        self.assertEqual(proxy.hx, 0)
+
+        self.assertTrue(type(proxy).hx.cas(proxy, 0, -1))
+        self.assertEqual(proxy.Hx + proxy.hx, 0)
+
+        self.assertTrue(type(proxy).Ix.cas(proxy, 0, 1))
+        self.assertEqual(proxy.Ix, 1)
+        self.assertEqual(proxy.ix, 0)
+
+        self.assertTrue(type(proxy).ix.cas(proxy, 0, -1))
+        self.assertEqual(proxy.Ix + proxy.ix, 0)
+
+        self.assertTrue(type(proxy).Qx.cas(proxy, 0, 1))
+        self.assertEqual(proxy.Qx, 1)
+        self.assertEqual(proxy.qx, 0)
+
+        self.assertTrue(type(proxy).qx.cas(proxy, 0, -1))
+        self.assertEqual(proxy.Qx + proxy.qx, 0)
+
+        self.assertTrue(type(proxy).dx.cas(proxy, 0.0, 1.0))
+        self.assertAlmostEqual(proxy.dx, 1.0)
+        self.assertAlmostEqual(proxy.fx, 0.0)
+
+        self.assertTrue(type(proxy).fx.cas(proxy, 0.0, -1.0))
+        self.assertAlmostEqual(proxy.dx + proxy.fx, 0.0)
+
+    def testWriteableCasFail(self):
+        n = self.single_value
+        buf = bytearray(1000)
+        self.schema.pack_into(n, buf, 0)
+        proxy = self.schema.unpack_from(buf, 0)
+
+        self.assertFalse(type(proxy).Bx.cas(proxy, 1, 2))
+        self.assertEqual(proxy.Bx, 0)
+
+        self.assertFalse(type(proxy).bx.cas(proxy, 1, 2))
+        self.assertEqual(proxy.bx, 0)
+
+        self.assertFalse(type(proxy).Hx.cas(proxy, 1, 2))
+        self.assertEqual(proxy.Hx, 0)
+
+        self.assertFalse(type(proxy).hx.cas(proxy, 1, 2))
+        self.assertEqual(proxy.hx, 0)
+
+        self.assertFalse(type(proxy).Ix.cas(proxy, 1, 2))
+        self.assertEqual(proxy.Ix, 0)
+
+        self.assertFalse(type(proxy).ix.cas(proxy, 1, 2))
+        self.assertEqual(proxy.ix, 0)
+
+        self.assertFalse(type(proxy).Qx.cas(proxy, 1, 2))
+        self.assertEqual(proxy.Qx, 0)
+
+        self.assertFalse(type(proxy).qx.cas(proxy, 1, 2))
+        self.assertEqual(proxy.qx, 0)
+
+        self.assertFalse(type(proxy).dx.cas(proxy, 1.0, 2.0))
+        self.assertAlmostEqual(proxy.dx, 0.0)
+
+        self.assertFalse(type(proxy).fx.cas(proxy, 1.0, 2.0))
+        self.assertAlmostEqual(proxy.fx, 0.0)
+
+    def testWriteableAdd(self):
+        n = self.single_value
+        buf = bytearray(1000)
+        self.schema.pack_into(n, buf, 0)
+        proxy = self.schema.unpack_from(buf, 0)
+
+        # We test not only that the member matches the expected value,
+        # but also that adjacent members weren't modified.
+        type(proxy).Bx.add(proxy, 1)
+        self.assertEqual(proxy.Bx, 1)
+        self.assertEqual(proxy.bx, 0)
+
+        type(proxy).bx.add(proxy, -1)
+        self.assertEqual(proxy.bx, -1)
+        self.assertEqual(proxy.Bx + proxy.bx, 0)
+
+        type(proxy).Hx.add(proxy, 1)
+        self.assertEqual(proxy.Hx, 1)
+        self.assertEqual(proxy.hx, 0)
+
+        type(proxy).hx.add(proxy, -1)
+        self.assertEqual(proxy.Hx + proxy.hx, 0)
+
+        type(proxy).Ix.add(proxy, 1)
+        self.assertEqual(proxy.Ix, 1)
+        self.assertEqual(proxy.ix, 0)
+
+        type(proxy).ix.add(proxy, -1)
+        self.assertEqual(proxy.Ix + proxy.ix, 0)
+
+        type(proxy).Qx.add(proxy, 1)
+        self.assertEqual(proxy.Qx, 1)
+        self.assertEqual(proxy.qx, 0)
+
+        type(proxy).qx.add(proxy, -1)
+        self.assertEqual(proxy.Qx + proxy.qx, 0)
+
+        type(proxy).dx.add(proxy, 1.0)
+        self.assertAlmostEqual(proxy.dx, 1.0)
+        self.assertAlmostEqual(proxy.fx, 0.0)
+
+        type(proxy).fx.add(proxy, -1.0)
+        self.assertAlmostEqual(proxy.dx + proxy.fx, 0.0)

@@ -3181,6 +3181,9 @@ class BaseBufferProxyProperty(object):
     def __set__(self, obj, value):
         raise TypeError("Proxy objects are read-only")
 
+    def cas(self, obj, exp_val, new_val):
+        raise TypeError("Proxy objects are read-only")
+
     def __delete__(self, obj):
         raise TypeError("Proxy objects are read-only")
 
@@ -3254,6 +3257,44 @@ if cython.compiled:
             cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0] = elem   #lint:ok
         mfence_full()   # release
 
+    @cython.cfunc
+    @cython.inline
+    @cython.locals(self = BaseBufferProxyProperty, obj = BufferProxyObject,
+        exp_val = numeric_A, new_val = numeric_A, ptr = 'numeric_A *')
+    def _c_buffer_proxy_atomic_cas(self, obj, exp_val, new_val):
+        if obj is None or (obj.none_bitmap & self.mask):
+            return False
+        elif obj.pybuf.readonly:
+            raise TypeError('cannot set attribute in read-only buffer')
+        assert (obj.offs + self.offs + cython.sizeof(exp_val)) <= obj.pybuf.len   #lint:ok
+        ptr = cython.cast('numeric_A *',
+            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)
+        if numeric_A is cython.float:
+            return _c_atomic_cas_flt(ptr, exp_val, new_val)
+        elif numeric_A is cython.double:
+            return _c_atomic_cas_dbl(ptr, exp_val, new_val)
+        else:
+            return _c_atomic_cas(ptr, exp_val, new_val)
+
+    @cython.cfunc
+    @cython.inline
+    @cython.locals(self = BaseBufferProxyProperty, obj = BufferProxyObject,
+        value = numeric_A, ptr = 'numeric_A *')
+    def _c_buffer_proxy_atomic_add(self, obj, value):
+        if obj is None or (obj.none_bitmap & self.mask):
+            return
+        elif obj.pybuf.readonly:
+            raise TypeError('cannot set attribute in read-only buffer')
+        assert (obj.offs + self.offs + cython.sizeof(value)) <= obj.pybuf.len   #lint:ok
+        ptr = cython.cast('numeric_A *',
+            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)
+        if numeric_A is cython.float:
+            _c_atomic_add_flt(ptr, value)
+        elif numeric_A is cython.double:
+            _c_atomic_add_dbl(ptr, value)
+        else:
+            _c_atomic_add(ptr, value)
+
 else:
     def _buffer_proxy_get(self, obj, code):
         if obj is None:
@@ -3266,6 +3307,20 @@ else:
     def _buffer_proxy_set(self, obj, code, elem):
         if obj is not None and not (obj.none_bitmap & self.mask):
             struct.pack_into(code, obj.buf, obj.offs + self.offs, elem)
+
+    def _buffer_proxy_cas(self, obj, code, exp_val, new_val):
+        # XXX: This is not atomic!
+        if obj is not None and not (obj.none_bitmap & self.mask):
+            tmp = struct.unpack_from(code, obj.buf, obj.offs + self.offs)[0]
+            if tmp == exp_val:
+                struct.pack_into(code, obj.buf, obj.offs + self.offs, new_val)
+                return True
+        return False
+
+    def _buffer_proxy_add(self, obj, code, value):
+        if obj is not None and not (obj.none_bitmap & self.mask):
+            tmp = struct.unpack_from(code, obj.buf, obj.offs + self.offs)[0]
+            struct.pack_into(code, obj.buf, obj.offs + self.offs, tmp + value)
 
 
 @cython.cclass
@@ -3286,6 +3341,13 @@ class BoolBufferProxyProperty(BaseBufferProxyProperty):
         else:
             _buffer_proxy_set(self, obj, 'B', elem)
 
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.uchar, new_val = cython.uchar)
+    def cas(self, obj, exp_val, new_val):
+        if cython.compiled:
+            return _c_buffer_proxy_atomic_cas[cython.uchar](self, obj, exp_val, new_val)
+        else:
+            return _buffer_proxy_cas(self, obj, 'B', exp_val, new_val)
+
 
 @cython.cclass
 class UByteBufferProxyProperty(BaseBufferProxyProperty):
@@ -3304,6 +3366,20 @@ class UByteBufferProxyProperty(BaseBufferProxyProperty):
             _c_buffer_proxy_set_gen[cython.uchar](self, obj, elem)
         else:
             _buffer_proxy_set(self, obj, 'B', elem)
+
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.uchar, new_val = cython.uchar)
+    def cas(self, obj, exp_val, new_val):
+        if cython.compiled:
+            return _c_buffer_proxy_atomic_cas[cython.uchar](self, obj, exp_val, new_val)
+        else:
+            return _buffer_proxy_cas(self, obj, 'B', exp_val, new_val)
+
+    @cython.locals(obj = BufferProxyObject, value = cython.uchar)
+    def add(self, obj, value):
+        if cython.compiled:
+            _c_buffer_proxy_atomic_add[cython.uchar](self, obj, value)
+        else:
+            _buffer_proxy_add(self, obj, 'B', value)
 
 
 @cython.cclass
@@ -3324,6 +3400,20 @@ class ByteBufferProxyProperty(BaseBufferProxyProperty):
         else:
             _buffer_proxy_set(self, obj, 'b', elem)
 
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.char, new_val = cython.char)
+    def cas(self, obj, exp_val, new_val):
+        if cython.compiled:
+            return _c_buffer_proxy_atomic_cas[cython.char](self, obj, exp_val, new_val)
+        else:
+            return _buffer_proxy_cas(self, obj, 'b', exp_val, new_val)
+
+    @cython.locals(obj = BufferProxyObject, value = cython.char)
+    def add(self, obj, value):
+        if cython.compiled:
+            _c_buffer_proxy_atomic_add[cython.char](self, obj, value)
+        else:
+            _buffer_proxy_add(self, obj, 'b', value)
+
 @cython.cclass
 class UShortBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.ushort) if cython.compiled else struct.Struct('H').size
@@ -3341,6 +3431,20 @@ class UShortBufferProxyProperty(BaseBufferProxyProperty):
             _c_buffer_proxy_set_gen[cython.ushort](self, obj, elem)
         else:
             _buffer_proxy_set(self, obj, 'H', elem)
+
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.ushort, new_val = cython.ushort)
+    def cas(self, obj, exp_val, new_val):
+        if cython.compiled:
+            return _c_buffer_proxy_atomic_cas[cython.ushort](self, obj, exp_val, new_val)
+        else:
+            return _buffer_proxy_cas(self, obj, 'H', exp_val, new_val)
+
+    @cython.locals(obj = BufferProxyObject, value = cython.ushort)
+    def add(self, obj, value):
+        if cython.compiled:
+            _c_buffer_proxy_atomic_add[cython.ushort](self, obj, value)
+        else:
+            _buffer_proxy_add(self, obj, 'H', value)
 
 @cython.cclass
 class ShortBufferProxyProperty(BaseBufferProxyProperty):
@@ -3360,6 +3464,20 @@ class ShortBufferProxyProperty(BaseBufferProxyProperty):
         else:
             _buffer_proxy_set(self, obj, 'h', elem)
 
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.short, new_val = cython.short)
+    def cas(self, obj, exp_val, new_val):
+        if cython.compiled:
+            return _c_buffer_proxy_atomic_cas[cython.short](self, obj, exp_val, new_val)
+        else:
+            return _buffer_proxy_cas(self, obj, 'h', exp_val, new_val)
+
+    @cython.locals(obj = BufferProxyObject, value = cython.short)
+    def add(self, obj, value):
+        if cython.compiled:
+            _c_buffer_proxy_atomic_add[cython.short](self, obj, value)
+        else:
+            _buffer_proxy_add(self, obj, 'h', value)
+
 @cython.cclass
 class UIntBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.uint) if cython.compiled else struct.Struct('I').size
@@ -3378,6 +3496,20 @@ class UIntBufferProxyProperty(BaseBufferProxyProperty):
         else:
             _buffer_proxy_set(self, obj, 'I', elem)
 
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.uint, new_val = cython.uint)
+    def cas(self, obj, exp_val, new_val):
+        if cython.compiled:
+            return _c_buffer_proxy_atomic_cas[cython.uint](self, obj, exp_val, new_val)
+        else:
+            return _buffer_proxy_cas(self, obj, 'I', exp_val, new_val)
+
+    @cython.locals(obj = BufferProxyObject, value = cython.uint)
+    def add(self, obj, value):
+        if cython.compiled:
+            _c_buffer_proxy_atomic_add[cython.uint](self, obj, value)
+        else:
+            _buffer_proxy_add(self, obj, 'I', value)
+
 @cython.cclass
 class IntBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.int) if cython.compiled else struct.Struct('i').size
@@ -3395,6 +3527,20 @@ class IntBufferProxyProperty(BaseBufferProxyProperty):
             _c_buffer_proxy_set_gen[cython.int](self, obj, elem)
         else:
             _buffer_proxy_set(self, obj, 'i', elem)
+
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.int, new_val = cython.int)
+    def cas(self, obj, exp_val, new_val):
+        if cython.compiled:
+            return _c_buffer_proxy_atomic_cas[cython.int](self, obj, exp_val, new_val)
+        else:
+            return _buffer_proxy_cas(self, obj, 'i', exp_val, new_val)
+
+    @cython.locals(obj = BufferProxyObject, value = cython.int)
+    def add(self, obj, value):
+        if cython.compiled:
+            _c_buffer_proxy_atomic_add[cython.int](self, obj, value)
+        else:
+            _buffer_proxy_add(self, obj, 'i', value)
 
 @cython.cclass
 class ULongBufferProxyProperty(BaseBufferProxyProperty):
@@ -3424,6 +3570,20 @@ class ULongBufferProxyProperty(BaseBufferProxyProperty):
         else:
             _buffer_proxy_set(self, obj, 'Q', elem)
 
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.ulonglong, new_val = cython.ulonglong)
+    def cas(self, obj, exp_val, new_val):
+        if cython.compiled:
+            return _c_buffer_proxy_atomic_cas[cython.ulonglong](self, obj, exp_val, new_val)
+        else:
+            return _buffer_proxy_cas(self, obj, 'Q', exp_val, new_val)
+
+    @cython.locals(obj = BufferProxyObject, value = cython.ulonglong)
+    def add(self, obj, value):
+        if cython.compiled:
+            _c_buffer_proxy_atomic_add[cython.ulonglong](self, obj, value)
+        else:
+            _buffer_proxy_add(self, obj, 'Q', value)
+
 @cython.cclass
 class LongBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
@@ -3441,6 +3601,20 @@ class LongBufferProxyProperty(BaseBufferProxyProperty):
             _c_buffer_proxy_set_gen[cython.longlong](self, obj, elem)
         else:
             _buffer_proxy_set(self, obj, 'q', elem)
+
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.longlong, new_val = cython.longlong)
+    def cas(self, obj, exp_val, new_val):
+        if cython.compiled:
+            return _c_buffer_proxy_atomic_cas[cython.longlong](self, obj, exp_val, new_val)
+        else:
+            return _buffer_proxy_cas(self, obj, 'q', exp_val, new_val)
+
+    @cython.locals(obj = BufferProxyObject, value = cython.longlong)
+    def add(self, obj, value):
+        if cython.compiled:
+            _c_buffer_proxy_atomic_add[cython.longlong](self, obj, value)
+        else:
+            _buffer_proxy_add(self, obj, 'q', value)
 
 @cython.cclass
 class DoubleBufferProxyProperty(BaseBufferProxyProperty):
@@ -3460,6 +3634,20 @@ class DoubleBufferProxyProperty(BaseBufferProxyProperty):
         else:
             _buffer_proxy_set(self, obj, 'd', elem)
 
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.double, new_val = cython.double)
+    def cas(self, obj, exp_val, new_val):
+        if cython.compiled:
+            return _c_buffer_proxy_atomic_cas[cython.double](self, obj, exp_val, new_val)
+        else:
+            return _buffer_proxy_cas(self, obj, 'd', exp_val, new_val)
+
+    @cython.locals(obj = BufferProxyObject, value = cython.double)
+    def add(self, obj, value):
+        if cython.compiled:
+            _c_buffer_proxy_atomic_add[cython.double](self, obj, value)
+        else:
+            _buffer_proxy_add(self, obj, 'd', value)
+
 @cython.cclass
 class FloatBufferProxyProperty(BaseBufferProxyProperty):
     stride = cython.sizeof(cython.float) if cython.compiled else struct.Struct('f').size
@@ -3477,6 +3665,20 @@ class FloatBufferProxyProperty(BaseBufferProxyProperty):
             _c_buffer_proxy_set_gen[cython.float](self, obj, elem)
         else:
             _buffer_proxy_set(self, obj, 'f', elem)
+
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.float, new_val = cython.float)
+    def cas(self, obj, exp_val, new_val):
+        if cython.compiled:
+            return _c_buffer_proxy_atomic_cas[cython.float](self, obj, exp_val, new_val)
+        else:
+            return _buffer_proxy_cas(self, obj, 'f', exp_val, new_val)
+
+    @cython.locals(obj = BufferProxyObject, value = cython.float)
+    def add(self, obj, value):
+        if cython.compiled:
+            _c_buffer_proxy_atomic_add[cython.float](self, obj, value)
+        else:
+            _buffer_proxy_add(self, obj, 'f', value)
 
 @cython.cclass
 class BytesBufferProxyProperty(BaseBufferProxyProperty):
@@ -4719,7 +4921,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         proxy_class = self.proxy_class
         index = self.index
         idmap = self.idmap
-        buf = self.buf
+        buf = self.wr_buf
 
         if proxy_class is not None:
             proxy_class_new = functools.partial(proxy_class.__new__, proxy_class)
@@ -4745,7 +4947,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         proxy_class = self.proxy_class
         index = self.index
         idmap = self.idmap
-        buf = self.buf
+        buf = self.wr_buf
 
         if proxy_class is not None:
             proxy_class_new = functools.partial(proxy_class.__new__, proxy_class)

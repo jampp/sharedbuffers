@@ -53,9 +53,56 @@ cpdef unsigned long long _stable_hash(key) except? 0
 cdef extern from *:
     cdef int __builtin_popcountll(unsigned long long x)
     cdef void __sync_synchronize()
+    cdef bint __sync_bool_compare_and_swap(void *ptr, ...)
+    cdef void __sync_add_and_fetch(void *ptr, ...)
 
 cdef inline int popcount(unsigned long long x):
     return __builtin_popcountll(x)
 
 cdef inline void mfence_full():
     __sync_synchronize()
+
+# NOTE: This is not the same as the fused type 'numeric', because CAS
+# doesn't work with floating point types.
+ctypedef fused atomic_type:
+    char
+    unsigned char
+    short
+    unsigned short
+    int
+    unsigned int
+    long
+    unsigned long
+    long long
+    unsigned long long
+
+cdef inline bint _c_atomic_cas(atomic_type *ptr, atomic_type exp_val, atomic_type new_val):
+    return __sync_bool_compare_and_swap(ptr, exp_val, new_val)
+
+cdef inline void _c_atomic_add(atomic_type *ptr, atomic_type value):
+    __sync_add_and_fetch(ptr, value)
+
+# These functions will probably trigger all sorts of warnings related to
+# aliasing issues. Good thing Python is compiled with -fno-strict-aliasing ;)
+
+cdef inline bint _c_atomic_cas_flt(float *ptr, float exp_val, float new_val):
+    return __sync_bool_compare_and_swap(<int *>ptr,
+        (<int *>&exp_val)[0], (<int *>&new_val)[0])
+
+cdef inline bint _c_atomic_cas_dbl(double *ptr, double exp_val, double new_val):
+    return __sync_bool_compare_and_swap(<long long *>ptr,
+        (<long long *>&exp_val)[0], (<long long *>&new_val)[0])
+
+cdef inline void _c_atomic_add_flt(float *ptr, float value):
+    cdef float tmp
+    while 1:
+        tmp = ptr[0]
+        if _c_atomic_cas_flt(ptr, tmp, tmp + value):
+            break
+
+cdef inline void _c_atomic_add_dbl(double *ptr, double value):
+    cdef double tmp
+    while 1:
+        tmp = ptr[0]
+        if _c_atomic_cas_dbl(ptr, tmp, tmp + value):
+            break

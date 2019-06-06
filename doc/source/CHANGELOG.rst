@@ -16,6 +16,8 @@ Added
 - Allow writing to numeric proxy properties when the mapping
   was specified as read-write.
 
+- Allow atomic transactions for numeric proxy properties.
+
 v0.6.4 - 2019-05-30
 ===================
 
