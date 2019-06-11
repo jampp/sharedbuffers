@@ -7,6 +7,14 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+v0.7.1 - Unreleased
+===================
+
+Bugfixes
+--------
+
+- Fix read-write mappings to properly map as a shared memory segment.
+
 v0.7.0 - 2019-06-06
 ===================
 

@@ -4791,9 +4791,10 @@ class GenericFileMapper(_ZipMapBase):
             size = fileobj.tell() - offset
         fileobj.seek(offset)
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
-        access = mmap.ACCESS_READ
-        if not read_only:
-            access |= mmap.ACCESS_WRITE
+        if read_only:
+            access = mmap.ACCESS_READ
+        else:
+            access = mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), size + offset - map_start,
             access = access, offset = map_start)
         return buffer(buf, offset - map_start, size), buf
@@ -5090,9 +5091,10 @@ class MappedArrayProxyBase(_ZipMapBase):
         fileobj.seek(offset)
         total_size = cls._Header.unpack(fileobj.read(cls._Header.size))[0]
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
-        access = mmap.ACCESS_READ
-        if not read_only:
-            access |= mmap.ACCESS_WRITE
+        if read_only:
+            access = mmap.ACCESS_READ
+        else:
+            access = mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), total_size + offset - map_start,
             access = access, offset = map_start)
         rv = cls(buffer(buf, offset - map_start))
@@ -6316,9 +6318,10 @@ class NumericIdMapper(_CZipMapBase):
             map_size = size + offset - map_start
 
         fileobj.seek(map_start)
-        access = mmap.ACCESS_READ
-        if not read_only:
-            access |= mmap.ACCESS_WRITE
+        if read_only:
+            access = mmap.ACCESS_READ
+        else:
+            access = mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
@@ -6920,9 +6923,10 @@ class ObjectIdMapper(_CZipMapBase):
             map_size = size + offset - map_start
 
         fileobj.seek(map_start)
-        access = mmap.ACCESS_READ
-        if not read_only:
-            access |= mmap.ACCESS_WRITE
+        if read_only:
+            access = mmap.ACCESS_READ
+        else:
+            access = mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
@@ -7429,9 +7433,10 @@ class StringIdMapper(_CZipMapBase):
             map_size = size + offset - map_start
 
         fileobj.seek(map_start)
-        access = mmap.ACCESS_READ
-        if not read_only:
-            access |= mmap.ACCESS_WRITE
+        if read_only:
+            access = mmap.ACCESS_READ
+        else:
+            access = mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
