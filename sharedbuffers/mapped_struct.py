@@ -3044,6 +3044,9 @@ class mapped_object(object):
                 elif 0 <= ivalue <= 0xffffffff:
                     self.typecode = 'I'
                     return
+                else:
+                    self.typecode = 'q'
+                    return
 
         typ = TYPES.get(typ, typ)
         if typ not in _mapped_object_TYPE_CODES and issubclass(typ, BufferProxyObject):
