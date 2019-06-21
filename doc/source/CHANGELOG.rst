@@ -7,6 +7,16 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+v0.7.2 - Unreleased
+===================
+
+Bugfixes
+--------
+
+- Fix mapped_object to actually pick the smallest integer typecode possible
+  instead of always picking 'q'. Also fix it for 'Q', which wasn't even
+  working when the number didn't fit in 'q'.
+
 v0.7.1 - 2019-06-13
 ===================
 
@@ -14,9 +24,6 @@ Bugfixes
 --------
 
 - Fix read-write mappings to properly map as a shared memory segment.
-- Fix mapped_object to actually pick the smallest integer typecode possible
-  instead of always picking 'q'. Also fix it for 'Q', which wasn't even
-  working when the number didn't fit in 'q'.
 
 v0.7.0 - 2019-06-06
 ===================
