@@ -3032,7 +3032,7 @@ class mapped_object(object):
                 elif 0 <= ivalue <= 0xff:
                     self.typecode = 'B'
                     return
-                if -0x8000 <= ivalue <= 0x7fff:
+                elif -0x8000 <= ivalue <= 0x7fff:
                     self.typecode = 'h'
                     return
                 elif 0 <= ivalue <= 0xffff:
