@@ -3005,22 +3005,55 @@ class mapped_object(object):
         PROXY_TYPES[typ] = PROXY_TYPES[supertyp]
         return cls.OBJ_PACKERS[typecode][2]
 
+    @cython.locals(ivalue = cython.longlong)
     def __init__(self, value = None, typ = None):
         if value is None:
             self.typecode = None
             self.value = None
-        else:
-            if typ is None:
-                typ = type(value)
-            typ = TYPES.get(typ, typ)
-            if typ not in _mapped_object_TYPE_CODES and issubclass(typ, BufferProxyObject):
-                # Check bases
-                for base in typ.__bases__:
-                    if base is not object and base in _mapped_object_TYPE_CODES:
-                        typ = base
-                        break
-            self.typecode = _mapped_object_TYPE_CODES[typ]
-            self.value = value
+            return
+
+        if typ is None:
+            typ = type(value)
+
+        self.value = value
+
+        if typ is int or typ is long:
+            # Special case for numbers, to pick a smaller typecode when possible
+            try:
+                ivalue = value
+            except OverflowError:
+                if 0 <= value <= 0xffffffffffffffff:
+                    self.typecode = 'Q'
+                    return
+            else:
+                if -0x80 <= ivalue <= 0x7f:
+                    self.typecode = 'b'
+                    return
+                elif 0 <= ivalue <= 0xff:
+                    self.typecode = 'B'
+                    return
+                if -0x8000 <= ivalue <= 0x7fff:
+                    self.typecode = 'h'
+                    return
+                elif 0 <= ivalue <= 0xffff:
+                    self.typecode = 'H'
+                    return
+                elif -0x80000000 <= ivalue <= 0x7fffffff:
+                    self.typecode = 'i'
+                    return
+                elif 0 <= ivalue <= 0xffffffff:
+                    self.typecode = 'I'
+                    return
+
+        typ = TYPES.get(typ, typ)
+        if typ not in _mapped_object_TYPE_CODES and issubclass(typ, BufferProxyObject):
+            # Check bases
+            for base in typ.__bases__:
+                if base is not object and base in _mapped_object_TYPE_CODES:
+                    typ = base
+                    break
+        self.typecode = _mapped_object_TYPE_CODES[typ]
+        self.value = value
 mapped_object.TYPE_CODES[mapped_object] = 'o'
 mapped_object.OBJ_PACKERS['o'] = (mapped_object.pack_into, mapped_object.unpack_from, mapped_object)
 
