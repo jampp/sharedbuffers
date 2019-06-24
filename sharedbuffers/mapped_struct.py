@@ -709,7 +709,7 @@ class mapped_tuple(tuple):
                 buf[offs+1:offs+4] = _struct_l_I.pack(objlen)[:3]
                 offs += 4
             else:
-                buf[offs+1:offs+8] = '\xff\xff\xff\xff\xff\xff\xff'
+                buf[offs+1:offs+8] = '\xff\xff\xff\xff\xff\xff'
                 buf[offs+8:offs+12] = _struct_l_Q.pack(objlen)
                 offs += 12
 

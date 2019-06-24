@@ -7,6 +7,15 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+v0.7.2 - Unreleased
+===================
+
+Bugfixes
+--------
+
+- Fix mapped_tuple pack_into. If long headers were used, it would
+  unintentionally expand the given buffer.
+
 v0.7.1 - 2019-06-13
 ===================
 
