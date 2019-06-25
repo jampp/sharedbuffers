@@ -10,7 +10,7 @@ plus the sequence header.
 .. code-block:: C
 
     struct Decimal {
-        long long exponent_sign;
+        int64_t exponent_sign;
         List digits;
     };
 

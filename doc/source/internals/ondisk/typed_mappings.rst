@@ -32,7 +32,7 @@ The typed mapping structure is thus:
 .. code-block: C
 
     struct TypedMappingFooter {
-        unsigned long long values_pos;
+        uint64_t values_pos;
     };
 
     struct TypedMapping {

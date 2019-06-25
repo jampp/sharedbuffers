@@ -71,14 +71,14 @@ For fixed-size types, the header structure and the value itself are merged to ac
     struct RTTIHeader {
         char typecode;
         union {
-            int8 i8;
-            uint8 ui8;
-            int16 i16;
-            uint16 ui16;
-            int32 i32;
-            uint32 ui32;
-            int64 i64;
-            uint64 ui64;
+            int8_t i8;
+            uint8_t ui8;
+            int16_t i16;
+            uint16_t ui16;
+            int32_t i32;
+            uint32_t ui32;
+            int64_t i64;
+            uint64_t ui64;
             float f;
             double d;
             bool b;

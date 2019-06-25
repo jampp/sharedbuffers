@@ -74,8 +74,8 @@ Their structure is thus:
     };
 
     struct IndexHeader {
-        unsigned long long num_items;
-        unsigned long long index_ptr;
+        uint64_t num_items;
+        uint64_t index_ptr;
     };
 
     struct ExactIndex {

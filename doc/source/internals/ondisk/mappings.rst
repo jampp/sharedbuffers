@@ -18,7 +18,7 @@ that may be referred.
 .. code-block:: C
 
     struct DictHeader {
-        unsigned long long values_pos;
+        uint64_t values_pos;
     };
 
     struct Dict {

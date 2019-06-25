@@ -16,7 +16,7 @@ Both lists and tuples share the same binary representation and are thus binary-c
 
         struct {
             int padding:24; // 0xFFFFFF
-            long long length;
+            int64_t length;
         } verylong;
     };
 
@@ -28,21 +28,21 @@ Both lists and tuples share the same binary representation and are thus binary-c
 
     union ListData {
         // Integral data
-        unsigned char ui8[];  // typecode B
-        char i8[];  // typecode b
-        unsigned short ui16[];  // typecode H
-        short i16[];  // typecode h
-        unsigned int ui32[];  // typecode I
-        int i32[];  // typecode i
-        unsigned long long ui64[];  // typecode Q
-        long long i64[];  // typecode q
+        uint8_t ui8[];  // typecode B
+        int8_t i8[];  // typecode b
+        uint16_t ui16[];  // typecode H
+        int16_t i16[];  // typecode h
+        uint32_t ui32[];  // typecode I
+        int32_t i32[];  // typecode i
+        uint64_t ui64[];  // typecode Q
+        int64_t i64[];  // typecode q
 
         // Float data
         double f64[];  // typecode d
 
         // Relative pointers to RTTI-wrapped data
-        int p32[];  // typecode T
-        long long p64[];  // typecode t
+        int32_t p32[];  // typecode T
+        int64_t p64[];  // typecode t
     };
 
 As always with unions, they take as much space as needed by actually present fields, rather than using

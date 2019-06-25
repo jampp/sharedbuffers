@@ -23,17 +23,17 @@ in the header, and thus readers can check that they properly support the format 
 .. code-block:: C
 
     struct TypedArrayHeaderV0 {
-        unsigned long long total_size;
-        unsigned long long index_offset;
-        unsigned long long index_elements;
+        uint64_t total_size;
+        uint64_t index_offset;
+        uint64_t index_elements;
     };
 
     struct TypedArrayHeaderV1 {
         TypedArrayHeaderV0 v0;
-        unsigned long long version;
-        unsigned long long min_reader_version;
-        unsigned long long schema_offset;
-        unsigned long long schema_size;
+        uint64_t version;
+        uint64_t min_reader_version;
+        uint64_t schema_offset;
+        uint64_t schema_size;
     };
 
     union TypedArrayHeader {
@@ -42,8 +42,8 @@ in the header, and thus readers can check that they properly support the format 
     };
 
     union ArrayIndex {
-        unsigned int ui32_positions[];
-        unsigned long long ui64_positions[];
+        uint32_t ui32_positions[];
+        uint64_t ui64_positions[];
     };
 
     struct TypedArray {

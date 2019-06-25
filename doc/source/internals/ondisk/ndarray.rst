@@ -9,8 +9,8 @@ arrays also include a shape tuple just after the header:
 .. code-block:: C
 
     struct NDArrayHeader {
-        unsigned long long dtype_offs;
-        unsigned long long data_offs;
+        uint64_t dtype_offs;
+        uint64_t data_offs;
     }
 
     struct DType {

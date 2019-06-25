@@ -9,7 +9,7 @@ and dates merely with second precision.
 .. code-block:: C
 
     struct datetime {
-        long long ts;
+        int64_t ts;
     };
 
     typedef datetime date;

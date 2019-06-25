@@ -16,7 +16,7 @@ Byte strings are stored as a variable-length size + data.
 
     struct LongLength {
         ShortLength shortlen;  // with length set to 0x7fff for long-length values
-        unsigned long long length;
+        uint64_t length;
     };
 
     union VarLength {
@@ -59,7 +59,7 @@ Buffers are straightforwardly stored as a length + data. Nothing fancy:
 .. code-block:: C
 
     struct BufferData {
-        unsigned long long length;
+        uint64_t length;
         char[] data;
     };
 
