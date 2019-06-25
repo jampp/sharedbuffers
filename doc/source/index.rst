@@ -12,6 +12,7 @@ Welcome to sharedbuffers's documentation!
 
     README.rst
     modules.rst
+    internals/index.rst
     CHANGELOG.rst
     glossary.rst
 

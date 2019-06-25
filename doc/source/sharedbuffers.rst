@@ -33,6 +33,16 @@ sharedbuffers.mapped\_struct module
 
         Check out :ref:`composite-types` for examples on how to use this class.
 
+    .. autoclass:: mapped_bytes
+        :members: pack_into, unpack_from
+        :show-inheritance:
+        :no-undoc-members:
+
+    .. autoclass:: proxied_buffer
+        :members: pack_into, unpack_from
+        :show-inheritance:
+        :no-undoc-members:
+
 mapped\_struct module internals
 ...............................
 

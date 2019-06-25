@@ -5,7 +5,14 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
-.. _0.1.1:
+v0.7.1 - Unreleased
+===================
+
+Added
+-----
+
+- Added extensive documentation about the binary format of
+  shared buffers and other internals.
 
 v0.7.0 - 2019-06-06
 ===================
@@ -321,6 +328,8 @@ Added
 - Add multimaps, binary compatible with simple mappings,
   but return all matching values for a key rather than a single one
 - Add approximate string multimaps
+
+.. _0.1.1:
 
 v0.1.0
 ======

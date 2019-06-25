@@ -181,5 +181,6 @@ default_role = "any"
 autoclass_content = "both"
 
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/2', None)
+    'python': ('https://docs.python.org/2', None),
+    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
 }

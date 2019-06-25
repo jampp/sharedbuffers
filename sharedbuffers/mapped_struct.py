@@ -34,7 +34,7 @@ Strings
   or explicitly by their built-in implementation type :class:`mapped_bytes`, :class:`mapped_unicode`.
 
 Buffers
-  by python's :class:`buffer` or :class:`mapped_buffer`.
+  by python's :class:`buffer` or :class:`proxied_buffer`.
 
 Containers
   by python's :class:`list`, :class:`tuple`, :class:`frozenset`, :class:`dict`,
@@ -201,19 +201,19 @@ class StrongIdMap(object):
     def __init__(self, strong_limit = 1 << 20 - 1, preallocate = False, strong_class = FastCache, stable_set = None):
         """
         Constructs a strong-referencing id map. The id map will keep strong references when necessary
-        to guarantee correct behavior, up to `strong_limit` references. After that, unused references
+        to guarantee correct behavior, up to ``strong_limit`` references. After that, unused references
         are evicted from both the strong-reference list and the id map itself, maintaining correct
         behavior at the expense of deduplication effectiveness.
 
         :param strong_limit: Keep at most this many strong references
 
-        :param preallocate: Passed to `strong_class` as a kwarg
+        :param preallocate: Passed to ``strong_class`` as a kwarg
 
         :param strong_class: The cache constructor used for the strong reference list. By default, it uses a kind
-            of LRU cache. The constructor should accept `preallocate` as kwarg and `strong_limit` as
-            first positional argument. When given `preallocate=true`, the structure should be preallocated
-            to accommodate `strong_limit` elements. It should also accept an `eviction_callback` kwarg
-            with a callable to be called with `(key, value)` arguments when evicting items from the mapping.
+            of LRU cache. The constructor should accept ``preallocate`` as kwarg and ``strong_limit`` as
+            first positional argument. When given ``preallocate=true``, the structure should be preallocated
+            to accommodate ``strong_limit`` elements. It should also accept an ``eviction_callback`` kwarg
+            with a callable to be called with ``(key, value)`` arguments when evicting items from the mapping.
 
         :param stable_set: A set of shared_id s that are considered stable. That is, strong references are kept
             by the caller, so they don't need to be tracked. This allows them to be persistent on the id map
@@ -1273,10 +1273,18 @@ _BUFFER_HEADER_SIZE = cython.declare(cython.Py_ssize_t, _BUFFER_HEADER_PACKER.si
 
 
 class proxied_buffer(object):
+    """
+    Shared-buffer implementation for byte buffers
+    """
 
     @classmethod
     @cython.locals(cur_offs = cython.Py_ssize_t, objlen = cython.Py_ssize_t)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+        """
+        Packs buffer data from ``obj`` into ``buf``. Does not wrap it in :term:`RTTI`.
+
+        See `mapped_object.pack_into` for argument details.
+        """
         cur_offs = offs
         objlen = len(obj)
         _BUFFER_HEADER_PACKER.pack_into(buf, offs, objlen)
@@ -1290,6 +1298,11 @@ class proxied_buffer(object):
     @classmethod
     @cython.locals(cur_offs = cython.Py_ssize_t)
     def unpack_from(cls, buf, offs, idmap = None):
+        """
+        Unpacks buffer data from ``buf`` and returns a buffer slice of ``buf`` that contains the data.
+
+        See `mapped_object.unpack_from` for argument details.
+        """
         cur_offs = offs
         size, = _BUFFER_HEADER_PACKER.unpack_from(buf, offs)
         cur_offs += _BUFFER_HEADER_SIZE
@@ -2551,6 +2564,10 @@ def _unpack_bytes_from_pybuffer(buf, offs, idmap):
     return rv
 
 class mapped_bytes(bytes):
+    """
+    Shared-buffer implementation for byte strings.
+    """
+
     @classmethod
     @cython.locals(
         offs = cython.longlong, implicit_offs = cython.longlong,
@@ -2558,6 +2575,11 @@ class mapped_bytes(bytes):
         pbuf = 'char *', pybuf='Py_buffer', compressed = cython.ushort,
         widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+        """
+        Packs a byte string into ``buf``. Does not wrap it in :term:`RTTI`.
+
+        See `mapped_object.pack_into` for argument details.
+        """
         if idmap is not None:
             objid = shared_id(obj)
             idmap[objid] = offs + implicit_offs
@@ -2618,13 +2640,27 @@ class mapped_bytes(bytes):
         offs = cython.longlong, objlen = cython.size_t,
         pbuf = 'const char *', pybuf='Py_buffer')
     def unpack_from(cls, buf, offs, idmap = None):
+        """
+        Unpacks a byte string from ``buf``.
+
+        See `mapped_object.unpack_from`.
+        """
         return _unpack_bytes_from_pybuffer(buf, offs, idmap)
 _mapped_bytes = cython.declare(object, mapped_bytes)
 
 class mapped_unicode(unicode):
+    """
+    Shared-buffer implementation for unicode strings
+    """
+
     @classmethod
     @cython.locals(widmap = StrongIdMap)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+        """
+        Packs a unicode string into ``buf``. Does not wrap it in :term:`RTTI`.
+
+        See `mapped_object.pack_into` for argument details.
+        """
         if idmap is not None:
             objid = shared_id(obj)
             idmap[objid] = offs + implicit_offs
@@ -2636,6 +2672,11 @@ class mapped_unicode(unicode):
 
     @classmethod
     def unpack_from(cls, buf, offs, idmap = None):
+        """
+        Unpacks a unicode string from ``buf``.
+
+        See `mapped_object.unpack_from` for argument details.
+        """
         if idmap is not None and offs in idmap:
             return idmap[offs]
 
@@ -8006,7 +8047,7 @@ class ApproxStringIdMultiMapper(NumericIdMultiMapper):
     @classmethod
     def build(cls, initializer, *p, **kw):
         """
-        Constructs the mapping from an iterable of items. The items should be `(key, value)` pairs
+        Constructs the mapping from an iterable of items. The items should be ``(key, value)`` pairs
         where keys are strings, and values are integers that fit the range of the mapper.
 
         See :meth:`NumericIdMultiMapper.build` for the other arguments.
@@ -8078,6 +8119,18 @@ class MappedMappingProxyBase(_ZipMapBase):
 
     The class implements a (readonly) dict-like interface, supporting iteration of keys, values and items,
     length, and random access subscripting.
+
+    Class attributes:
+
+    .. attribute:: IdMapper
+
+        An implementation of an :term:`Id Mapper` that will provide the key-position mapping. The mapper
+        should be wide enough to contain references into the :attr:`ValueArray`.
+
+    .. attribute:: ValueArray
+
+        A concrete subclass of :class:`MappedArrayProxyBase` that will provide the schema for values and
+        will be indexed by the :term:`Id Mapper`.
     """
 
     # Must subclass to select mapping strategies
