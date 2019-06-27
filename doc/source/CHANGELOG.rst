@@ -13,6 +13,9 @@ v0.7.2 - Unreleased
 Bugfixes
 --------
 
+- Fix mapped_object to actually pick the smallest integer typecode possible
+  instead of always picking 'q'. Also fix it for 'Q', which wasn't even
+  working when the number didn't fit in 'q'.
 - Fix mapped_tuple pack_into. If long headers were used, it would
   unintentionally expand the given buffer.
 
