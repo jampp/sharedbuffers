@@ -7,6 +7,15 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+v0.8.0 - Unreleased
+===================
+
+Changed
+-------
+
+- ApproxStringIdMultiMapper no longer expects a string as a key in value,
+  allowing already hashed keys (integers)
+
 v0.7.2 - 2019-06-27
 ===================
 
