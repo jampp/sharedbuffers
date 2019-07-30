@@ -8056,7 +8056,10 @@ class ApproxStringIdMultiMapper(NumericIdMultiMapper):
         encode = cls.encode
         def wrapped_initializer():
             for key, value in initializer:
-                yield xxh(encode(key)).intdigest(), value
+                if isinstance(key, (int, long)):
+                    yield key, value
+                else:
+                    yield xxh(encode(key)).intdigest(), value
         return super(ApproxStringIdMultiMapper, cls).build(wrapped_initializer(), *p, **kw)
 
 @cython.cclass

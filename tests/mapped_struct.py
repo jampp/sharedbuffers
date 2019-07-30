@@ -974,6 +974,8 @@ class ApproxStringIdMultiMapperTest(IdMapperTest):
         str_ = str
         for k, v in super(ApproxStringIdMultiMapperTest, self).gen_values(*p, **kw):
             yield str_(k), v
+        for k, v in super(ApproxStringIdMultiMapperTest, self).gen_values(*p, **kw):
+            yield k, v
 
     def _testBuild(self, N, tempdir, **gen_kwargs):
         build_kwargs = gen_kwargs.pop('build_kwargs', {})
@@ -986,6 +988,9 @@ class ApproxStringIdMultiMapperTest(IdMapperTest):
                 self.assertIsNotNone(elem)
             if v not in elem:
                 self.assertIn(v, elem)
+            int_elem = rvget(k)
+            if int_elem is None:
+                self.assertIsNotNone(int_elem)
 
     # Too much memory
     testBuildHugeInMemShuffled = None
