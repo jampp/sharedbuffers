@@ -984,11 +984,11 @@ class ApproxStringIdMultiMapperTest(IdMapperTest):
             elem = rvget(str_(k))
             if elem is None:
                 self.assertIsNotNone(elem)
-            if v not in elem:
+            if v not in elem:  # Purposefully testing not in operator
                 self.assertIn(v, elem)
+
             int_elem = rvget(k)
-            if int_elem is None:
-                self.assertIsNotNone(int_elem)
+            self.assertIsNotNone(int_elem)
 
     # Too much memory
     testBuildHugeInMemShuffled = None
