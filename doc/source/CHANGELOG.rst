@@ -13,8 +13,7 @@ v0.8.0 - Unreleased
 Changed
 -------
 
-- ApproxStringIdMultiMapper no longer expects a string as a key in value,
-  allowing already hashed keys (integers)
+- ApproxStringIdMultiMapper now also allows already hashed keys (integer keys)
 
 v0.7.2 - 2019-06-27
 ===================
