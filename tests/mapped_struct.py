@@ -974,8 +974,6 @@ class ApproxStringIdMultiMapperTest(IdMapperTest):
         str_ = str
         for k, v in super(ApproxStringIdMultiMapperTest, self).gen_values(*p, **kw):
             yield str_(k), v
-        for k, v in super(ApproxStringIdMultiMapperTest, self).gen_values(*p, **kw):
-            yield k, v
 
     def _testBuild(self, N, tempdir, **gen_kwargs):
         build_kwargs = gen_kwargs.pop('build_kwargs', {})
@@ -997,6 +995,15 @@ class ApproxStringIdMultiMapperTest(IdMapperTest):
     testBuildHugeOnDiskShuffled = None
 
 class ApproxStringId32MultiMapperTest(ApproxStringIdMultiMapperTest):
+    IdMapperClass = mapped_struct.ApproxStringId32MultiMapper
+
+class ApproxIntegerIdMultiMapperTest(ApproxStringIdMultiMapperTest):
+
+    def gen_values(self, *p, **kw):
+        for k, v in super(ApproxIntegerIdMultiMapperTest, self).gen_values(*p, **kw):
+            yield k, v
+
+class ApproxIntId32MultiMapperTest(ApproxIntegerIdMultiMapperTest):
     IdMapperClass = mapped_struct.ApproxStringId32MultiMapper
 
 class MappedMappingTest(unittest.TestCase):
