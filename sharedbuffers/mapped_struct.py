@@ -8018,7 +8018,8 @@ class ApproxStringIdMultiMapper(NumericIdMultiMapper):
     """
     An :term:`Approximate Id Multi Mapper`, providing a mapping from strings
     to 64-bit unsigned integers, adequate for object mappings where the keys are strings
-    and a small number of false matches are acceptable.
+    and a small number of false matches are acceptable. No mapping is done
+    if the provided key is already an integer.
 
     As all :term:`Approximate Id Multi Mapper`\ s, it implements a dict-like interface whose values are lists
     of matches, rather than singular matches.
