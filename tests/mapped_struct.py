@@ -991,7 +991,7 @@ class ApproxStringIdMultiMapperTest(IdMapperTest):
     testBuildHugeInMemShuffled = None
     testBuildHugeOnDiskShuffled = None
 
-class ApproxStringId32MultiMapperTest(IdMapperTest):
+class ApproxStringId32MultiMapperTest(ApproxStringIdMultiMapperTest):
     IdMapperClass = mapped_struct.ApproxStringId32MultiMapper
 
 class ApproxIntegerIdMultiMapperTest(IdMapperTest):
