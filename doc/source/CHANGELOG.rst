@@ -7,6 +7,15 @@ The format is largely inspired by keepachangelog_.
 
 .. _0.1.1:
 
+v0.8.0 - Unreleased
+===================
+
+Bugfixes
+--------
+
+- Fix requirements to exclude numpy 1.17.0 and above,
+  as they are python 3.5+ only
+
 v0.7.2 - 2019-06-27
 ===================
 
