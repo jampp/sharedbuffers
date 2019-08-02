@@ -1,6 +1,6 @@
 lz4
 xxhash
-numpy
+numpy<1.17.0
 Cython>=0.29
 chorde
 

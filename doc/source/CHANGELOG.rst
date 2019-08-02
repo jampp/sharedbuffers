@@ -15,6 +15,12 @@ Changed
 
 - ApproxStringIdMultiMapper now also allows already hashed keys (integer keys)
 
+Bugfixes
+--------
+
+- Fix requirements to exclude numpy 1.17.0 and above,
+  as they are python 3.5+ only
+
 v0.7.2 - 2019-06-27
 ===================
 
