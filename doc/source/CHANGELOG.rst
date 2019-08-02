@@ -10,6 +10,11 @@ The format is largely inspired by keepachangelog_.
 v0.8.0 - Unreleased
 ===================
 
+Changed
+-------
+
+- ApproxStringIdMultiMapper now also allows already hashed keys (integer keys)
+
 Bugfixes
 --------
 
