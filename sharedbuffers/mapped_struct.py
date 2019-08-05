@@ -709,7 +709,7 @@ class mapped_tuple(tuple):
                 buf[offs+1:offs+4] = _struct_l_I.pack(objlen)[:3]
                 offs += 4
             else:
-                buf[offs+1:offs+8] = '\xff\xff\xff\xff\xff\xff\xff'
+                buf[offs+1:offs+8] = '\xff\xff\xff\xff\xff\xff'
                 buf[offs+8:offs+12] = _struct_l_Q.pack(objlen)
                 offs += 12
 
@@ -3046,22 +3046,58 @@ class mapped_object(object):
         PROXY_TYPES[typ] = PROXY_TYPES[supertyp]
         return cls.OBJ_PACKERS[typecode][2]
 
+    @cython.locals(ivalue = cython.longlong)
     def __init__(self, value = None, typ = None):
         if value is None:
             self.typecode = None
             self.value = None
-        else:
-            if typ is None:
-                typ = type(value)
-            typ = TYPES.get(typ, typ)
-            if typ not in _mapped_object_TYPE_CODES and issubclass(typ, BufferProxyObject):
-                # Check bases
-                for base in typ.__bases__:
-                    if base is not object and base in _mapped_object_TYPE_CODES:
-                        typ = base
-                        break
-            self.typecode = _mapped_object_TYPE_CODES[typ]
-            self.value = value
+            return
+
+        if typ is None:
+            typ = type(value)
+
+        self.value = value
+
+        if typ is int or typ is long:
+            # Special case for numbers, to pick a smaller typecode when possible
+            try:
+                ivalue = value
+            except OverflowError:
+                if 0 <= value <= 0xffffffffffffffff:
+                    self.typecode = 'Q'
+                    return
+            else:
+                if -0x80 <= ivalue <= 0x7f:
+                    self.typecode = 'b'
+                    return
+                elif 0 <= ivalue <= 0xff:
+                    self.typecode = 'B'
+                    return
+                elif -0x8000 <= ivalue <= 0x7fff:
+                    self.typecode = 'h'
+                    return
+                elif 0 <= ivalue <= 0xffff:
+                    self.typecode = 'H'
+                    return
+                elif -0x80000000 <= ivalue <= 0x7fffffff:
+                    self.typecode = 'i'
+                    return
+                elif 0 <= ivalue <= 0xffffffff:
+                    self.typecode = 'I'
+                    return
+                else:
+                    self.typecode = 'q'
+                    return
+
+        typ = TYPES.get(typ, typ)
+        if typ not in _mapped_object_TYPE_CODES and issubclass(typ, BufferProxyObject):
+            # Check bases
+            for base in typ.__bases__:
+                if base is not object and base in _mapped_object_TYPE_CODES:
+                    typ = base
+                    break
+        self.typecode = _mapped_object_TYPE_CODES[typ]
+        self.value = value
 mapped_object.TYPE_CODES[mapped_object] = 'o'
 mapped_object.OBJ_PACKERS['o'] = (mapped_object.pack_into, mapped_object.unpack_from, mapped_object)
 
@@ -4832,9 +4868,10 @@ class GenericFileMapper(_ZipMapBase):
             size = fileobj.tell() - offset
         fileobj.seek(offset)
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
-        access = mmap.ACCESS_READ
-        if not read_only:
-            access |= mmap.ACCESS_WRITE
+        if read_only:
+            access = mmap.ACCESS_READ
+        else:
+            access = mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), size + offset - map_start,
             access = access, offset = map_start)
         return buffer(buf, offset - map_start, size), buf
@@ -5131,9 +5168,10 @@ class MappedArrayProxyBase(_ZipMapBase):
         fileobj.seek(offset)
         total_size = cls._Header.unpack(fileobj.read(cls._Header.size))[0]
         map_start = offset - offset % mmap.ALLOCATIONGRANULARITY
-        access = mmap.ACCESS_READ
-        if not read_only:
-            access |= mmap.ACCESS_WRITE
+        if read_only:
+            access = mmap.ACCESS_READ
+        else:
+            access = mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), total_size + offset - map_start,
             access = access, offset = map_start)
         rv = cls(buffer(buf, offset - map_start))
@@ -6357,9 +6395,10 @@ class NumericIdMapper(_CZipMapBase):
             map_size = size + offset - map_start
 
         fileobj.seek(map_start)
-        access = mmap.ACCESS_READ
-        if not read_only:
-            access |= mmap.ACCESS_WRITE
+        if read_only:
+            access = mmap.ACCESS_READ
+        else:
+            access = mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
@@ -6961,9 +7000,10 @@ class ObjectIdMapper(_CZipMapBase):
             map_size = size + offset - map_start
 
         fileobj.seek(map_start)
-        access = mmap.ACCESS_READ
-        if not read_only:
-            access |= mmap.ACCESS_WRITE
+        if read_only:
+            access = mmap.ACCESS_READ
+        else:
+            access = mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
@@ -7470,9 +7510,10 @@ class StringIdMapper(_CZipMapBase):
             map_size = size + offset - map_start
 
         fileobj.seek(map_start)
-        access = mmap.ACCESS_READ
-        if not read_only:
-            access |= mmap.ACCESS_WRITE
+        if read_only:
+            access = mmap.ACCESS_READ
+        else:
+            access = mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
@@ -8018,7 +8059,8 @@ class ApproxStringIdMultiMapper(NumericIdMultiMapper):
     """
     An :term:`Approximate Id Multi Mapper`, providing a mapping from strings
     to 64-bit unsigned integers, adequate for object mappings where the keys are strings
-    and a small number of false matches are acceptable.
+    and a small number of false matches are acceptable. No mapping is done
+    if the provided key is already an integer.
 
     As all :term:`Approximate Id Multi Mapper`\ s, it implements a dict-like interface whose values are lists
     of matches, rather than singular matches.
@@ -8056,7 +8098,10 @@ class ApproxStringIdMultiMapper(NumericIdMultiMapper):
         encode = cls.encode
         def wrapped_initializer():
             for key, value in initializer:
-                yield xxh(encode(key)).intdigest(), value
+                if isinstance(key, (int, long)):
+                    yield key, value
+                else:
+                    yield xxh(encode(key)).intdigest(), value
         return super(ApproxStringIdMultiMapper, cls).build(wrapped_initializer(), *p, **kw)
 
 @cython.cclass

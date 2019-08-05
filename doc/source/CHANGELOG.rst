@@ -14,6 +14,40 @@ Added
 - Added extensive documentation about the binary format of
   shared buffers and other internals.
 
+v0.8.0 - Unreleased
+===================
+
+Changed
+-------
+
+- ApproxStringIdMultiMapper now also allows already hashed keys (integer keys)
+
+Bugfixes
+--------
+
+- Fix requirements to exclude numpy 1.17.0 and above,
+  as they are python 3.5+ only
+
+v0.7.2 - 2019-06-27
+===================
+
+Bugfixes
+--------
+
+- Fix mapped_object to actually pick the smallest integer typecode possible
+  instead of always picking 'q'. Also fix it for 'Q', which wasn't even
+  working when the number didn't fit in 'q'.
+- Fix mapped_tuple pack_into. If long headers were used, it would
+  unintentionally expand the given buffer.
+
+v0.7.1 - 2019-06-13
+===================
+
+Bugfixes
+--------
+
+- Fix read-write mappings to properly map as a shared memory segment.
+
 v0.7.0 - 2019-06-06
 ===================
 

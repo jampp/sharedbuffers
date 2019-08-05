@@ -984,7 +984,7 @@ class ApproxStringIdMultiMapperTest(IdMapperTest):
             elem = rvget(str_(k))
             if elem is None:
                 self.assertIsNotNone(elem)
-            if v not in elem:
+            if v not in elem:  # Purposefully testing not in operator
                 self.assertIn(v, elem)
 
     # Too much memory
@@ -992,6 +992,30 @@ class ApproxStringIdMultiMapperTest(IdMapperTest):
     testBuildHugeOnDiskShuffled = None
 
 class ApproxStringId32MultiMapperTest(ApproxStringIdMultiMapperTest):
+    IdMapperClass = mapped_struct.ApproxStringId32MultiMapper
+
+class ApproxIntegerIdMultiMapperTest(IdMapperTest):
+
+    def gen_values(self, *p, **kw):
+        for k, v in super(ApproxIntegerIdMultiMapperTest, self).gen_values(*p, **kw):
+            yield int(k), v
+
+    def _testBuild(self, N, tempdir, **gen_kwargs):
+        build_kwargs = gen_kwargs.pop('build_kwargs', {})
+        rv = self.IdMapperClass.build(self.gen_values(N, **gen_kwargs), tempdir = tempdir, **build_kwargs)
+        for k, _ in self.gen_values(N, **gen_kwargs):
+            elem = rv.get(k)
+            if isinstance(elem, list):
+                for e in elem:
+                    self.assertTrue(isinstance(e, (int, long)))
+            else:
+                self.assertTrue(isinstance(elem, (int, long)))
+
+    # Too much memory
+    testBuildHugeInMemShuffled = None
+    testBuildHugeOnDiskShuffled = None
+
+class ApproxIntId32MultiMapperTest(ApproxIntegerIdMultiMapperTest):
     IdMapperClass = mapped_struct.ApproxStringId32MultiMapper
 
 class MappedMappingTest(unittest.TestCase):
