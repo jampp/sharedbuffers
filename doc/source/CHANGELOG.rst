@@ -5,7 +5,7 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
-v0.7.1 - Unreleased
+v0.8.0 - Unreleased
 ===================
 
 Added
@@ -13,9 +13,6 @@ Added
 
 - Added extensive documentation about the binary format of
   shared buffers and other internals.
-
-v0.8.0 - Unreleased
-===================
 
 Changed
 -------
