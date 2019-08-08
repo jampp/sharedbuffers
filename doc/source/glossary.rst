@@ -6,6 +6,7 @@ Glossary
     RTTI
         Runtime type information. A wrapper around an object of varying type that specifies the type
         using pre-registered typecodes, so readers can properly interpret the value at runtime.
+        See :ref:`rtti-wrapping`.
 
     idmap
         A dict-like object used to deduplicate references to the same object, either during packing or
