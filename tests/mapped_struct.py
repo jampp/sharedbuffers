@@ -1025,6 +1025,9 @@ class MappedMappingTest(unittest.TestCase):
     TEST_KEYS = [ x*7 for x in xrange(len(TEST_VALUES)) ]
     IdMapperClass = mapped_struct.NumericIdMapper
 
+    def _alt_k(self, k):
+        return k + 1000000
+
     def setUp(self):
         self.schema = mapped_struct.Schema.from_typed_slots(self.Struct)
         class MappedArrayClass(mapped_struct.MappedArrayProxyBase):
@@ -1054,8 +1057,11 @@ class MappedMappingTest(unittest.TestCase):
         if test_values is None:
             test_values = self.test_values
 
+        if not isinstance(test_values, dict):
+            test_values = dict(test_values)
+
         # test basic attributes
-        self.assertEqual(len(test_values), len(mapping))
+        self.assertEqual(len(set(test_values.itervalues())), len(mapping))
 
         # test key iteration and enumeration
         self.assertEqual(set(test_values.keys()), set(mapping.keys()))
@@ -1069,23 +1075,37 @@ class MappedMappingTest(unittest.TestCase):
 
         # test item iteration and enumeration
         for k,proxy in mapping.iteritems():
-            reference = self.test_values[k]
+            reference = test_values[k]
             self.assertStructEquals(reference, proxy)
         for k,proxy in mapping.items():
-            reference = self.test_values[k]
+            reference = test_values[k]
             self.assertStructEquals(reference, proxy)
 
     def testBuildNoIdmap(self):
-        self.MappedMappingClass.build(self.test_values)
+        mapped = self.MappedMappingClass.build(self.test_values)
+        self.assertMappingOk(mapped)
 
     def testBuildWithIdmap(self):
-        self.MappedMappingClass.build(self.test_values, idmap = {})
+        mapped = self.MappedMappingClass.build(self.test_values, idmap = {})
+        self.assertMappingOk(mapped)
+
+    def testBuildValueDedup(self):
+        test_values = self.test_values
+        if isinstance(test_values, dict):
+            test_values = test_values.items()
+        self.test_values = (
+            test_values
+            + [(self._alt_k(k), v) for k,v in test_values]
+        )
+        mapped = self.MappedMappingClass.build(self.test_values, idmap = {})
+        self.assertMappingOk(mapped)
 
     def testBuildEmpty(self):
         self.MappedMappingClass.build({})
 
     def testBuildFromTuples(self):
-        self.MappedMappingClass.build(self.test_values)
+        mapped = self.MappedMappingClass.build(self.test_values)
+        self.assertMappingOk(mapped)
 
     def testFileMapping(self):
         with tempfile.NamedTemporaryFile() as destfile:
@@ -1160,7 +1180,7 @@ class MappedMultiMappingTest(MappedMappingTest):
             test_values = self.test_values
 
         # test basic attributes
-        self.assertEqual(len(test_values), len(mapping))
+        self.assertEqual(len(set(v for k,v in test_values)), len(mapping))
 
         # test key iteration and enumeration
         test_keys = map(operator.itemgetter(0), test_values)
@@ -1202,10 +1222,16 @@ class MappedStringMappingTest(MappedMappingTest):
         'l' : [[1],[2,3],(3,4)],
     }]
 
+    def _alt_k(self, k):
+        return k + '_alt'
+
 class MappedStringMultiMappingTest(MappedMultiMappingTest):
     IdMapperClass = mapped_struct.StringIdMultiMapper
     TEST_KEYS = MappedStringMappingTest.TEST_KEYS * 2
     TEST_VALUES = MappedStringMappingTest.TEST_VALUES * 2
+
+    def _alt_k(self, k):
+        return k + '_alt'
 
 class MappedStringMappingRepeatedValuesTest(MappedStringMappingTest):
     TEST_KEYS = MappedStringMappingTest.TEST_KEYS + map('X2_'.__add__, MappedStringMappingTest.TEST_KEYS)
@@ -1238,7 +1264,7 @@ class MappedApproxStringMultiMappingTest(MappedStringMultiMappingTest):
             test_values = self.test_values
 
         # test basic attributes
-        self.assertEqual(len(test_values), len(mapping))
+        self.assertEqual(len(set(v for k,v in test_values)), len(mapping))
 
         # test lookup
         for k,reference in test_values:
