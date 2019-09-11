@@ -11,7 +11,7 @@ v0.8.1 - 2019-09-11
 Bugfixes
 --------
 
-- Fix MappedMappingProxyBase deduplication. It was scarmbling values
+- Fix MappedMappingProxyBase deduplication. It was scrambling values
   if duplicates were not contiguous.
 
 v0.8.0 - 2019-08-08
