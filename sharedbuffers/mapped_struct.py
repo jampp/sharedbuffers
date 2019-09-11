@@ -8126,9 +8126,11 @@ def _iter_values_dump_keys(items, keys_file, value_cache_size = 1024):
     for key, value in items:
         if value not in value_cache:
             yield value
-            value_cache[value] = value
             i += 1
-        dump((key, i), keys_file, 2)
+            value_cache[value] = i
+            dump((key, i), keys_file, 2)
+        else:
+            dump((key, value_cache[value]), keys_file, 2)
     keys_file.flush()
 
 def _iter_key_dump(keys_file):
