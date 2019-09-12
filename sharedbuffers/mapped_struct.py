@@ -6116,9 +6116,9 @@ class NumericIdMapper(_CZipMapBase):
 
                     if dtype is npuint64:
                         # Must be careful about overflow
-                        if hikey > 0xFFFFFFFFFFFF:
+                        if hikey > cython.cast(cython.ulonglong, 0xFFFFFFFFFFFF):
                             hint = lo + ((hkey - lokey) >> 32) * (hi - lo) // max(((hikey - lokey) >> 32), 1)
-                        elif hikey > 0xFFFFFFFF:
+                        elif hikey > cython.cast(cython.ulonglong, 0xFFFFFFFF):
                             hint = lo + ((hkey - lokey) >> 16) * (hi - lo) // max(((hikey - lokey) >> 16), 1)
                         else:
                             hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
