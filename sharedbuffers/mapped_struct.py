@@ -5365,34 +5365,24 @@ if cython.compiled:
             #lint:enable
             dtype = cython.cast('char*', a.dtype.char)[0]
             if dtype == 'L' or dtype == 'Q':
-                # TO-DO: better hints?
                 ix = _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'I':
-                # TO-DO: better hints?
                 ix = _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'l' or dtype == 'q':
-                # TO-DO: better hints?
                 ix = _c_search_hkey_i64(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'i':
-                # TO-DO: better hints?
                 ix = _c_search_hkey_i32(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'H':
-                # TO-DO: better hints?
                 ix = _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'h':
-                # TO-DO: better hints?
                 ix = _c_search_hkey_i16(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'B':
-                # TO-DO: better hints?
                 ix = _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'b':
-                # TO-DO: better hints?
                 ix = _c_search_hkey_i8(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'd':
-                # TO-DO: better hints?
                 ix = _c_search_hkey_f64(hkey, pindex, stride0, hi, hint, check_equal)
             elif dtype == 'f':
-                # TO-DO: better hints?
                 ix = _c_search_hkey_f32(hkey, pindex, stride0, hi, hint, check_equal)
             else:
                 raise NotImplementedError("Unsupported array type %s" % (chr(dtype),))
@@ -5734,43 +5724,33 @@ if cython.compiled:
 
                     #lint:enable
                     if dtype == 'L' or dtype == 'Q':
-                        # TO-DO: better hints?
                         with cython.nogil:
                             return _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'I':
-                        # TO-DO: better hints?
                         with cython.nogil:
                             return _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'l' or dtype == 'q':
-                        # TO-DO: better hints?
                         with cython.nogil:
                             return _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'i':
-                        # TO-DO: better hints?
                         with cython.nogil:
                             return _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'H':
-                        # TO-DO: better hints?
                         with cython.nogil:
                             return _c_merge_ui16(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'h':
-                        # TO-DO: better hints?
                         with cython.nogil:
                             return _c_merge_i16(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'B':
-                        # TO-DO: better hints?
                         with cython.nogil:
                             return _c_merge_ui8(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'b':
-                        # TO-DO: better hints?
                         with cython.nogil:
                             return _c_merge_i8(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'd':
-                        # TO-DO: better hints?
                         with cython.nogil:
                             return _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     elif dtype == 'f':
-                        # TO-DO: better hints?
                         with cython.nogil:
                             return _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
                     else:
@@ -6131,20 +6111,22 @@ class NumericIdMapper(_CZipMapBase):
                     stride0 = indexbuf.strides[0]
 
                     if dtype is npuint64:
-                        # TO-DO: better hints?
-                        hint = (lo+hi)//2
+                        # Must be careful about overflow
+                        if hikey > cython.cast(cython.ulonglong, 0xFFFFFFFFFFFF):
+                            hint = lo + ((hkey - lokey) >> 32) * (hi - lo) // max(((hikey - lokey) >> 32), 1)
+                        elif hikey > cython.cast(cython.ulonglong, 0xFFFFFFFF):
+                            hint = lo + ((hkey - lokey) >> 16) * (hi - lo) // max(((hikey - lokey) >> 16), 1)
+                        else:
+                            hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
                         return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
                     elif dtype is npuint32:
-                        # TO-DO: better hints?
-                        hint = (lo+hi)//2
+                        hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
                         return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
                     elif dtype is npuint16:
-                        # TO-DO: better hints?
-                        hint = (lo+hi)//2
+                        hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
                         return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
                     elif dtype is npuint8:
-                        # TO-DO: better hints?
-                        hint = (lo+hi)//2
+                        hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
                         return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
                     else:
                         raise AssertionError("Internal error")
