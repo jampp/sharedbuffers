@@ -5,6 +5,15 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
+v0.8.2 - Unreleased
+===================
+
+Improvements
+------------
+
+- Implement accurate hints for NumericIdMapper and derivatives, getting
+  the improved access patterns of the StringIdMapper working on all mappers.
+
 v0.8.1 - 2019-09-11
 ===================
 
