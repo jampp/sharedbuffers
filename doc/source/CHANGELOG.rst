@@ -5,7 +5,7 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
-v0.8.2 - Unreleased
+v0.8.2 - 2019-09-12
 ===================
 
 Improvements
