@@ -5190,12 +5190,11 @@ if cython.compiled:
         hkey = numeric_A, elem = numeric_B,
         lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
         mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
-        pindex = cython.p_char, skip = cython.size_t, check_equal = cython.bint, loops = cython.size_t)
+        pindex = cython.p_char, skip = cython.size_t, check_equal = cython.bint)
     @cython.returns(cython.size_t)
     def _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem):
         hi = length
         lo = 0
-        loops = 0
 
         if hkey < cython.cast('numeric_B *', pindex)[0]:
             if check_equal:
@@ -5215,7 +5214,6 @@ if cython.compiled:
                 lo = mid = mid+1
                 skip = 32
                 while skip > 0 and mid + skip < hi:
-                    loops += 1
                     if cython.cast('numeric_B *', pindex + stride0 * (mid+skip))[0] < elem:
                         lo = mid+1
                         mid += skip
@@ -5228,7 +5226,6 @@ if cython.compiled:
                 hi = mid
                 skip = 32
                 while skip > 0 and mid > lo + skip:
-                    loops += 1
                     if cython.cast('numeric_B *', pindex + stride0 * (mid-skip))[0] > elem:
                         hi = mid
                         mid -= skip
@@ -5244,7 +5241,6 @@ if cython.compiled:
                 return mid
         # Final stretch: search the remaining range with a regular binary search
         while lo < hi:
-            loops += 1
             mid = (lo+hi)//2
             mkey = cython.cast('numeric_B *', pindex + stride0 * mid)[0]
             if mkey < elem:
