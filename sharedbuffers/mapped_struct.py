@@ -5231,7 +5231,10 @@ if cython.compiled:
                         mid -= skip
                         skip *= 2
                     else:
-                        lo = mid - skip
+                        mid -= skip
+                        while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
+                            mid -= 1
+                        lo = mid
                         break
             else:
                 # hit, but must find the first
