@@ -5209,7 +5209,7 @@ if cython.compiled:
             # First iteration a quick guess assuming uniform distribution of keys
             mid = min(hint, hi-1)
             mkey = cython.cast('numeric_B *', pindex + stride0 * mid)[0]
-            if mkey < hkey:
+            if mkey < elem:
                 # Got a lo guess, now skip-search forward for a hi
                 lo = mid = mid+1
                 skip = 32
@@ -5231,7 +5231,10 @@ if cython.compiled:
                         mid -= skip
                         skip *= 2
                     else:
-                        lo = mid - skip
+                        mid -= skip
+                        while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
+                            mid -= 1
+                        lo = mid
                         break
             else:
                 # hit, but must find the first

@@ -5,6 +5,16 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
+v0.8.3 - Unreleased
+===================
+
+Bugfixes
+--------
+
+- Fix edge case in binary search where if the skip search lands in the middle
+  of a run of matching keys, the low search bound may be set such that it
+  fails to return the actual first match
+
 v0.8.2 - 2019-09-12
 ===================
 
