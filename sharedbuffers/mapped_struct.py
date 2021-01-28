@@ -4319,11 +4319,11 @@ class Schema(object):
         self._fixed_bitmap = fixed_bitmap
         self._last_unpacker = None
 
-        if len(self.slot_keys) <= 8:
+        if self.alignment <= 2 and len(self.slot_keys) <= 8:
             self.bitmap_type = 'B'
-        elif len(self.slot_keys) <= 16:
+        elif self.alignment <= 4 and len(self.slot_keys) <= 16:
             self.bitmap_type = 'H'
-        elif len(self.slot_keys) <= 32:
+        elif self.alignment <= 8 and len(self.slot_keys) <= 32:
             self.bitmap_type = 'I'
         elif len(self.slot_keys) <= 64:
             self.bitmap_type = 'Q'
