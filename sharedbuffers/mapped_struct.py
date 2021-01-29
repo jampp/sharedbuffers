@@ -4179,6 +4179,9 @@ class Schema(object):
             return False
 
         other_schema = other
+        if self._binary_version != other_schema._binary_version:
+            return False
+
         if self.slot_keys != other_schema.slot_keys or self.alignment != other_schema.alignment:
             return False
 
