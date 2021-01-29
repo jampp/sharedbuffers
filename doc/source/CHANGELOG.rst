@@ -13,7 +13,12 @@ Major
 
 - Broken compatibility with buffers generated with earlier versions because
   of an alignment bugfix that changes the way objects are encoded. Sadly there's
-  no backward compatibility mechanism in place so it's a binary compatibility break.
+  only a minimal backward compatibility mechanism in place so it's a binary
+  compatibility break. Specifically, pickled schemas will contain a version
+  number that will enable reading old buffers from pickled schemas, but for this
+  to work all object references must be explicitly typed to allow all schemas
+  to be pickled properly. If at all possible, it's safer to rebuild all buffers
+  with 0.9.0 after the update.
 
 Bugfixes
 --------

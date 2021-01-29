@@ -4087,7 +4087,10 @@ class Schema(object):
         _fixed_bitmap = cython.ulonglong,
         _last_unpacker = tuple,
         _last_unpacker_bitmap = cython.ulonglong,
+        _binary_version = cython.uint,
     )
+
+    VERSION = 2
 
     @property
     def Proxy(self):
@@ -4107,13 +4110,14 @@ class Schema(object):
         return self._Proxy
 
     def __init__(self, slot_types, alignment = 8, pack_buffer_size = 65536, packer_cache = None, unpacker_cache = None,
-            max_pack_buffer_size = None):
+            max_pack_buffer_size = None, version = None):
         self.prewrite_hook = None
         self.postwrite_hook = None
         self.init(
             self._map_types(slot_types),
             packer_cache = packer_cache, unpacker_cache = unpacker_cache, alignment = alignment,
-            pack_buffer_size = pack_buffer_size)
+            pack_buffer_size = pack_buffer_size,
+            version = self.VERSION)
 
     def __reduce__(self):
         return (type(self), (self.slot_types,), self.__getstate__())
@@ -4124,6 +4128,7 @@ class Schema(object):
             slot_keys = self.slot_keys,
             alignment = self.alignment,
             bases = self._proxy_bases,
+            version = self._binary_version,
         )
 
     def __setstate__(self, state):
@@ -4231,12 +4236,13 @@ class Schema(object):
             packer_cache = self.packer_cache, unpacker_cache = self.unpacker_cache, alignment = self.alignment,
             pack_buffer_size = self.pack_buffer_size)
 
-    @cython.locals(slot_types = dict, slot_keys = tuple)
+    @cython.locals(slot_types = dict, slot_keys = tuple, version = cython.uint)
     def init(self, slot_types = None, slot_keys = None, alignment = 8, pack_buffer_size = 65536,
             max_pack_buffer_size = None, packer_cache = None, unpacker_cache = None,
-            autoregister = False):
+            autoregister = False, version = 1):
         # Freeze slot order, sort by descending size to optimize alignment
         self._proxy_bases = None
+        self._binary_version = version
         if slot_types is None:
             slot_types = self.slot_types
 
@@ -4319,11 +4325,11 @@ class Schema(object):
         self._fixed_bitmap = fixed_bitmap
         self._last_unpacker = None
 
-        if self.alignment <= 2 and len(self.slot_keys) <= 8:
+        if (self._binary_version < 2 or self.alignment <= 2) and len(self.slot_keys) <= 8:
             self.bitmap_type = 'B'
-        elif self.alignment <= 4 and len(self.slot_keys) <= 16:
+        elif (self._binary_version < 2 or self.alignment <= 4) and len(self.slot_keys) <= 16:
             self.bitmap_type = 'H'
-        elif self.alignment <= 8 and len(self.slot_keys) <= 32:
+        elif (self._binary_version < 2 or self.alignment <= 8) and len(self.slot_keys) <= 32:
             self.bitmap_type = 'I'
         elif len(self.slot_keys) <= 64:
             self.bitmap_type = 'Q'
