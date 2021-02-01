@@ -65,15 +65,15 @@ cdef inline void mfence_full():
 # NOTE: This is not the same as the fused type 'numeric', because CAS
 # doesn't work with floating point types.
 ctypedef fused atomic_type:
-    char
+    signed char
     unsigned char
-    short
+    signed short
     unsigned short
-    int
+    signed int
     unsigned int
-    long
+    signed long
     unsigned long
-    long long
+    signed long long
     unsigned long long
 
 cdef inline bint _c_atomic_cas(atomic_type *ptr, atomic_type exp_val, atomic_type new_val):

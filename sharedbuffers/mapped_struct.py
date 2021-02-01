@@ -1694,7 +1694,7 @@ class proxied_list(object):
                 res = cython.cast(cython.p_uchar,
                     cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
             elif dcode == 'b':
-                res = cython.cast(cython.p_char,
+                res = cython.cast(cython.p_schar,
                     cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
             elif dcode == 'H':
                 res = cython.cast(cython.p_ushort,
@@ -3271,30 +3271,30 @@ if cython.compiled:
     # the same type. Sigh ...
 
     numeric_A = cython.fused_type(
-        cython.char,
+        cython.schar,
         cython.uchar,
-        cython.short,
+        cython.sshort,
         cython.ushort,
-        cython.int,
+        cython.sint,
         cython.uint,
-        cython.long,
+        cython.slong,
         cython.ulong,
-        cython.longlong,
+        cython.slonglong,
         cython.ulonglong,
         cython.float,
         cython.double,
     )
 
     numeric_B = cython.fused_type(
-        cython.char,
+        cython.schar,
         cython.uchar,
-        cython.short,
+        cython.sshort,
         cython.ushort,
-        cython.int,
+        cython.sint,
         cython.uint,
-        cython.long,
+        cython.slong,
         cython.ulong,
-        cython.longlong,
+        cython.slonglong,
         cython.ulonglong,
         cython.float,
         cython.double,
@@ -3461,33 +3461,33 @@ class UByteBufferProxyProperty(BaseBufferProxyProperty):
 
 @cython.cclass
 class ByteBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.char) if cython.compiled else struct.Struct('b').size
+    stride = cython.sizeof(cython.schar) if cython.compiled else struct.Struct('b').size
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
         if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.char](self, obj, 0)
+            return _c_buffer_proxy_get_gen[cython.schar](self, obj, 0)
         else:
             return _buffer_proxy_get(self, obj, 'b')
 
-    @cython.locals(obj = BufferProxyObject, elem = cython.char)
+    @cython.locals(obj = BufferProxyObject, elem = cython.schar)
     def __set__(self, obj, elem):
         if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.char](self, obj, elem)
+            _c_buffer_proxy_set_gen[cython.schar](self, obj, elem)
         else:
             _buffer_proxy_set(self, obj, 'b', elem)
 
-    @cython.locals(obj = BufferProxyObject, exp_val = cython.char, new_val = cython.char)
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.schar, new_val = cython.schar)
     def cas(self, obj, exp_val, new_val):
         if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.char](self, obj, exp_val, new_val)
+            return _c_buffer_proxy_atomic_cas[cython.schar](self, obj, exp_val, new_val)
         else:
             return _buffer_proxy_cas(self, obj, 'b', exp_val, new_val)
 
-    @cython.locals(obj = BufferProxyObject, value = cython.char)
+    @cython.locals(obj = BufferProxyObject, value = cython.schar)
     def add(self, obj, value):
         if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.char](self, obj, value)
+            _c_buffer_proxy_atomic_add[cython.schar](self, obj, value)
         else:
             _buffer_proxy_add(self, obj, 'b', value)
 
@@ -3525,33 +3525,33 @@ class UShortBufferProxyProperty(BaseBufferProxyProperty):
 
 @cython.cclass
 class ShortBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.short) if cython.compiled else struct.Struct('h').size
+    stride = cython.sizeof(cython.sshort) if cython.compiled else struct.Struct('h').size
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
         if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.short](self, obj, 0)
+            return _c_buffer_proxy_get_gen[cython.sshort](self, obj, 0)
         else:
             return _buffer_proxy_get(self, obj, 'h')
 
-    @cython.locals(obj = BufferProxyObject, elem = cython.short)
+    @cython.locals(obj = BufferProxyObject, elem = cython.sshort)
     def __set__(self, obj, elem):
         if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.short](self, obj, elem)
+            _c_buffer_proxy_set_gen[cython.sshort](self, obj, elem)
         else:
             _buffer_proxy_set(self, obj, 'h', elem)
 
-    @cython.locals(obj = BufferProxyObject, exp_val = cython.short, new_val = cython.short)
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.sshort, new_val = cython.sshort)
     def cas(self, obj, exp_val, new_val):
         if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.short](self, obj, exp_val, new_val)
+            return _c_buffer_proxy_atomic_cas[cython.sshort](self, obj, exp_val, new_val)
         else:
             return _buffer_proxy_cas(self, obj, 'h', exp_val, new_val)
 
-    @cython.locals(obj = BufferProxyObject, value = cython.short)
+    @cython.locals(obj = BufferProxyObject, value = cython.sshort)
     def add(self, obj, value):
         if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.short](self, obj, value)
+            _c_buffer_proxy_atomic_add[cython.sshort](self, obj, value)
         else:
             _buffer_proxy_add(self, obj, 'h', value)
 
@@ -3594,28 +3594,28 @@ class IntBufferProxyProperty(BaseBufferProxyProperty):
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
         if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.int](self, obj, 0)
+            return _c_buffer_proxy_get_gen[cython.sint](self, obj, 0)
         else:
             return _buffer_proxy_get(self, obj, 'i')
 
     @cython.locals(obj = BufferProxyObject, elem = cython.int)
     def __set__(self, obj, elem):
         if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.int](self, obj, elem)
+            _c_buffer_proxy_set_gen[cython.sint](self, obj, elem)
         else:
             _buffer_proxy_set(self, obj, 'i', elem)
 
-    @cython.locals(obj = BufferProxyObject, exp_val = cython.int, new_val = cython.int)
+    @cython.locals(obj = BufferProxyObject, exp_val = cython.sint, new_val = cython.sint)
     def cas(self, obj, exp_val, new_val):
         if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.int](self, obj, exp_val, new_val)
+            return _c_buffer_proxy_atomic_cas[cython.sint](self, obj, exp_val, new_val)
         else:
             return _buffer_proxy_cas(self, obj, 'i', exp_val, new_val)
 
-    @cython.locals(obj = BufferProxyObject, value = cython.int)
+    @cython.locals(obj = BufferProxyObject, value = cython.sint)
     def add(self, obj, value):
         if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.int](self, obj, value)
+            _c_buffer_proxy_atomic_add[cython.sint](self, obj, value)
         else:
             _buffer_proxy_add(self, obj, 'i', value)
 
@@ -3668,28 +3668,28 @@ class LongBufferProxyProperty(BaseBufferProxyProperty):
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
         if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.longlong](self, obj, 0)
+            return _c_buffer_proxy_get_gen[cython.slonglong](self, obj, 0)
         else:
             return _buffer_proxy_get(self, obj, 'q')
 
-    @cython.locals(obj = BufferProxyObject, elem = cython.longlong)
+    @cython.locals(obj = BufferProxyObject, elem = cython.slonglong)
     def __set__(self, obj, elem):
         if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.longlong](self, obj, elem)
+            _c_buffer_proxy_set_gen[cython.slonglong](self, obj, elem)
         else:
             _buffer_proxy_set(self, obj, 'q', elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.longlong, new_val = cython.longlong)
     def cas(self, obj, exp_val, new_val):
         if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.longlong](self, obj, exp_val, new_val)
+            return _c_buffer_proxy_atomic_cas[cython.slonglong](self, obj, exp_val, new_val)
         else:
             return _buffer_proxy_cas(self, obj, 'q', exp_val, new_val)
 
-    @cython.locals(obj = BufferProxyObject, value = cython.longlong)
+    @cython.locals(obj = BufferProxyObject, value = cython.slonglong)
     def add(self, obj, value):
         if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.longlong](self, obj, value)
+            _c_buffer_proxy_atomic_add[cython.slonglong](self, obj, value)
         else:
             _buffer_proxy_add(self, obj, 'q', value)
 
@@ -4087,7 +4087,10 @@ class Schema(object):
         _fixed_bitmap = cython.ulonglong,
         _last_unpacker = tuple,
         _last_unpacker_bitmap = cython.ulonglong,
+        _binary_version = cython.uint,
     )
+
+    VERSION = 2
 
     @property
     def Proxy(self):
@@ -4107,13 +4110,14 @@ class Schema(object):
         return self._Proxy
 
     def __init__(self, slot_types, alignment = 8, pack_buffer_size = 65536, packer_cache = None, unpacker_cache = None,
-            max_pack_buffer_size = None):
+            max_pack_buffer_size = None, version = None):
         self.prewrite_hook = None
         self.postwrite_hook = None
         self.init(
             self._map_types(slot_types),
             packer_cache = packer_cache, unpacker_cache = unpacker_cache, alignment = alignment,
-            pack_buffer_size = pack_buffer_size)
+            pack_buffer_size = pack_buffer_size,
+            version = self.VERSION)
 
     def __reduce__(self):
         return (type(self), (self.slot_types,), self.__getstate__())
@@ -4124,6 +4128,7 @@ class Schema(object):
             slot_keys = self.slot_keys,
             alignment = self.alignment,
             bases = self._proxy_bases,
+            version = self._binary_version,
         )
 
     def __setstate__(self, state):
@@ -4174,6 +4179,9 @@ class Schema(object):
             return False
 
         other_schema = other
+        if self._binary_version != other_schema._binary_version:
+            return False
+
         if self.slot_keys != other_schema.slot_keys or self.alignment != other_schema.alignment:
             return False
 
@@ -4231,12 +4239,13 @@ class Schema(object):
             packer_cache = self.packer_cache, unpacker_cache = self.unpacker_cache, alignment = self.alignment,
             pack_buffer_size = self.pack_buffer_size)
 
-    @cython.locals(slot_types = dict, slot_keys = tuple)
+    @cython.locals(slot_types = dict, slot_keys = tuple, version = cython.uint)
     def init(self, slot_types = None, slot_keys = None, alignment = 8, pack_buffer_size = 65536,
             max_pack_buffer_size = None, packer_cache = None, unpacker_cache = None,
-            autoregister = False):
+            autoregister = False, version = 1):
         # Freeze slot order, sort by descending size to optimize alignment
         self._proxy_bases = None
+        self._binary_version = version
         if slot_types is None:
             slot_types = self.slot_types
 
@@ -4319,11 +4328,11 @@ class Schema(object):
         self._fixed_bitmap = fixed_bitmap
         self._last_unpacker = None
 
-        if len(self.slot_keys) <= 8:
+        if (self._binary_version < 2 or self.alignment <= 2) and len(self.slot_keys) <= 8:
             self.bitmap_type = 'B'
-        elif len(self.slot_keys) <= 16:
+        elif (self._binary_version < 2 or self.alignment <= 4) and len(self.slot_keys) <= 16:
             self.bitmap_type = 'H'
-        elif len(self.slot_keys) <= 32:
+        elif (self._binary_version < 2 or self.alignment <= 8) and len(self.slot_keys) <= 32:
             self.bitmap_type = 'I'
         elif len(self.slot_keys) <= 64:
             self.bitmap_type = 'Q'
@@ -4673,8 +4682,8 @@ class Schema(object):
                                     value = cython.cast(cython.p_uchar, pbuf)[0]
                                     pbuf += cython.sizeof(cython.uchar)
                                 elif formatchar == 'b':
-                                    value = cython.cast(cython.p_char, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.char)
+                                    value = cython.cast(cython.p_schar, pbuf)[0]
+                                    pbuf += cython.sizeof(cython.schar)
                                 elif formatchar == '?':
                                     value = cython.cast(cython.bint, cython.cast(cython.p_char, pbuf)[0])
                                     pbuf += cython.sizeof(cython.char)
@@ -4683,7 +4692,7 @@ class Schema(object):
                                     pbuf += cython.sizeof(cython.ushort)
                                 elif formatchar == 'h':
                                     value = cython.cast(cython.p_short, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.short)
+                                    pbuf += cython.sizeof(cython.sshort)
                                 elif formatchar == 'I':
                                     value = cython.cast(cython.p_uint, pbuf)[0]
                                     pbuf += cython.sizeof(cython.uint)
@@ -5268,7 +5277,7 @@ if cython.compiled:
         return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
     @cython.cfunc
-    @cython.locals(hkey = cython.longlong, elem = cython.longlong,
+    @cython.locals(hkey = cython.slonglong, elem = cython.slonglong,
         pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
         hint = cython.size_t, check_equal = cython.bint)
     def _c_search_hkey_i64(hkey, pindex, stride0, length, hint, check_equal):
@@ -5284,7 +5293,7 @@ if cython.compiled:
         return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
     @cython.cfunc
-    @cython.locals(hkey = cython.longlong, elem = cython.int,
+    @cython.locals(hkey = cython.slonglong, elem = cython.sint,
         pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
         hint = cython.size_t, check_equal = cython.bint)
     def _c_search_hkey_i32(hkey, pindex, stride0, length, hint, check_equal):
@@ -5300,7 +5309,7 @@ if cython.compiled:
         return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
     @cython.cfunc
-    @cython.locals(hkey = cython.longlong, elem = cython.short,
+    @cython.locals(hkey = cython.slonglong, elem = cython.sshort,
         pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
         hint = cython.size_t, check_equal = cython.bint)
     def _c_search_hkey_i16(hkey, pindex, stride0, length, hint, check_equal):
@@ -5316,7 +5325,7 @@ if cython.compiled:
         return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
     @cython.cfunc
-    @cython.locals(hkey = cython.longlong, elem = cython.char,
+    @cython.locals(hkey = cython.slonglong, elem = cython.schar,
         pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
         hint = cython.size_t, check_equal = cython.bint)
     def _c_search_hkey_i8(hkey, pindex, stride0, length, hint, check_equal):
@@ -5570,7 +5579,7 @@ if cython.compiled:
     #@cython.returns(cython.size_t)
     def _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         ref = 0
-        return _c_merge_gen[cython.longlong](
+        return _c_merge_gen[cython.slonglong](
             pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
     #@cython.cfunc
@@ -5592,7 +5601,7 @@ if cython.compiled:
     #@cython.returns(cython.size_t)
     def _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         ref = 0
-        return _c_merge_gen[cython.int](
+        return _c_merge_gen[cython.sint](
             pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
     #@cython.cfunc
@@ -5614,7 +5623,7 @@ if cython.compiled:
     #@cython.returns(cython.size_t)
     def _c_merge_i16(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         ref = 0
-        return _c_merge_gen[cython.short](
+        return _c_merge_gen[cython.sshort](
             pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
     #@cython.cfunc
@@ -5636,7 +5645,7 @@ if cython.compiled:
     #@cython.returns(cython.size_t)
     def _c_merge_i8(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
         ref = 0
-        return _c_merge_gen[cython.char](
+        return _c_merge_gen[cython.schar](
             pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
     #@cython.cfunc
