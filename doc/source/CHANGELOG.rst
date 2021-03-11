@@ -5,6 +5,16 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
+v0.9.1 - Unreleased
+===================
+
+Changed
+-------
+
+- Optimize assuming the package will run in the platform doing the building
+  without jeopardizing compatibility with other platforms by default.
+  More precisely this involves passing ``-mtune=native`` to GCC by default.
+
 v0.9.0 - 2020-02-25
 ===================
 

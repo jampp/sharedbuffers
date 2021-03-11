@@ -102,6 +102,17 @@ else:
                         depends = ['sharedbuffers/mapped_struct.pxd']),
                 ]
                 ext_modules = cythonize(extension_modules, include_path = include_dirs, language_level = 2)
+
+                if sys.platform.startswith('linux'):
+                    DEFAULT_COMPILE_ARGS = '-mtune=native'
+                else:
+                    DEFAULT_COMPILE_ARGS = ''
+
+                EXTRA_COMPILE_ARGS = os.environ.get('CXXFLAGS', os.environ.get('CFLAGS', DEFAULT_COMPILE_ARGS)).split()
+
+                for ext_module in ext_modules:
+                    ext_module.extra_compile_args.extend(EXTRA_COMPILE_ARGS)
+
                 self.extend(ext_modules)
         def __iter__(self):
             self.initialize()
@@ -118,7 +129,7 @@ else:
     extra['ext_modules'] = lazy_modules()
     extra['setup_requires'] = setup_requires
 
-VERSION = "0.9.0"
+VERSION = "0.9.1"
 
 version_path = os.path.join(os.path.dirname(__file__), 'sharedbuffers', '_version.py')
 if not os.path.exists(version_path):
