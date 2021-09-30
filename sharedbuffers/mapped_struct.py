@@ -2939,7 +2939,7 @@ class mapped_object(object):
             endp += packer.size + padding
         elif typecode in cls.OBJ_PACKERS:
             cpacker, cpadding = cls.CODE_PACKER
-            cpacker.pack_into(buf, offs, typecode)
+            cpacker.pack_into(buf, offs, typecode.encode())
             endp += cpacker.size + cpadding
             packer = cls.OBJ_PACKERS[typecode][0]
             endp = packer(obj.value, buf, endp, idmap, implicit_offs)
