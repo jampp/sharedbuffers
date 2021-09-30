@@ -731,7 +731,7 @@ class mapped_tuple(tuple):
             abuf = buffer(a)
             buf[offs:offs+len(abuf)] = abuf
             offs += len(abuf)
-            offs = (offs + 7) / 8 * 8
+            offs = (offs + 7) // 8 * 8
             return offs
         elif all_float:
             if isinstance(obj, npndarray):
@@ -745,7 +745,7 @@ class mapped_tuple(tuple):
             abuf = buffer(a)
             buf[offs:offs+len(abuf)] = abuf
             offs += len(abuf)
-            offs = (offs + 7) / 8 * 8
+            offs = (offs + 7) // 8 * 8
             return offs
         else:
             # inline object tuple
@@ -792,7 +792,7 @@ class mapped_tuple(tuple):
             if min_offs >= -0x80000000 and max_offs <= 0x7fffffff and (len(buf) - baseoffs) <= 0x7fffffff:
                 # We can use narrow pointers, guaranteed
                 use_narrow = True
-                offs = indexoffs + len(index_buffer) / 2
+                offs = indexoffs + len(index_buffer) // 2
                 offs += (8 - offs & 7) & 7
                 dataoffs = offs
                 buf[baseoffs] = 'T'
@@ -828,7 +828,7 @@ class mapped_tuple(tuple):
             if not use_narrow and offs == dataoffs and min_offs >= -0x80000000 and max_offs <= 0x7fffffff:
                 # it fits in 32-bits, and the index can shrink since we added no data, so shrink it
                 use_narrow = True
-                offs = indexoffs + len(index_buffer) / 2
+                offs = indexoffs + len(index_buffer) // 2
                 offs += (8 - offs & 7) & 7
                 dataoffs = offs
                 buf[baseoffs] = 'T'
@@ -1661,9 +1661,9 @@ class proxied_list(object):
                 raise IndexError(orig_index)
             step = abs(self.elem_step)
             if self.elem_step > 0:
-                xlen = (self.elem_end - self.elem_start - 1) / step + 1
+                xlen = (self.elem_end - self.elem_start - 1) // step + 1
             else:
-                xlen = (self.elem_start - self.elem_end - 1) / step + 1
+                xlen = (self.elem_start - self.elem_end - 1) // step + 1
 
             index = self.elem_start + index * self.elem_step
 
@@ -1786,9 +1786,9 @@ class proxied_list(object):
         elif self.elem_start == self.elem_end:
             return 0
         elif self.elem_step < 0:
-            return (self.elem_start - self.elem_end - 1) / (-self.elem_step) + 1
+            return (self.elem_start - self.elem_end - 1) // (-self.elem_step) + 1
         else:
-            return (self.elem_end - self.elem_start - 1) / self.elem_step + 1
+            return (self.elem_end - self.elem_start - 1) // self.elem_step + 1
 
     def __nonzero__(self):
         return len(self) > 0
@@ -2606,7 +2606,7 @@ class mapped_bytes(bytes):
         if objlen > MIN_COMPRESS_THRESHOLD:
             objcomp = lz4_compress(obj)
             objcomplen = len(objcomp)
-            if objcomplen < (objlen - objlen/3):
+            if objcomplen < (objlen - objlen//3):
                 # Must get substantial compression to pay the price
                 obj = objcomp
                 objlen = objcomplen
@@ -2861,7 +2861,7 @@ class mapped_object(object):
     }
 
     def p(s):
-        return s, (s.size + 7) / 8 * 8 - s.size
+        return s, (s.size + 7) // 8 * 8 - s.size
 
     CODE_PACKER = p(struct.Struct('=c'))
     PACKERS = {
@@ -4409,7 +4409,7 @@ class Schema(object):
             ]))
             alignment = self.alignment
             size = packer.size
-            padding = (size + alignment - 1) / alignment * alignment - size
+            padding = (size + alignment - 1) // alignment * alignment - size
             self.packer_cache[packer_key] = rv = (packer, padding)
         return rv
 
@@ -4439,7 +4439,7 @@ class Schema(object):
             unpacker = struct.Struct(pformat)
             alignment = self.alignment
             size = unpacker.size
-            padding = (size + self.bitmap_size + alignment - 1) / alignment * alignment - size
+            padding = (size + self.bitmap_size + alignment - 1) // alignment * alignment - size
             gfactory = GenericProxyClass(
                 self.slot_keys, self.slot_types, present_bitmap, self.bitmap_size,
                 self._proxy_bases)
@@ -4526,13 +4526,13 @@ class Schema(object):
                                 else:
                                     reraise(type(e), e, sys.exc_info()[2])
                                 raise
-                            padding = (offs + alignment - 1) / alignment * alignment - offs
+                            padding = (offs + alignment - 1) // alignment * alignment - offs
                             offs += padding
                         else:
                             ival_offs = val_offs
                         packable_append(ival_offs - baseoffs - implicit_offs)
 
-            padding = (offs + alignment - 1) / alignment * alignment - offs
+            padding = (offs + alignment - 1) // alignment * alignment - offs
             offs = offs + padding
             if offs > len(buf):
                 raise struct.error('buffer too small')
@@ -5573,7 +5573,7 @@ if cython.compiled:
             cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex2)[1]
             pdest += stride0
             pindex2 += stride0
-        return (pdest - pdeststart) / stride0
+        return (pdest - pdeststart) // stride0
 
     #@cython.cfunc
     @cython.locals(

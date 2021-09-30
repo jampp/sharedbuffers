@@ -2010,8 +2010,8 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
 
         self.assertRaises(IndexError, lambda: obj[1:][xlen - 1])
         self.assertRaises(IndexError, lambda: obj[-1::][1])
-        self.assertRaises(IndexError, lambda: obj[2:4:2][xlen / 2 - 2])
-        self.assertRaises(IndexError, lambda: obj[:2:-2][xlen / 2])
+        self.assertRaises(IndexError, lambda: obj[2:4:2][xlen // 2 - 2])
+        self.assertRaises(IndexError, lambda: obj[:2:-2][xlen // 2])
         self.assertRaises(TypeError, lambda: obj[1:'a'])
 
     def testProxiedListSliceNotComparable(self):
