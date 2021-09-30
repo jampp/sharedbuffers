@@ -2658,7 +2658,7 @@ class mapped_bytes(bytes):
         return _unpack_bytes_from_pybuffer(buf, offs, idmap)
 _mapped_bytes = cython.declare(object, mapped_bytes)
 
-class mapped_unicode(unicode):
+class mapped_unicode(six.text_type):
     """
     Shared-buffer implementation for unicode strings
     """
