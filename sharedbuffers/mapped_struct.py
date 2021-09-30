@@ -136,6 +136,7 @@ if cython.compiled:
 if six.PY3:
     long = int
     buffer = memoryview
+    basestring = (bytes, str)
 
 class ubyte(int):
     pass
