@@ -1068,7 +1068,7 @@ class MappedMappingTest(unittest.TestCase):
 
         # test key iteration and enumeration
         self.assertEqual(set(test_values.keys()), set(mapping.keys()))
-        self.assertEqual(set(test_values.iterkeys()), set(mapping.iterkeys()))
+        self.assertEqual(set(iterkeys(test_values)), set(iterkeys(mapping)))
 
         # test lookup
         for k,reference in iteritems(test_values):
@@ -1188,7 +1188,7 @@ class MappedMultiMappingTest(MappedMappingTest):
         # test key iteration and enumeration
         test_keys = map(operator.itemgetter(0), test_values)
         self.assertEqual(set(test_keys), set(mapping.keys()))
-        self.assertEqual(set(test_keys), set(mapping.iterkeys()))
+        self.assertEqual(set(test_keys), set(iterkeys(mapping)))
 
         # test lookup
         for k,reference in test_values:
