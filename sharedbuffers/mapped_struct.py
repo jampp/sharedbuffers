@@ -678,37 +678,43 @@ class mapped_tuple(tuple):
                     imaxval = maxval
                     if 0 <= iminval and imaxval <= 0xFF:
                         # inline unsigned bytes
-                        buf[offs] = dtype = 'B'
+                        dtype = 'B'
+                        buf[offs] = ord(dtype)
                     elif -0x80 <= iminval and imaxval <= 0x7F:
                         # inline signed bytes
-                        buf[offs] = dtype = 'b'
+                        dtype = 'b'
+                        buf[offs] = ord(dtype)
                     elif 0 <= iminval and imaxval <= 0xFFFF:
                         # inline unsigned shorts
-                        buf[offs] = dtype = 'H'
+                        dtype = 'H'
+                        buf[offs] = ord(dtype)
                     elif -0x8000 <= iminval and imaxval <= 0x7FFF:
                         # inline signed shorts
-                        buf[offs] = dtype = 'h'
+                        dtype = 'h'
+                        buf[offs] = ord(dtype)
                     elif -0x80000000 <= iminval and imaxval <= 0x7FFFFFFF:
                         # inline signed ints
-                        buf[offs] = dtype = 'i'
+                        dtype = 'i'
+                        buf[offs] = ord(dtype)
                     elif 0 <= iminval and imaxval <= cython.cast(cython.longlong, 0xFFFFFFFF):
                         # inline unsigned ints
-                        buf[offs] = dtype = 'I'
+                        dtype = 'I'
+                        buf[offs] = ord(dtype)
                     elif (cython.cast(cython.longlong, -0x8000000000000000) <= iminval
                             and imaxval <= cython.cast(cython.longlong, 0x7FFFFFFFFFFFFFFF)):
                         # inline signed int64 list
-                        buf[offs] = 'q'
+                        buf[offs] = ord('q')
                         dtype = 'l'
                     else:
                         raise OverflowError
                 except OverflowError:
                     if 0 <= minval and maxval <= 0xFFFFFFFFFFFFFFFF:
                         # inline unsigned int64 list
-                        buf[offs] = 'Q'
+                        buf[offs] = ord('Q')
                         dtype = 'L'
                     elif all_int:
                         # inline sorted int64 list
-                        buf[offs] = 'q'
+                        buf[offs] = ord('q')
                         dtype = 'l'
                     else:
                         # longs are tricky, give up
