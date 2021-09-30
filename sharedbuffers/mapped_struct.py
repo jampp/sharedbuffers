@@ -82,7 +82,7 @@ import weakref
 import ctypes
 from datetime import timedelta, datetime, date
 from decimal import Decimal
-from six import itervalues, reraise
+from six import itervalues, reraise, iteritems
 from six.moves import cPickle
 
 try:
@@ -4207,7 +4207,7 @@ class Schema(object):
 
     @staticmethod
     def _map_types(slot_types):
-        return { k:TYPES.get(v,v) for k,v in slot_types.iteritems() }
+        return { k:TYPES.get(v,v) for k,v in iteritems(slot_types) }
 
     @classmethod
     def from_typed_slots(cls, struct_class_or_slot_types, *p, **kw):
@@ -4264,7 +4264,7 @@ class Schema(object):
             slot_types = self.slot_types
 
         # Map compatible types
-        for k, typ in slot_types.iteritems():
+        for k, typ in iteritems(slot_types):
             if not isinstance(typ, mapped_object_with_schema):
                 continue
             if typ in mapped_object.TYPE_CODES:
@@ -4328,7 +4328,7 @@ class Schema(object):
         # with negative offsets)
         self.slot_struct_types = {
             slot : FIXED_TYPES.get(typ, 'q')
-            for slot, typ in self.slot_types.iteritems()
+            for slot, typ in iteritems(self.slot_types)
         }
 
         var_bitmap = 0
