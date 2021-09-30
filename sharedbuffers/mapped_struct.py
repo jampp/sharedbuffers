@@ -132,6 +132,9 @@ if cython.compiled:
     assert Py_GT == 4
     assert Py_GE == 5
 
+if six.PY3:
+    long = int
+
 class ubyte(int):
     pass
 uint8 = ubyte
