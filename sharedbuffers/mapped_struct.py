@@ -7017,9 +7017,8 @@ class ObjectIdMapper(_CZipMapBase):
         rv._file = fileobj
         return rv
 
-@cython.locals(ux = unicode)
 def safe_utf8(x):
-    if isinstance(x, unicode):
+    if isinstance(x, six.text_type):
         # The assignment-style cast is needed because an inline case triggers a Cython compiler crash
         ux = x
         return ux.encode("utf8")
