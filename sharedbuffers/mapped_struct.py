@@ -412,7 +412,7 @@ def shared_id(obj):
             return obj | LONG_MASK
         elif isinstance(obj, long):
             # Real longs must make room for the flag bits
-            return (obj & 0xFFFFFFFFFFFFFFFFL) | ((obj >> 64) << 68) | LONG_MASK
+            return (obj & 0xFFFFFFFFFFFFFFFF) | ((obj >> 64) << 68) | LONG_MASK
 
         # For other keys, use the object itself as key if hashable
         try:
@@ -430,10 +430,10 @@ class WRAPPED:
     pass
 
 
-WRAP_MASK = cython.declare(object, 1L << 64)
-LONG_MASK = cython.declare(object, 2L << 64)
-PROXY_MASK = cython.declare(object, 4L << 64)
-FLAG_MASK = cython.declare(object, 0xFL << 64)
+WRAP_MASK = cython.declare(object, 1 << 64)
+LONG_MASK = cython.declare(object, 2 << 64)
+PROXY_MASK = cython.declare(object, 4 << 64)
+FLAG_MASK = cython.declare(object, 0xF << 64)
 
 
 @cython.ccall
@@ -683,15 +683,15 @@ class mapped_tuple(tuple):
                     elif 0 <= iminval and imaxval <= cython.cast(cython.longlong, 0xFFFFFFFF):
                         # inline unsigned ints
                         buf[offs] = dtype = 'I'
-                    elif (cython.cast(cython.longlong, -0x8000000000000000L) <= iminval
-                            and imaxval <= cython.cast(cython.longlong, 0x7FFFFFFFFFFFFFFFL)):
+                    elif (cython.cast(cython.longlong, -0x8000000000000000) <= iminval
+                            and imaxval <= cython.cast(cython.longlong, 0x7FFFFFFFFFFFFFFF)):
                         # inline signed int64 list
                         buf[offs] = 'q'
                         dtype = 'l'
                     else:
                         raise OverflowError
                 except OverflowError:
-                    if 0 <= minval and maxval <= 0xFFFFFFFFFFFFFFFFL:
+                    if 0 <= minval and maxval <= 0xFFFFFFFFFFFFFFFF:
                         # inline unsigned int64 list
                         buf[offs] = 'Q'
                         dtype = 'L'

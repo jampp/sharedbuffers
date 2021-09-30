@@ -1734,7 +1734,7 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
         self.assertTrue(big >= small)
         self.assertFalse(big > big)
 
-        big = self.pack([1L, 2L, 3L])
+        big = self.pack([1, 2, 3])
         self.assertTrue(small < big)
         self.assertTrue(small <= big)
 
@@ -2190,11 +2190,11 @@ class StableHashTest(unittest.TestCase):
             (20913041029, 20913041029),
             (66210231110, 66210231110),
             (752, 752),
-            (-1, 18446744073709551615L),
+            (-1, 18446744073709551615),
             (1 << 100, 1),
             (-(1 << 100), 1),
-            (1L, 1),
-            (-1L, 18446744073709551615L),
+            (1, 1),
+            (-1, 18446744073709551615),
         )
         self.assertHashesOK(values_hashes)
 
@@ -2205,29 +2205,29 @@ class StableHashTest(unittest.TestCase):
             (107203., 107203),
             (91024215., 91024215),
             (13328914., 13328914),
-            (-1., 18446744073709551615L),
-            (1e+50, 150463276902340L),
-            (1e-50, 263280728297184L),
-            (2.001, 140807857099441L),
-            (-2.001, 18446603265852452175L),
-            (float('inf'), 281474976710655L),
-            (float('-inf'), 18446462598732840961L),
-            (float('nan'), 562949953421310L),
+            (-1., 18446744073709551615),
+            (1e+50, 150463276902340),
+            (1e-50, 263280728297184),
+            (2.001, 140807857099441),
+            (-2.001, 18446603265852452175),
+            (float('inf'), 281474976710655),
+            (float('-inf'), 18446462598732840961),
+            (float('nan'), 562949953421310),
         )
         self.assertHashesOK(values_hashes)
 
     def testHashStringsFixed(self):
         values_hashes = (
-            ("abcdef", 18053520794346263629L),
-            ("123456789", 10139926970967174787L),
-            ("!@#%&$", 15648343848775299486L),
+            ("abcdef", 18053520794346263629),
+            ("123456789", 10139926970967174787),
+            ("!@#%&$", 15648343848775299486),
         )
         self.assertHashesOK(values_hashes)
 
     def testHashSequenceFixed(self):
         values_hashes = (
-            ((1, "abc", -2.3), 2059039662577021167L),
-            (frozenset([1.2, 4.5, 0.12]), 4015877951310865576L),
+            ((1, "abc", -2.3), 2059039662577021167),
+            (frozenset([1.2, 4.5, 0.12]), 4015877951310865576),
         )
         self.assertHashesOK(values_hashes)
 
@@ -2411,8 +2411,8 @@ class WriteableMappingTest(unittest.TestCase):
         proxy.hx = -1000
         proxy.Ix = 100000
         proxy.ix = -100000
-        proxy.Qx = 10000000000L
-        proxy.qx = -10000000000L
+        proxy.Qx = 10000000000
+        proxy.qx = -10000000000
         proxy.dx = 1.5
         proxy.fx = -1.5
         self.assertAlmostEqual(0.0, proxy.Bx + proxy.bx + proxy.Hx + proxy.hx +
