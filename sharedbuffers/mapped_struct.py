@@ -82,7 +82,7 @@ import weakref
 import ctypes
 from datetime import timedelta, datetime, date
 from decimal import Decimal
-from six import itervalues, reraise, iteritems
+from six import itervalues, reraise, iteritems, iterkeys
 from six.moves import cPickle, range
 
 
@@ -1095,7 +1095,7 @@ def _stable_hash(key):
 
 @cython.locals(idx=int)
 def _enum_keys(obj):
-    for idx, key in enumerate(obj.iterkeys()):
+    for idx, key in enumerate(iterkeys(obj)):
         yield key, idx
 
 
