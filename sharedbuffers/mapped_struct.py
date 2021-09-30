@@ -2845,7 +2845,7 @@ class mapped_object(object):
         long : 'q',
         float : 'd',
         str : 's',
-        unicode : 'u',
+        six.text_type : 'u',
         datetime : 'v',
         date : 'V',
         Decimal : 'F',
