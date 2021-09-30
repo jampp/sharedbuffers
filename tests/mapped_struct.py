@@ -21,7 +21,7 @@ except:
 from sharedbuffers import mapped_struct
 
 from six import iteritems, itervalues, iterkeys
-from six.moves import xrange
+from six.moves import xrange, zip
 
 SKIP_HUGE = os.environ.get('SKIP_HUGE','')
 
@@ -858,11 +858,11 @@ class IdMapperTest(unittest.TestCase):
             r.shuffle(keys)
         if gen_dupes:
             return itertools.chain(
-                itertools.izip(keys, xrange(0, 2*n, 2)),
-                itertools.islice(itertools.izip(keys, xrange(0, 2*n, 2)), 10, None),
+                zip(keys, xrange(0, 2*n, 2)),
+                itertools.islice(zip(keys, xrange(0, 2*n, 2)), 10, None),
             )
         else:
-            return itertools.izip(keys, xrange(0, 2*n, 2))
+            return zip(keys, xrange(0, 2*n, 2))
 
     def _testBuild(self, N, tempdir, **gen_kwargs):
         build_kwargs = gen_kwargs.pop('build_kwargs', {})
