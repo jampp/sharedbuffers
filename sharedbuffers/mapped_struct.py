@@ -81,7 +81,7 @@ import weakref
 import ctypes
 from datetime import timedelta, datetime, date
 from decimal import Decimal
-from six import itervalues
+from six import itervalues, reraise
 
 try:
     from cdecimal import Decimal as cDecimal
@@ -4510,7 +4510,7 @@ class Schema(object):
                                 except:
                                     pass
                                 else:
-                                    raise type(e), e, sys.exc_info()[2]
+                                    reraise(type(e), e, sys.exc_info()[2])
                                 raise
                             padding = (offs + alignment - 1) / alignment * alignment - offs
                             offs += padding
