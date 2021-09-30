@@ -3995,7 +3995,7 @@ PROXY_TYPES = {
     long : LongBufferProxyProperty,
     float : DoubleBufferProxyProperty,
     str : BytesBufferProxyProperty,
-    unicode : UnicodeBufferProxyProperty,
+    six.text_type : UnicodeBufferProxyProperty,
     datetime : DatetimeBufferProxyProperty,
     date : DateBufferProxyProperty,
     Decimal : DecimalBufferProxyProperty,
