@@ -81,6 +81,7 @@ import weakref
 import ctypes
 from datetime import timedelta, datetime, date
 from decimal import Decimal
+from six import itervalues
 
 try:
     from cdecimal import Decimal as cDecimal
@@ -3163,7 +3164,7 @@ TYPES = {
 TYPES.update(VARIABLE_TYPES)
 TYPES.update({
     v : v
-    for v in VARIABLE_TYPES.itervalues()
+    for v in itervalues(VARIABLE_TYPES)
 })
 del t
 
@@ -4261,7 +4262,7 @@ class Schema(object):
                 continue
 
             # Find compatible type
-            for packer, unpacker, packable_type in mapped_object.OBJ_PACKERS.itervalues():
+            for packer, unpacker, packable_type in itervalues(mapped_object.OBJ_PACKERS):
                 if not isinstance(packable_type, mapped_object_with_schema):
                     continue
 
