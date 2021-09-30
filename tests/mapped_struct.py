@@ -1319,10 +1319,10 @@ class BsearchTest(unittest.TestCase):
 
     for dtype in SUPPORTED_DTYPES:
         def testBsearch(self, dtype=dtype):
-            testarray = range(1,101)
+            testarray = list(range(1,101))
             random.shuffle(testarray)
             a = numpy.array(testarray[:50], dtype)
-            b = numpy.array([0] + testarray[50:] + range(101,103), dtype)
+            b = numpy.array([0] + testarray[50:] + list(range(101,103)), dtype)
             a = numpy.sort(a)
             self.assertEqual(mapped_struct.bsearch(a, 0), 0)
             self.assertEqual(mapped_struct.bsearch(a, 101), len(a))
@@ -1374,8 +1374,8 @@ class MergeTest(unittest.TestCase):
 
     for dtype in SUPPORTED_DTYPES:
         def testMerge(self, dtype=dtype):
-            testarray1 = range(1,101)
-            testarray2 = range(5,106)
+            testarray1 = list(range(1,101))
+            testarray2 = list(range(5,106))
             a = numpy.empty((100,2), dtype=dtype)
             b = numpy.empty((100,2), dtype=dtype)
             merged = numpy.empty((200,2), dtype=dtype)

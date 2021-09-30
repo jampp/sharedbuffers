@@ -83,7 +83,8 @@ import ctypes
 from datetime import timedelta, datetime, date
 from decimal import Decimal
 from six import itervalues, reraise, iteritems
-from six.moves import cPickle
+from six.moves import cPickle, range
+
 
 try:
     from cdecimal import Decimal as cDecimal
@@ -525,11 +526,11 @@ class mapped_frozenset(frozenset):
                 if cython.compiled and isbuffer:
                     if maxval < 56:
                         cbuf[offs] = 'm'
-                        for i in xrange(1, 8):
+                        for i in range(1, 8):
                             cbuf[offs+i] = 0
                     else:
                         cbuf[offs] = 'M'
-                        for i in xrange(1, 16):
+                        for i in range(1, 16):
                             cbuf[offs+i] = 0
                     for ix in obj:
                         cbuf[offs+1+ix//8] |= 1 << (ix & 7)
@@ -597,10 +598,10 @@ class mapped_frozenset(frozenset):
                 if cython.compiled and offs+fs_size >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
                 rv = []
-                for i in xrange(fs_size):
+                for i in range(fs_size):
                     b = ord(pbuf[offs+1+i])
                     if b:
-                        for j in xrange(8):
+                        for j in range(8):
                             if b & (1<<j):
                                 rv.append(i*8+j)
                 return frozenset(rv)
@@ -1442,7 +1443,7 @@ def proxied_list_cmp(a, b):
     alen = len(a)
     blen = len(b)
 
-    for i in xrange(min(alen, blen)):
+    for i in range(min(alen, blen)):
         selfe = a[i]
         othere = b[i]
 
@@ -1805,7 +1806,7 @@ class proxied_list(object):
         dcode = cython.char, objlen = cython.longlong, dataoffs = cython.Py_ssize_t, itemsize = cython.uchar)
     def __iter__(self):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
-        for i in xrange(len(self)):
+        for i in range(len(self)):
             yield self._c_getitem(i, dcode, objlen, itemsize, dataoffs, _struct, None)
 
     @cython.locals(i=cython.longlong,
@@ -1815,7 +1816,7 @@ class proxied_list(object):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         if mask is not None:
             pmask = mask
-        for i in xrange(len(self)):
+        for i in range(len(self)):
             if mask is not None and not pmask[i]:
                 continue
             yield self._c_getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
@@ -1833,7 +1834,7 @@ class proxied_list(object):
             proxy_into = None
         if mask is not None:
             pmask = mask
-        for i in xrange(len(self)):
+        for i in range(len(self)):
             if mask is not None and not pmask[i]:
                 continue
             yield self._c_getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into)
@@ -1844,7 +1845,7 @@ class proxied_list(object):
         l = len(self)
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         if l > 0:
-            for i in xrange(l - 1, -1, -1):
+            for i in range(l - 1, -1, -1):
                 yield self._c_getitem(i, dcode, objlen, itemsize, dataoffs, _struct, None)
 
     @cython.locals(i=cython.longlong,
@@ -1857,7 +1858,7 @@ class proxied_list(object):
                 proxy_into.buf = None
         else:
             proxy_into = None
-        for i in xrange(len(self)):
+        for i in range(len(self)):
             if self._c_getitem(i, dcode, objlen, itemsize, dataoffs, _struct, proxy_into) == item:
                 return True
         return False
@@ -2043,18 +2044,18 @@ class proxied_frozenset(object):
     def __iter__(self):
         if self.objlist is not None:
             dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
-            for i in xrange(len(self)):
+            for i in range(len(self)):
                 yield self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
         else:
             if self.bitrep_lo:
-                for i in xrange(64):
+                for i in range(64):
                     if self.bitrep_lo & (cython.cast(cython.ulonglong, 1) << i):
                         yield i
                     elif not self.bitrep_lo >> i:
                         break
 
             if self.bitrep_hi:
-                for i in xrange(64):
+                for i in range(64):
                     if self.bitrep_hi & (cython.cast(cython.ulonglong, 1) << i):
                         yield i + 64
                     elif not self.bitrep_hi >> i:
@@ -2065,12 +2066,12 @@ class proxied_frozenset(object):
     @cython.ccall
     def _add_to(self, out):
         if self.objlist is None:
-            for i in xrange(64):
+            for i in range(64):
                 if self.bitrep_lo & (cython.cast(cython.ulonglong, 1) << i):
                     out.add(i)
                 elif not self.bitrep_lo >> i:
                     break
-            for i in xrange(64):
+            for i in range(64):
                 if self.bitrep_hi & (cython.cast(cython.ulonglong, 1) << i):
                     out.add(i + 64)
                 elif not self.bitrep_hi >> i:
@@ -2078,7 +2079,7 @@ class proxied_frozenset(object):
             return out
 
         dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
-        for i in xrange(len(self)):
+        for i in range(len(self)):
             out.add(self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None))
         return out
 
@@ -2205,14 +2206,14 @@ class proxied_frozenset(object):
             return False
         elif self.objlist is None:
             if self.bitrep_lo:
-                for i in xrange(64):
+                for i in range(64):
                     if not self.bitrep_lo >> i:
                         break
                     elif (self.bitrep_lo & (cython.cast(cython.ulonglong, 1) << i)) and i not in x:
                         return False
 
             if self.bitrep_hi:
-                for i in xrange(64):
+                for i in range(64):
                     if not self.bitrep_hi >> i:
                         break
                     elif (self.bitrep_hi & (cython.cast(cython.ulonglong, 1) << i)) and (i + 64) not in x:
@@ -2221,7 +2222,7 @@ class proxied_frozenset(object):
             return True
 
         dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
-        for i in xrange(xlen):
+        for i in range(xlen):
             if self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None) not in x:
                 return False
         return True
@@ -2261,7 +2262,7 @@ class proxied_frozenset(object):
                         # non-numeric typecode
                         return False
 
-                    for i in xrange(xlen):
+                    for i in range(xlen):
                         val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
                         if not pfset._contains_compressed(val):
                             return False
@@ -2269,14 +2270,14 @@ class proxied_frozenset(object):
 
             elif self.objlist is None:
                 if self.bitrep_lo:
-                    for i in xrange(64):
+                    for i in range(64):
                         if not self.bitrep_lo >> i:
                             break
                         elif (self.bitrep_lo & (cython.cast(cython.ulonglong, 1) << i)) and i not in pfset:
                             return False
 
                 if self.bitrep_hi:
-                    for i in xrange(64):
+                    for i in range(64):
                         if not self.bitrep_hi >> i:
                             break
                         elif (self.bitrep_hi & (cython.cast(cython.ulonglong, 1) << i)) and (i + 64) not in pfset:
@@ -2295,14 +2296,14 @@ class proxied_frozenset(object):
 
             if dcode2 not in ('t', 'T') and cython.compiled:
                 # fast path, use the search_hkey variants
-                for i in xrange(xlen):
+                for i in range(xlen):
                     val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
                     tmp_idx = pfset._search_key(val, dcode, offset, j, seqlen - j, j, True)
                     if tmp_idx >= seqlen - j:
                         return False
                     j = tmp_idx
             else:
-                for i in xrange(xlen):
+                for i in range(xlen):
                     val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
                     h1 = _stable_hash(val)
                     while True:
@@ -2334,21 +2335,21 @@ class proxied_frozenset(object):
         else:
             if self.objlist is None:
                 if self.bitrep_lo:
-                    for i in xrange(64):
+                    for i in range(64):
                         if not self.bitrep_lo >> i:
                             break
                         elif (self.bitrep_lo & (cython.cast(cython.ulonglong, 1) << i)) and i not in seq:
                             return False
 
                 if self.bitrep_hi:
-                    for i in xrange(64):
+                    for i in range(64):
                         if not self.bitrep_hi >> i:
                             break
                         elif (self.bitrep_hi & (cython.cast(cython.ulonglong, 1) << i)) and (i + 64) not in seq:
                             return False
             else:
                 dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
-                for i in xrange(xlen):
+                for i in range(xlen):
                     val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
                     if val not in seq:
                         return False
@@ -2434,7 +2435,7 @@ class proxied_tuple(proxied_list):
                 mult = 1000003
                 x = 0x345678
                 len_ = len(self)
-                for i in xrange(len_):
+                for i in range(len_):
                     len_ -= 1
                     y = hash(self[i])
                     x = (x ^ y) * mult;
@@ -4594,7 +4595,7 @@ class Schema(object):
         """
         buf = self._acquire_pack_buffer()
         try:
-            for i in xrange(24):
+            for i in range(24):
                 try:
                     endp = self.pack_into(obj, buf, 0, idmap, packer, padding, implicit_offs)
                     return buf[:endp]
@@ -4683,7 +4684,7 @@ class Schema(object):
                     pformat = opformat
                     value_ix = 0
                     pbuf2 = pbuf
-                    for i in xrange(self.slot_count):
+                    for i in range(self.slot_count):
                         mask = cython.cast(cython.ulonglong, 1) << i
                         if has_bitmap & mask:
                             slot = self.slot_keys[i]
@@ -4761,7 +4762,7 @@ class Schema(object):
                     offs += stride
 
                     value_ix = 0
-                    for i in xrange(self.slot_count):
+                    for i in range(self.slot_count):
                         mask = 1 << i
                         if has_bitmap & mask:
                             slot = self.slot_keys[i]
@@ -5029,7 +5030,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         else:
             proxy_class_new = None
 
-        for i in xrange(len(self)):
+        for i in range(len(self)):
             yield schema.unpack_from(buf, index[i], idmap, proxy_class_new)
 
     @cython.locals(i = int, schema = Schema, pmask = 'const unsigned char[:]')
@@ -5059,7 +5060,7 @@ class MappedArrayProxyBase(_ZipMapBase):
             pmask = mask
 
         proxy_into = schema.Proxy()
-        for i in xrange(len(self)):
+        for i in range(len(self)):
             if mask is not None and not pmask[i]:
                 continue
             yield schema.unpack_from(buf, index[i], idmap, proxy_class_new, proxy_into)
@@ -5844,7 +5845,7 @@ def _merge_all(parts, dtype, clobber):
         return parts[0]
     else:
         nparts = []
-        for i in xrange(0, len(parts), 2):
+        for i in range(0, len(parts), 2):
             if i+1 < len(parts):
                 npart = numpy.empty((len(parts[i])+len(parts[i+1]), 2), dtype)
                 merge_elements = index_merge(parts[i], parts[i+1], npart)
@@ -6064,7 +6065,7 @@ class NumericIdMapper(_CZipMapBase):
                         stride0 = indexbuf.strides[0]
                         stride1 = indexbuf.strides[1]
                         pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in xrange(self.index_elements):
+                        for i in range(self.index_elements):
                             yield (
                                 cython.cast(cython.p_ulonglong, pindex)[0],
                                 cython.cast(cython.p_ulonglong, pindex + stride1)[0]
@@ -6082,7 +6083,7 @@ class NumericIdMapper(_CZipMapBase):
                         stride0 = indexbuf.strides[0]
                         stride1 = indexbuf.strides[1]
                         pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in xrange(self.index_elements):
+                        for i in range(self.index_elements):
                             yield (
                                 cython.cast(cython.p_uint, pindex)[0],
                                 cython.cast(cython.p_uint, pindex + stride1)[0]
@@ -6091,7 +6092,7 @@ class NumericIdMapper(_CZipMapBase):
                     finally:
                         PyBuffer_Release(cython.address(indexbuf))
                 else:
-                    for i in xrange(self.index_elements):
+                    for i in range(self.index_elements):
                         yield (
                             index[i,0],
                             index[i,1]
@@ -6100,7 +6101,7 @@ class NumericIdMapper(_CZipMapBase):
                 PyBuffer_Release(cython.address(pybuf))
             #lint:enable
         else:
-            for i in xrange(self.index_elements):
+            for i in range(self.index_elements):
                 yield (index[i,0], index[i,1])
 
     def items(self):
@@ -6639,7 +6640,7 @@ class ObjectIdMapper(_CZipMapBase):
                 try:
                     if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
                         raise ValueError("Invalid buffer state")
-                    for i in xrange(self.index_elements):
+                    for i in range(self.index_elements):
                         yield self._unpack(self._buf,
                             cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs])
                 finally:
@@ -6649,13 +6650,13 @@ class ObjectIdMapper(_CZipMapBase):
                 try:
                     if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
                         raise ValueError("Invalid buffer state")
-                    for i in xrange(self.index_elements):
+                    for i in range(self.index_elements):
                         yield self._unpack(self._buf,
                             cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs])
                 finally:
                     PyBuffer_Release(cython.address(indexbuf))
             else:
-                for i in xrange(self.index_elements):
+                for i in range(self.index_elements):
                     if not make_sequential:
                         pos = index[i, offs]
                     else:
@@ -6663,7 +6664,7 @@ class ObjectIdMapper(_CZipMapBase):
                     yield self._unpack(self._buf, pos)
             #lint:enable
         else:
-            for i in xrange(self.index_elements):
+            for i in range(self.index_elements):
                 if not make_sequential:
                     pos = index[i, offs]
                 else:
@@ -6707,7 +6708,7 @@ class ObjectIdMapper(_CZipMapBase):
                     stride0 = indexbuf.strides[0]
                     stride1 = indexbuf.strides[1]
                     pindex = cython.cast(cython.p_char, indexbuf.buf)
-                    for i in xrange(self.index_elements):
+                    for i in range(self.index_elements):
                         yield (
                             self._unpack(buf,
                                 cython.cast(cython.p_ulonglong, pindex + stride1)[0]),
@@ -6726,7 +6727,7 @@ class ObjectIdMapper(_CZipMapBase):
                     stride0 = indexbuf.strides[0]
                     stride1 = indexbuf.strides[1]
                     pindex = cython.cast(cython.p_char, indexbuf.buf)
-                    for i in xrange(self.index_elements):
+                    for i in range(self.index_elements):
                         yield (
                             self._unpack(buf,
                                 cython.cast(cython.p_uint, pindex + stride1)[0]),
@@ -6736,14 +6737,14 @@ class ObjectIdMapper(_CZipMapBase):
                 finally:
                     PyBuffer_Release(cython.address(indexbuf))
             else:
-                for i in xrange(self.index_elements):
+                for i in range(self.index_elements):
                     yield (
                         self._unpack(self._buf, index[i,1]),
                         index[i,2]
                     )
             #lint:enable
         else:
-            for i in xrange(self.index_elements):
+            for i in range(self.index_elements):
                 yield (self._unpack(buf, index[i,1]), index[i,2])
 
     def items(self):
@@ -7157,7 +7158,7 @@ class StringIdMapper(_CZipMapBase):
                     try:
                         if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
                             raise ValueError("Invalid buffer state")
-                        for i in xrange(self.index_elements):
+                        for i in range(self.index_elements):
                             yield _unpack_bytes_from_cbuffer(
                                 cython.cast(cython.p_char, pybuf.buf),
                                 cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs],
@@ -7169,7 +7170,7 @@ class StringIdMapper(_CZipMapBase):
                     try:
                         if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
                             raise ValueError("Invalid buffer state")
-                        for i in xrange(self.index_elements):
+                        for i in range(self.index_elements):
                             yield _unpack_bytes_from_cbuffer(
                                 cython.cast(cython.p_char, pybuf.buf),
                                 cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs],
@@ -7177,7 +7178,7 @@ class StringIdMapper(_CZipMapBase):
                     finally:
                         PyBuffer_Release(cython.address(indexbuf))
                 else:
-                    for i in xrange(self.index_elements):
+                    for i in range(self.index_elements):
                         yield _unpack_bytes_from_cbuffer(
                             cython.cast(cython.p_char, pybuf.buf),
                             index[i],
@@ -7186,7 +7187,7 @@ class StringIdMapper(_CZipMapBase):
                 PyBuffer_Release(cython.address(pybuf))
             #lint:enable
         else:
-            for i in xrange(self.index_elements):
+            for i in range(self.index_elements):
                 yield _unpack_bytes_from_pybuffer(buf, index[i], None)
 
     def __iter__(self):
@@ -7228,7 +7229,7 @@ class StringIdMapper(_CZipMapBase):
                         stride0 = indexbuf.strides[0]
                         stride1 = indexbuf.strides[1]
                         pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in xrange(self.index_elements):
+                        for i in range(self.index_elements):
                             yield (
                                 _unpack_bytes_from_cbuffer(
                                     cython.cast(cython.p_char, pybuf.buf),
@@ -7249,7 +7250,7 @@ class StringIdMapper(_CZipMapBase):
                         stride0 = indexbuf.strides[0]
                         stride1 = indexbuf.strides[1]
                         pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in xrange(self.index_elements):
+                        for i in range(self.index_elements):
                             yield (
                                 _unpack_bytes_from_cbuffer(
                                     cython.cast(cython.p_char, pybuf.buf),
@@ -7261,7 +7262,7 @@ class StringIdMapper(_CZipMapBase):
                     finally:
                         PyBuffer_Release(cython.address(indexbuf))
                 else:
-                    for i in xrange(self.index_elements):
+                    for i in range(self.index_elements):
                         yield (
                             _unpack_bytes_from_cbuffer(
                                 cython.cast(cython.p_char, pybuf.buf),
@@ -7273,7 +7274,7 @@ class StringIdMapper(_CZipMapBase):
                 PyBuffer_Release(cython.address(pybuf))
             #lint:enable
         else:
-            for i in xrange(self.index_elements):
+            for i in range(self.index_elements):
                 yield (_unpack_bytes_from_pybuffer(buf, index[i,1], None), index[i,2])
 
     def items(self):
@@ -8296,7 +8297,7 @@ class MappedMappingProxyBase(_ZipMapBase):
             values_pos = destfile.tell()
 
             blocklen = 1 << 20
-            for start in xrange(0, len(value_array.buf), blocklen):
+            for start in range(0, len(value_array.buf), blocklen):
                 destfile.write(buffer(value_array.buf, start, blocklen))
             destfile.write(cls._Footer.pack(values_pos - initial_pos))
             destfile.flush()
