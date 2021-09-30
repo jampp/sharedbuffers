@@ -1220,7 +1220,7 @@ class MappedMultiMappingInt32Test(MappedMultiMappingTest):
 
 class MappedStringMappingTest(MappedMappingTest):
     IdMapperClass = mapped_struct.StringIdMapper
-    TEST_KEYS = map(str, MappedMappingTest.TEST_KEYS) + [os.urandom(65537)]
+    TEST_KEYS = list(map(str, MappedMappingTest.TEST_KEYS)) + [os.urandom(65537)]
     TEST_VALUES = MappedMappingTest.TEST_VALUES + [{
         'fset' : frozenset([(1,2),(3,4),(6,7)]),
         't' : ((3,),(6,7,8),(1,7)),
