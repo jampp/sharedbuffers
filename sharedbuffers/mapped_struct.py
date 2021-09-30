@@ -88,7 +88,10 @@ try:
 except:
     cDecimal = Decimal
 
-from chorde.clients.inproc import Cache
+try:
+    from chorde.clients.inproc import Cache
+except ImportError:
+    from clru.lrucache import LRUCache as Cache
 
 try:
     from chorde.clients.inproc import CuckooCache as FastCache
