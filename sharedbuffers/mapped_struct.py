@@ -746,7 +746,7 @@ class mapped_tuple(tuple):
                 # dtype already set when inspecting obj's dtype
             else:
                 a = array('d', obj)
-                buf[offs] = 'd'
+                buf[offs] = ord('d')
             buf[offs+1:offs+8] = _struct_l_Q.pack(objlen)[:7]
             offs += 8
             abuf = buffer(a)
