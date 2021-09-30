@@ -69,6 +69,8 @@ import tempfile
 import functools
 import os
 import sys
+
+import six
 import xxhash
 import itertools
 import time
@@ -2399,7 +2401,11 @@ class proxied_frozenset(object):
 
     __str__ = __repr__
 
-is_cpython = cython.declare(cython.bint, sys.subversion[0] == 'CPython')
+if six.PY3:
+    _cpython = sys.implementation.name == 'cpython'
+else:
+    _cpython = sys.subversion[0] == 'CPython'
+is_cpython = cython.declare(cython.bint, _cpython)
 
 @cython.cclass
 class proxied_tuple(proxied_list):
