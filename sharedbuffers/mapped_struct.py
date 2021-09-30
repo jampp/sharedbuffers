@@ -757,7 +757,7 @@ class mapped_tuple(tuple):
         else:
             # inline object tuple
             use_narrow = False
-            buf[offs] = 't'
+            buf[offs] = ord('t')
             buf[offs+1:offs+8] = _struct_l_Q.pack(objlen)[:7]
             offs += 8
 
@@ -802,7 +802,7 @@ class mapped_tuple(tuple):
                 offs = indexoffs + len(index_buffer) // 2
                 offs += (8 - offs & 7) & 7
                 dataoffs = offs
-                buf[baseoffs] = 'T'
+                buf[baseoffs] = ord('T')
 
             dataoffs = offs
             mapped_object_ = mapped_object
