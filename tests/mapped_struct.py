@@ -1064,7 +1064,7 @@ class MappedMappingTest(unittest.TestCase):
             test_values = dict(test_values)
 
         # test basic attributes
-        self.assertEqual(len(set(test_values.itervalues())), len(mapping))
+        self.assertEqual(len(set(itervalues(test_values))), len(mapping))
 
         # test key iteration and enumeration
         self.assertEqual(set(test_values.keys()), set(mapping.keys()))
