@@ -3137,7 +3137,7 @@ VARIABLE_TYPES = {
     dict : mapped_dict,
     collections.defaultdict : mapped_dict,
     str : mapped_bytes,
-    unicode : mapped_unicode,
+    six.text_type : mapped_unicode,
     bytes : mapped_bytes,
     object : mapped_object,
     datetime : mapped_datetime,
