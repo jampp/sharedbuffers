@@ -21,7 +21,7 @@ except:
 from sharedbuffers import mapped_struct
 
 from six import iteritems, itervalues, iterkeys
-from six.moves import xrange, zip
+from six.moves import xrange, zip, zip_longest
 
 SKIP_HUGE = os.environ.get('SKIP_HUGE','')
 
@@ -765,7 +765,7 @@ class MappedArrayTest(unittest.TestCase):
         test_values = self.test_values
         if slice is not None:
             test_values = test_values[slice]
-        for reference, proxy in itertools.izip_longest(test_values, iterator):
+        for reference, proxy in zip_longest(test_values, iterator):
             self.assertEqual(reference.fset, proxy.fset)
             self.assertEqual(reference.t, proxy.t)
             self.assertEqual(reference.l, proxy.l)
