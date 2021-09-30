@@ -20,6 +20,8 @@ except:
 
 from sharedbuffers import mapped_struct
 
+from six import iteritems, itervalues, iterkeys
+
 SKIP_HUGE = os.environ.get('SKIP_HUGE','')
 
 try:
@@ -37,7 +39,7 @@ class SimpleStruct(object):
     __slots__ = __slot_types__.keys()
 
     def __init__(self, **kw):
-        for k,v in kw.iteritems():
+        for k,v in iteritems(kw):
             setattr(self, k, v)
 
 def _make_nattrs(n):
@@ -200,7 +202,7 @@ class SchemaPicklingTest(AttributeBitmapTest):
 
         for k in delattrs:
             delattr(x, k)
-        for k,v in values.iteritems():
+        for k,v in iteritems(values):
             setattr(x, k, v)
 
         px = schema.pack(x)
@@ -274,9 +276,9 @@ class BasePackingTestMixin(object):
 
     def testPackUnpack(self):
         for TEST_VALUES in self.TEST_VALUES:
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             dx = self.schema.unpack(self.schema.pack(x))
-            for k,v in TEST_VALUES.iteritems():
+            for k,v in iteritems(TEST_VALUES):
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
@@ -285,11 +287,11 @@ class BasePackingTestMixin(object):
 
     def testPackUnpackIdmap(self):
         for TEST_VALUES in self.TEST_VALUES:
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             pack_idmap = {}
             unpack_idmap = {}
             dx = self.schema.unpack(self.schema.pack(x, pack_idmap), unpack_idmap)
-            for k,v in TEST_VALUES.iteritems():
+            for k,v in iteritems(TEST_VALUES):
                 unpack_idmap.clear()
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
@@ -300,7 +302,7 @@ class BasePackingTestMixin(object):
 
     def testPackMultiple(self):
         for TEST_VALUES in self.TEST_VALUES:
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
 
             buf = bytearray(16<<20)
             offsets = []
@@ -310,7 +312,7 @@ class BasePackingTestMixin(object):
                 endp = self.schema.pack_into(x, buf, endp)
             for offs in offsets:
                 dx = self.schema.unpack_from(buf, offs)
-                for k,v in TEST_VALUES.iteritems():
+                for k,v in iteritems(TEST_VALUES):
                     self.assertTrue(hasattr(dx, k))
                     self.assertEqual(getattr(dx, k), v)
                 for k in self.Struct.__slots__:
@@ -319,10 +321,10 @@ class BasePackingTestMixin(object):
 
     def testPackPickleUnpack(self):
         for TEST_VALUES in self.TEST_VALUES:
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             pschema = cPickle.loads(cPickle.dumps(self.schema))
             dx = pschema.unpack(self.schema.pack(x))
-            for k,v in TEST_VALUES.iteritems():
+            for k,v in iteritems(TEST_VALUES):
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
@@ -332,10 +334,10 @@ class BasePackingTestMixin(object):
     def testUnpackInto(self):
         dx = self.schema.Proxy()
         for TEST_VALUES in self.TEST_VALUES * 2:
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             px = self.schema.pack(x)
             dx = self.schema.unpack(px, proxy_into = dx)
-            for k,v in TEST_VALUES.iteritems():
+            for k,v in iteritems(TEST_VALUES):
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
@@ -344,10 +346,10 @@ class BasePackingTestMixin(object):
 
     def testPackRepack(self):
         for TEST_VALUES in self.TEST_VALUES:
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             dx = self.schema.unpack(self.schema.pack(x))
             dx = self.schema.unpack(self.schema.pack(dx))
-            for k,v in TEST_VALUES.iteritems():
+            for k,v in iteritems(TEST_VALUES):
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
@@ -652,7 +654,7 @@ class NestedAutoregisterTypedObjectPackagingTest(NestedTypedObjectPackagingTest)
             # re-register subschema
             mapped_struct.mapped_object.register_schema(self.SubStruct, self.subschema, '}')
 
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             pschema = cPickle.dumps(self.schema)
 
             # Unregister schema to force the need for auto-register
@@ -662,7 +664,7 @@ class NestedAutoregisterTypedObjectPackagingTest(NestedTypedObjectPackagingTest)
             pschema = cPickle.loads(pschema)
 
             dx = pschema.unpack(self.schema.pack(x))
-            for k,v in TEST_VALUES.iteritems():
+            for k,v in iteritems(TEST_VALUES):
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
@@ -1068,9 +1070,9 @@ class MappedMappingTest(unittest.TestCase):
         self.assertEqual(set(test_values.iterkeys()), set(mapping.iterkeys()))
 
         # test lookup
-        for k,reference in test_values.iteritems():
+        for k,reference in iteritems(test_values):
             self.assertStructEquals(reference, mapping.get(k))
-        for k,reference in test_values.iteritems():
+        for k,reference in iteritems(test_values):
             self.assertStructEquals(reference, mapping[k])
 
         # test item iteration and enumeration
