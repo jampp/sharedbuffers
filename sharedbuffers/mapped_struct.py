@@ -67,7 +67,6 @@ import mmap
 import numpy
 import tempfile
 import functools
-import cPickle
 import os
 import sys
 import xxhash
@@ -82,6 +81,7 @@ import ctypes
 from datetime import timedelta, datetime, date
 from decimal import Decimal
 from six import itervalues, reraise
+from six.moves import cPickle
 
 try:
     from cdecimal import Decimal as cDecimal

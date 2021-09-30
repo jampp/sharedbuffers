@@ -25,10 +25,7 @@ from six.moves import xrange, zip, zip_longest
 
 SKIP_HUGE = os.environ.get('SKIP_HUGE','')
 
-try:
-    import cPickle
-except ImportError:
-    import pickle as cPickle
+from six.moves import cPickle
 
 SKIP_HUGE = os.environ.get('SKIP_HUGE', None)
 
