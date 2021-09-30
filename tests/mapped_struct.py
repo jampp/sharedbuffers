@@ -21,6 +21,7 @@ except:
 from sharedbuffers import mapped_struct
 
 from six import iteritems, itervalues, iterkeys
+from six.moves import xrange
 
 SKIP_HUGE = os.environ.get('SKIP_HUGE','')
 
