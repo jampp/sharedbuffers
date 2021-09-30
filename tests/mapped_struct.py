@@ -111,7 +111,7 @@ class PrimitiveStruct(TestStruct):
         'a' : int,
         'b' : float,
         's' : str,
-        'u' : unicode,
+        'u' : six.text_type,
     }
 
 class DatetimeStruct(TestStruct):
