@@ -877,7 +877,10 @@ class mapped_list(list):
 
         baseoffs = offs
         buf = _likerobuffer(buf)
-        dcode = buf[offs]
+        if six.PY3:
+            dcode = chr(buf[offs])
+        else:
+            dcode = buf[offs]
         dchar = cython.cast('const char*', dcode)[0]
 
         if dchar in ('B', 'b'):
