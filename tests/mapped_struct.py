@@ -1239,7 +1239,7 @@ class MappedStringMultiMappingTest(MappedMultiMappingTest):
         return k + '_alt'
 
 class MappedStringMappingRepeatedValuesTest(MappedStringMappingTest):
-    TEST_KEYS = MappedStringMappingTest.TEST_KEYS + map('X2_'.__add__, MappedStringMappingTest.TEST_KEYS)
+    TEST_KEYS = MappedStringMappingTest.TEST_KEYS + list(map('X2_'.__add__, MappedStringMappingTest.TEST_KEYS))
     TEST_VALUES = MappedStringMappingTest.TEST_VALUES * 2
 
 class MappedString32MappingTest(MappedStringMappingTest):
