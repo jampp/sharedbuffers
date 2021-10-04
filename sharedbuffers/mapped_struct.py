@@ -2983,7 +2983,7 @@ class mapped_object(object):
         cpadding = 7
         cpacker_size = 1
         buf = _likerobuffer(buf)
-        typecode = buf[offs]
+        typecode = chr(buf[offs])
 
         unpacker_info = _mapped_object_PACKERS.get(typecode)
         if unpacker_info is not None:
