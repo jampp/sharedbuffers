@@ -883,22 +883,26 @@ class mapped_list(list):
         buf = _likerobuffer(buf)
         if six.PY3:
             dcode = chr(buf[offs])
+            dcode_enc = dcode.encode()
+            if cython.compiled:
+                dchar = dcode_enc[0]
+            else:
+                dchar = dcode_enc
         else:
             dcode = buf[offs]
-        dchar = cython.cast('const char*', dcode)[0]
+            dchar = cython.cast('const char*', dcode)[0]
 
-        if dchar in ('B', 'b'):
+        if dchar in (b'B', b'b'):
             itemsize = 1
-        elif dchar in ('H', 'h'):
+        elif dchar in (b'H', b'h'):
             itemsize = 2
-        elif dchar in ('I', 'i', 'T'):
+        elif dchar in (b'I', b'i', b'T'):
             itemsize = 4
-        elif dchar in ('Q', 'q', 'd', 't'):
+        elif dchar in (b'Q', b'q', b'd', b't'):
             itemsize = 8
         else:
             raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
-
-        if dchar in ('B','b','H','h','I','i'):
+        if dchar in (b'B',b'b',b'H',b'h',b'I',b'i'):
             dtype = dcode
             objlen, = _struct_l_I.unpack(buf[offs:offs+4])
             objlen >>= 8
@@ -907,28 +911,28 @@ class mapped_list(list):
                 objlen = _struct_l_Q.unpack_from(buf, offs)
                 offs += 8
             rv = array(dtype, buf[offs:offs+itemsize*objlen])
-        elif dchar == 'q' or dchar == 'Q':
-            if dchar == 'q':
-                dtype = 'l'
-            elif dchar == 'Q':
-                dtype = 'L'
+        elif dchar == b'q' or dchar == b'Q':
+            if dchar == b'q':
+                dtype = b'l'
+            elif dchar == b'Q':
+                dtype = b'L'
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
             objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
             objlen >>= 8
             offs += 8
             rv = array(dtype, buf[offs:offs+itemsize*objlen])
-        elif dchar == 'd':
-            dtype = 'd'
+        elif dchar == b'd':
+            dtype = b'd'
             objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
             objlen >>= 8
             offs += 8
             rv = array(dtype, buf[offs:offs+itemsize*objlen])
-        elif dchar == 't' or dchar == 'T':
-            if dchar == 't':
-                dtype = 'l'
-            elif dchar == 'T':
-                dtype = 'i'
+        elif dchar == b't' or dchar == b'T':
+            if dchar == b't':
+                dtype = b'l'
+            elif dchar == b'T':
+                dtype = b'i'
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
 
