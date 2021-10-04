@@ -4128,7 +4128,7 @@ class Schema(object):
         The caller is expected to :meth:`~BufferProxyObject._init` the proxy and repoint
         it somewhere useful after building it.
         """
-        return functools.partial(self._Proxy, "\x00" * self.bitmap_size, 0, 0, None)
+        return functools.partial(self._Proxy, b"\x00" * self.bitmap_size, 0, 0, None)
 
     @property
     def ProxyClass(self):
