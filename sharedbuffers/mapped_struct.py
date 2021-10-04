@@ -121,10 +121,17 @@ frexp = cython.declare(object, math.frexp)
 
 ctypes_Array = cython.declare(object, ctypes.Array)
 
+if six.PY3:
+    long = int
+    basestring = (bytes, str)
+
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
-    buffer = cython.declare(object, buffer)  # lint:ok
-    from types import BufferType as buffer
+    if six.PY2:
+        buffer = cython.declare(object, buffer)  # lint:ok
+        from types import BufferType as buffer
+    else:
+        buffer = memoryview
 
     assert Py_LT == 0
     assert Py_LE == 1
@@ -132,11 +139,8 @@ if cython.compiled:
     assert Py_NE == 3
     assert Py_GT == 4
     assert Py_GE == 5
-
-if six.PY3:
-    long = int
+else:
     buffer = memoryview
-    basestring = (bytes, str)
 
 class ubyte(int):
     pass
