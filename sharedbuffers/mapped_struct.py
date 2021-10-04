@@ -1136,6 +1136,10 @@ class BufferIO(object):
 _DICT_HEADER_PACKER = cython.declare(object, struct.Struct('=Q'))
 _DICT_HEADER_SIZE = cython.declare(cython.Py_ssize_t, _DICT_HEADER_PACKER.size)
 
+if six.PY3:
+    def cmp(a, b):
+        return (a > b) - (a < b)
+
 @cython.cclass
 class proxied_dict(object):
 
