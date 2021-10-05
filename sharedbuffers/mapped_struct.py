@@ -140,7 +140,8 @@ if cython.compiled:
     assert Py_GT == 4
     assert Py_GE == 5
 else:
-    buffer = memoryview
+    if six.PY3:
+        buffer = memoryview
 
 class ubyte(int):
     pass
