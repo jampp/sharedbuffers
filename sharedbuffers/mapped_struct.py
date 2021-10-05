@@ -1523,7 +1523,7 @@ class proxied_list(object):
     @cython.locals(dataoffs = cython.Py_ssize_t, dcode = cython.char, pbuf = 'const char *',
         itemsize = cython.uchar, objlen = cython.Py_ssize_t)
     def _metadata(self,
-        itemsizes = dict([(dtype, array.array(dtype, []).itemsize) for dtype in ('B','b','H','h','I','i','l','L','d')])):
+        itemsizes = dict([(dtype, array.array(dtype.decode(), []).itemsize) for dtype in (b'B',b'b',b'H',b'h',b'I',b'i',b'l',b'L',b'd')])):
 
         if cython.compiled:
             # Cython version
@@ -1565,37 +1565,41 @@ class proxied_list(object):
             # Python version
             dataoffs = self.offs
             buf = self.buf
-            dcode = buf[dataoffs]
 
-            if dcode in ('B','b','H','h','I','i'):
-                objlen, = struct.unpack('<I', buf[dataoffs+1:dataoffs+4] + '\x00')
+            if six.PY3 and not cython.compiled:
+                dcode = bytes([buf[dataoffs]])
+            else:
+                dcode = buf[dataoffs]
+
+            if dcode in (b'B',b'b',b'H',b'h',b'I',b'i'):
+                objlen, = struct.unpack('<I', bytes(buf[dataoffs+1:dataoffs+4]) + b'\x00')
                 dataoffs += 4
                 if objlen == 0xFFFFFF:
                     objlen = struct.unpack_from('<Q', buf, dataoffs)
                     dataoffs += 8
                 return dcode, objlen, itemsizes[dcode], dataoffs, struct.Struct(dcode)
 
-            elif dcode == 'q':
+            elif dcode == b'q':
                 objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
                 dataoffs += 8
                 return dcode, objlen, itemsizes['l'], dataoffs, struct.Struct('q')
 
-            elif dcode == 'Q':
+            elif dcode == b'Q':
                 objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
                 dataoffs += 8
                 return dcode, objlen, itemsizes['L'], dataoffs, struct.Struct('Q')
 
-            elif dcode == 'd':
+            elif dcode == b'd':
                 objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
                 dataoffs += 8
                 return dcode, objlen, itemsizes['d'], dataoffs, struct.Struct('d')
 
-            elif dcode == 't':
+            elif dcode == b't':
                 objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
                 dataoffs += 8
                 return dcode, objlen, itemsizes['l'], dataoffs, struct.Struct('l')
 
-            elif dcode == 'T':
+            elif dcode == b'T':
                 objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
                 dataoffs += 8
                 return dcode, objlen, itemsizes['i'], dataoffs, struct.Struct('i')
