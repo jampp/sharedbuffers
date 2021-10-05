@@ -579,7 +579,7 @@ class mapped_frozenset(frozenset):
     @classmethod
     @cython.locals(
         i=int, j=int, offs=cython.longlong,
-        pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar)
+        pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar, fs_type=cython.uchar)
     def unpack_from(cls, buf, offs, idmap = None):
         buf = _likerobuffer(buf)
         if cython.compiled:
@@ -591,12 +591,15 @@ class mapped_frozenset(frozenset):
         else:
             pbuf = buf
         try:
-            fs_type = pbuf[offs]
-            if fs_type == 'm' or fs_type == 'M':
+            if six.PY3 and not cython.compiled:
+                fs_type = bytes([pbuf[offs]])
+            else:
+                fs_type = pbuf[offs]
+            if fs_type == b'm' or fs_type == b'M':
                 # inline bitmap
-                if fs_type == 'm':
+                if fs_type == b'm':
                     fs_size = 7
-                elif fs_type == 'M':
+                elif fs_type == b'M':
                     fs_size = 15
                 else:
                     raise ValueError("Unknown set type %r" % fs_type)
@@ -604,7 +607,10 @@ class mapped_frozenset(frozenset):
                     raise IndexError("Object spans beyond buffer end")
                 rv = []
                 for i in range(fs_size):
-                    b = ord(pbuf[offs+1+i])
+                    if six.PY3:
+                        b = pbuf[offs+1+i]
+                    else:
+                        b = ord(pbuf[offs + 1 + i])
                     if b:
                         for j in range(8):
                             if b & (1<<j):
