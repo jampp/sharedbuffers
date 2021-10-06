@@ -2879,7 +2879,7 @@ class mapped_object(object):
         int : 'q',
         long : 'q',
         float : 'd',
-        str : 's',
+        bytes : 's',
         six.text_type : 'u',
         datetime : 'v',
         date : 'V',

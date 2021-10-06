@@ -115,7 +115,7 @@ class PrimitiveStruct(TestStruct):
     __slot_types__ = {
         'a' : int,
         'b' : float,
-        's' : str,
+        's' : bytes,
         'u' : six.text_type,
     }
 
