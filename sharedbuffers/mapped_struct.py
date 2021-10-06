@@ -1188,7 +1188,7 @@ class proxied_dict(object):
             idmap=idmap,
             implicit_offs=implicit_offs + cur_offs))
         _DICT_HEADER_PACKER.pack_into(buf, basepos, cur_offs - basepos)
-        return proxied_list.pack_into([obj[k] for k in obj.iterkeys()], buf, cur_offs, idmap, implicit_offs)
+        return proxied_list.pack_into([obj[k] for k in iterkeys(obj)], buf, cur_offs, idmap, implicit_offs)
 
     @classmethod
     @cython.locals(values_offs = cython.Py_ssize_t, ioffs = cython.Py_ssize_t)
