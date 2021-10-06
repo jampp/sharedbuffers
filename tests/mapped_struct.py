@@ -1099,7 +1099,7 @@ class MappedMappingTest(unittest.TestCase):
         if isinstance(test_values, dict):
             test_values = test_values.items()
         self.test_values = (
-            test_values
+            list(test_values)
             + [(self._alt_k(k), v) for k,v in test_values]
         )
         mapped = self.MappedMappingClass.build(self.test_values, idmap = {})
