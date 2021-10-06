@@ -2139,7 +2139,7 @@ class DictPackingCommonTest(object):
     def testMappedDictIterItems(self):
         for d in self.TEST_DICTS:
             p = self.pack(d)
-            self.assertUnsortedEquals([v for v in d.iteritems()], [v for v in p.iteritems()])
+            self.assertUnsortedEquals([v for v in iteritems(d)], [v for v in iteritems(p)])
 
 
 class MappedDictPackingTest(unittest.TestCase, CollectionPackingTestHelpers, DictPackingCommonTest):
