@@ -770,8 +770,12 @@ class mapped_tuple(tuple):
             buf[offs+1:offs+8] = _struct_l_Q.pack(objlen)[:7]
             offs += 8
             abuf = buffer(a)
-            buf[offs:offs+len(abuf)] = abuf
-            offs += len(abuf)
+            if six.PY3:
+                size_bytes = len(abuf) * abuf.itemsize
+            else:
+                size_bytes = len(abuf)
+            buf[offs:offs + size_bytes] = abuf
+            offs += size_bytes
             offs = (offs + 7) // 8 * 8
             return offs
         else:
