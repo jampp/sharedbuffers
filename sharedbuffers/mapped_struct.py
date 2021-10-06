@@ -8216,7 +8216,7 @@ class ApproxStringId32MultiMapper(ApproxStringIdMultiMapper):
 @cython.locals(i = int)
 def _iter_values_dump_keys(items, keys_file, value_cache_size = 1024):
     if isinstance(items, dict):
-        items = items.iteritems()
+        items = iteritems(items)
     dump = cPickle.dump
     i = -1
     value_cache = Cache(value_cache_size)
