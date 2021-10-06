@@ -466,11 +466,11 @@ class FloatContainerPackingTest(SimplePackingTest):
 class BytesContainerPackingTest(SimplePackingTest):
     Struct = ContainerStruct
     TEST_VALUES = [{
-        'fset' : frozenset(['1.0','3.0','7.0']),
-        't' : ('3.0','6.0','7.0'),
-        'l' : ['1.0','2.0','3.0'],
-        'pt' : ('3.0','6.0','7.0'),
-        'pl' : ['1.0','2.0','3.0'],
+        'fset' : frozenset([b'1.0',b'3.0',b'7.0']),
+        't' : (b'3.0',b'6.0',b'7.0'),
+        'l' : [b'1.0',b'2.0',b'3.0'],
+        'pt' : (b'3.0',b'6.0',b'7.0'),
+        'pl' : [b'1.0',b'2.0',b'3.0'],
     }]
 
 class NestedContainerPackingTest(SimplePackingTest):
