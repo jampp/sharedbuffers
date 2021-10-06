@@ -1377,7 +1377,7 @@ class proxied_buffer(object):
         size, = _BUFFER_HEADER_PACKER.unpack_from(buf, offs)
         cur_offs += _BUFFER_HEADER_SIZE
 
-        return buffer(buf, cur_offs, size)
+        return buffer_with_offset(buf, cur_offs, size)
 
 
 _NDARRAY_HEADER_PACKER = cython.declare(object, struct.Struct('=QQ'))
