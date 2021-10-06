@@ -1595,27 +1595,27 @@ class proxied_list(object):
                 return dcode, objlen, itemsizes[dcode], dataoffs, struct.Struct(dcode)
 
             elif dcode == b'q':
-                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
+                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + b'\x00')
                 dataoffs += 8
                 return dcode, objlen, itemsizes['l'], dataoffs, struct.Struct('q')
 
             elif dcode == b'Q':
-                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
+                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + b'\x00')
                 dataoffs += 8
                 return dcode, objlen, itemsizes['L'], dataoffs, struct.Struct('Q')
 
             elif dcode == b'd':
-                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
+                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + b'\x00')
                 dataoffs += 8
                 return dcode, objlen, itemsizes['d'], dataoffs, struct.Struct('d')
 
             elif dcode == b't':
-                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
+                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + b'\x00')
                 dataoffs += 8
                 return dcode, objlen, itemsizes['l'], dataoffs, struct.Struct('l')
 
             elif dcode == b'T':
-                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + '\x00')
+                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + b'\x00')
                 dataoffs += 8
                 return dcode, objlen, itemsizes['i'], dataoffs, struct.Struct('i')
 
