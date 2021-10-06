@@ -143,10 +143,15 @@ else:
     if six.PY3:
         buffer = memoryview
 
-def buffer_with_offset(data, offset, size):
-    if six.PY3:
-        return buffer(data)[offset:offset+size]
-    return buffer(data, offset, size)
+def buffer_with_offset(data, offset, size=None):
+    if size is not None:
+        if six.PY3:
+            return buffer(data)[offset:offset+size]
+        return buffer(data, offset, size)
+    else:
+        if six.PY3:
+            return buffer(data)[offset:]
+        return buffer(data, offset)
 
 class ubyte(int):
     pass
@@ -5027,7 +5032,7 @@ class MappedArrayProxyBase(_ZipMapBase):
             idmap = Cache(idmap_size)
         self.offset = offset
         if offset != 0:
-            self.buf = buf = buffer(buf, offset)
+            self.buf = buf = buffer_with_offset(buf, offset)
         else:
             self.buf = buf
         self.wr_buf = buf   # May be overriden by map_file
