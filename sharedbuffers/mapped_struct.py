@@ -6383,7 +6383,7 @@ class NumericIdMapper(_CZipMapBase):
 
         finalpos = destfile.tell()
         if finalpos & 31:
-            write("\x00" * (32 - (finalpos & 31)))
+            write(b"\x00" * (32 - (finalpos & 31)))
             finalpos = destfile.tell()
 
         destfile.seek(basepos)
@@ -6480,7 +6480,7 @@ class NumericIdMapper(_CZipMapBase):
 
         finalpos = destfile.tell()
         if finalpos & 31:
-            write("\x00" * (32 - (finalpos & 31)))
+            write(b"\x00" * (32 - (finalpos & 31)))
             finalpos = destfile.tell()
 
         destfile.seek(basepos)
@@ -7003,7 +7003,7 @@ class ObjectIdMapper(_CZipMapBase):
 
         finalpos = destfile.tell()
         if finalpos & 31:
-            write("\x00" * (32 - (finalpos & 31)))
+            write(b"\x00" * (32 - (finalpos & 31)))
             finalpos = destfile.tell()
 
         destfile.seek(basepos)
@@ -7512,7 +7512,7 @@ class StringIdMapper(_CZipMapBase):
 
         finalpos = destfile.tell()
         if finalpos & 31:
-            write("\x00" * (32 - (finalpos & 31)))
+            write(b"\x00" * (32 - (finalpos & 31)))
             finalpos = destfile.tell()
 
         destfile.seek(basepos)
@@ -8325,7 +8325,7 @@ class MappedMappingProxyBase(_ZipMapBase):
             # pad to multiple of 32 for better cache alignment
             pos = destfile.tell()
             if pos & 31:
-                destfile.write("\x00" * (32 - (pos & 31)))
+                destfile.write(b"\x00" * (32 - (pos & 31)))
 
             values_pos = destfile.tell()
 
