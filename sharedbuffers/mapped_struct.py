@@ -484,11 +484,17 @@ def is_wrapped_key(obj):
 @cython.inline
 def get_wrapped_key(obj):
     # the key for the unwrapped value
+    if six.PY2:
+        if isinstance(obj, tuple):
+            return obj[1]
+        elif isinstance(obj, int):
+            return obj
+        elif isinstance(obj, long):
+            return obj & ~WRAP_MASK
+
     if isinstance(obj, tuple):
         return obj[1]
     elif isinstance(obj, int):
-        return obj
-    elif isinstance(obj, long):
         return obj & ~WRAP_MASK
 
 
