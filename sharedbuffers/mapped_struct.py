@@ -1605,9 +1605,9 @@ class proxied_list(object):
                 return dcode, objlen, itemsizes['L'], dataoffs, struct.Struct('Q')
 
             elif dcode == b'd':
-                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + b'\x00')
+                objlen, = struct.unpack('<Q', bytes(buf[dataoffs+1:dataoffs+8]) + b'\x00')
                 dataoffs += 8
-                return dcode, objlen, itemsizes['d'], dataoffs, struct.Struct('d')
+                return dcode, objlen, itemsizes[b'd'], dataoffs, struct.Struct('d')
 
             elif dcode == b't':
                 objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + b'\x00')
