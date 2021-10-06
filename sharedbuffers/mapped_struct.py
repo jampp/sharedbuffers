@@ -1366,7 +1366,10 @@ class proxied_buffer(object):
         See `mapped_object.pack_into` for argument details.
         """
         cur_offs = offs
-        objlen = len(obj)
+        if six.PY3:
+            objlen = len(obj) * obj.itemsize
+        else:
+            objlen = len(obj)
         _BUFFER_HEADER_PACKER.pack_into(buf, offs, objlen)
         cur_offs += _BUFFER_HEADER_SIZE
 
