@@ -227,7 +227,7 @@ class SchemaPicklingTest(AttributeBitmapTest):
                 self.assertFalse(hasattr(dx, k))
 
     def testPrimitiveStruct(self):
-        self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s='3', u=u'A'))
+        self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s=b'3', u=u'A'))
 
     def testDictStruct(self):
         self._testStruct(DictStruct, dict(d={"a":1, "b":2}, D={"a": 1, "b": 2}))
