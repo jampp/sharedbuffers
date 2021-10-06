@@ -1190,7 +1190,7 @@ class MappedMultiMappingTest(MappedMappingTest):
         self.assertEqual(len(set(v for k,v in test_values)), len(mapping))
 
         # test key iteration and enumeration
-        test_keys = map(operator.itemgetter(0), test_values)
+        test_keys = list(map(operator.itemgetter(0), test_values))
         self.assertEqual(set(test_keys), set(mapping.keys()))
         self.assertEqual(set(test_keys), set(iterkeys(mapping)))
 
