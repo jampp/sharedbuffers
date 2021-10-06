@@ -8387,7 +8387,7 @@ class MappedMappingProxyBase(_ZipMapBase):
 
             blocklen = 1 << 20
             for start in range(0, len(value_array.buf), blocklen):
-                destfile.write(buffer(value_array.buf, start, blocklen))
+                destfile.write(buffer_with_offset(value_array.buf, start, blocklen))
             destfile.write(cls._Footer.pack(values_pos - initial_pos))
             destfile.flush()
 
