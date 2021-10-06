@@ -143,6 +143,11 @@ else:
     if six.PY3:
         buffer = memoryview
 
+def buffer_with_offset(data, offset, size):
+    if six.PY3:
+        return buffer(data)[offset:offset+size]
+    return buffer(data, offset, size)
+
 class ubyte(int):
     pass
 uint8 = ubyte
@@ -2601,7 +2606,7 @@ def _unpack_bytes_from_pybuffer(buf, offs, idmap):
             dataoffs = offs + qpacker.size
         else:
             objlen = objlen & 0x7FFF
-        rv = buffer(buf, dataoffs, objlen)
+        rv = buffer_with_offset(buf, dataoffs, objlen)
         if compressed:
             rv = lz4_decompress(rv)
         else:
