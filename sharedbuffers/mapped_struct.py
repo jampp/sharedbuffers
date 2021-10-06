@@ -1832,6 +1832,26 @@ class proxied_list(object):
                 raise NotImplementedError
             return proxied_list_cmp(self, other)
 
+        def __lt__(self, other):
+            if not islist(other):
+                raise NotImplementedError
+            return proxied_list_cmp(self, other) < 0
+
+        def __gt__(self, other):
+            if not islist(other):
+                raise NotImplementedError
+            return proxied_list_cmp(self, other) > 0
+
+        def __le__(self, other):
+            if not islist(other):
+                raise NotImplementedError
+            return proxied_list_cmp(self, other) <= 0
+
+        def __ge__(self, other):
+            if not islist(other):
+                raise NotImplementedError
+            return proxied_list_cmp(self, other) >= 0
+
         def _ne(self, other):
             if not islist(other):
                 return True
