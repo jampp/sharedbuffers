@@ -24,7 +24,9 @@ except:
     cDecimal = Decimal
 
 from sharedbuffers import mapped_struct
-
+if six.PY3:
+    from sharedbuffers import cmp
+import functools
 from six import iteritems, itervalues, iterkeys
 from six.moves import xrange, zip, zip_longest
 
@@ -2087,10 +2089,24 @@ class ProxiedTuplePackingTest(unittest.TestCase, CommonCollectionPackingTest, In
         c = self.pack([1, 2.0])
         self.assertEquals(repr(c), "proxied_tuple((1,2.0))")
 
+def tuple_cmp(a, b):
+    for ea, eb in zip(a,b):
+        if key_cmp(ea, eb):
+            return key_cmp(ea, eb)
+    return 0
+
+def key_cmp(a, b):
+    if type(a) != type(b):
+        return cmp(type(a).__name__, type(b).__name__)
+    if isinstance(a, tuple):
+        return tuple_cmp(a, b)
+    return cmp(a, b)
 
 class DictPackingCommonTest(object):
 
     def assertUnsortedEquals(self, a, b):
+        if six.PY3:
+            return sorted(a, key=functools.cmp_to_key(key_cmp)) == sorted(b, key=functools.cmp_to_key(key_cmp))
         return sorted(a) == sorted(b)
 
     def testMappedDictPrimitives(self):
@@ -2099,10 +2115,10 @@ class DictPackingCommonTest(object):
 
     def testMappedDictStructs(self):
         mapped_struct.mapped_object.TYPE_CODES.pop(SimpleStruct,None)
-        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop(b'}',None)
 
         schema = mapped_struct.Schema.from_typed_slots(SimpleStruct)
-        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, '}')
+        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, b'}')
 
         d = {
             'a': SimpleStruct(a=1, b=2.0),
