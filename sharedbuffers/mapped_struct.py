@@ -927,7 +927,8 @@ class mapped_list(list):
             dcode = buf[offs]
             dchar = cython.cast('const char*', dcode)[0]
         if six.PY3:
-            buf = buf.tobytes() # FIXME this copies the data
+            if not isinstance(buf, bytes):
+                buf = buf.tobytes() # FIXME this copies the data
         if dchar in (b'B', b'b'):
             itemsize = 1
         elif dchar in (b'H', b'h'):
