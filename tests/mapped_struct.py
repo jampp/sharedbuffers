@@ -1517,7 +1517,7 @@ class CollectionPackingTestHelpers(object):
 class CommonCollectionPackingTest(CollectionPackingTestHelpers):
 
     def testCommonCollectionUnpackOffBounds(self):
-        b = buffer("")
+        b = buffer(b"")
         self.assertRaises(Exception, self.PACKING_CLASS.unpack_from, b, 5)
 
     def testCommonCollectionEmpty(self):
