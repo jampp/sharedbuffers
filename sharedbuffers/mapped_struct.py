@@ -5031,7 +5031,7 @@ class MappedArrayProxyBase(_ZipMapBase):
             if self.schema_offset and self.schema_size:
                 if self.schema_offset > len(buf) or (self.schema_size + self.schema_offset) > len(buf):
                     raise ValueError("Corrupted input - bad schema location")
-                stored_schema = cPickle.loads(bytes(buffer(buf, self.schema_offset, self.schema_size)))
+                stored_schema = cPickle.loads(bytes(buffer_with_offset(buf, self.schema_offset, self.schema_size)))
                 if not isinstance(stored_schema, Schema):
                     raise ValueError("Corrupted input - unrecognizable schema")
                 if self.schema is None or not self.schema.compatible(stored_schema):
@@ -5266,7 +5266,7 @@ class MappedArrayProxyBase(_ZipMapBase):
             access = mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), total_size + offset - map_start,
             access = access, offset = map_start)
-        rv = cls(buffer(buf, offset - map_start))
+        rv = cls(buffer_with_offset(buf, offset - map_start, total_size))
         rv._file = fileobj
         rv._mmap = buf
         if not read_only:
