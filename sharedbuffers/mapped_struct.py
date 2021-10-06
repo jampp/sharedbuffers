@@ -710,44 +710,44 @@ class mapped_tuple(tuple):
                     imaxval = maxval
                     if 0 <= iminval and imaxval <= 0xFF:
                         # inline unsigned bytes
-                        dtype = 'B'
+                        dtype = b'B'
                         buf[offs] = ord(dtype)
                     elif -0x80 <= iminval and imaxval <= 0x7F:
                         # inline signed bytes
-                        dtype = 'b'
+                        dtype = b'b'
                         buf[offs] = ord(dtype)
                     elif 0 <= iminval and imaxval <= 0xFFFF:
                         # inline unsigned shorts
-                        dtype = 'H'
+                        dtype = b'H'
                         buf[offs] = ord(dtype)
                     elif -0x8000 <= iminval and imaxval <= 0x7FFF:
                         # inline signed shorts
-                        dtype = 'h'
+                        dtype = b'h'
                         buf[offs] = ord(dtype)
                     elif -0x80000000 <= iminval and imaxval <= 0x7FFFFFFF:
                         # inline signed ints
-                        dtype = 'i'
+                        dtype = b'i'
                         buf[offs] = ord(dtype)
                     elif 0 <= iminval and imaxval <= cython.cast(cython.longlong, 0xFFFFFFFF):
                         # inline unsigned ints
-                        dtype = 'I'
+                        dtype = b'I'
                         buf[offs] = ord(dtype)
                     elif (cython.cast(cython.longlong, -0x8000000000000000) <= iminval
                             and imaxval <= cython.cast(cython.longlong, 0x7FFFFFFFFFFFFFFF)):
                         # inline signed int64 list
                         buf[offs] = ord('q')
-                        dtype = 'l'
+                        dtype = b'l'
                     else:
                         raise OverflowError
                 except OverflowError:
                     if 0 <= minval and maxval <= 0xFFFFFFFFFFFFFFFF:
                         # inline unsigned int64 list
                         buf[offs] = ord('Q')
-                        dtype = 'L'
+                        dtype = b'L'
                     elif all_int:
                         # inline sorted int64 list
                         buf[offs] = ord('q')
-                        dtype = 'l'
+                        dtype = b'l'
                     else:
                         # longs are tricky, give up
                         all_int = all_intlong = 0
@@ -766,7 +766,7 @@ class mapped_tuple(tuple):
             if isinstance(obj, npndarray):
                 a = obj
             else:
-                a = array(dtype, obj)
+                a = array(dtype.decode(), obj)
             abuf = buffer(a)
             if six.PY3:
                 size_bytes = len(abuf) * abuf.itemsize
