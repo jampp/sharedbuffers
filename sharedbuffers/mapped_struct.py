@@ -942,7 +942,7 @@ class mapped_list(list):
             objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
             objlen >>= 8
             offs += 8
-            rv = array(dtype, buf[offs:offs+itemsize*objlen])
+            rv = array(dtype.decode(), buf[offs:offs+itemsize*objlen])
         elif dchar == b'd':
             dtype = b'd'
             objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
@@ -1595,9 +1595,9 @@ class proxied_list(object):
                 return dcode, objlen, itemsizes[dcode], dataoffs, struct.Struct(dcode)
 
             elif dcode == b'q':
-                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + b'\x00')
+                objlen, = struct.unpack('<Q', bytes(buf[dataoffs+1:dataoffs+8]) + b'\x00')
                 dataoffs += 8
-                return dcode, objlen, itemsizes['l'], dataoffs, struct.Struct('q')
+                return dcode, objlen, itemsizes[b'l'], dataoffs, struct.Struct('q')
 
             elif dcode == b'Q':
                 objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + b'\x00')
