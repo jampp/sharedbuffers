@@ -1228,7 +1228,7 @@ class MappedStringMappingTest(MappedMappingTest):
     }]
 
     def _alt_k(self, k):
-        return k + '_alt'
+        return k + b'_alt'
 
 class MappedStringMultiMappingTest(MappedMultiMappingTest):
     IdMapperClass = mapped_struct.StringIdMultiMapper
