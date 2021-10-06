@@ -944,7 +944,7 @@ class mapped_list(list):
             objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
             objlen >>= 8
             offs += 8
-            rv = array(dtype, buf[offs:offs+itemsize*objlen])
+            rv = array(dtype.decode(), buf[offs:offs+itemsize*objlen])
         elif dchar == b't' or dchar == b'T':
             if dchar == b't':
                 dtype = b'l'
