@@ -636,7 +636,7 @@ class NestedTypedObjectPackagingTest(NestedObjectPackagingTest):
             __slots__ = __slot_types__.keys()
 
             def __init__(self, **kw):
-                for k,v in kw.iteritems():
+                for k,v in iteritems(kw):
                     setattr(self, k, v)
         self.Struct = ContainerObjectStruct
 
