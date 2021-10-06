@@ -1508,6 +1508,29 @@ def proxied_list_richcmp(a, b, op):
     else:
         raise NotImplementedError
 
+def smallest_diff_key(A, B):
+    """return the smallest key adiff in A such that adiff not in B or A[adiff] != B[bdiff]"""
+    diff_keys = [k for k in A if k not in B or A[k] != B[k]]
+    return min(diff_keys)
+
+def dict_cmp_py3(A, B):
+    if len(A) != len(B):
+        return cmp(len(A), len(B))
+    try:
+        adiff = smallest_diff_key(A, B)
+    except ValueError:
+        # No difference.
+        return 0
+    bdiff = smallest_diff_key(B, A)
+    if adiff != bdiff:
+        return cmp(adiff, bdiff)
+    return cmp(A[adiff], B[bdiff])
+
+def dict_cmp(a, b):
+    if six.PY2:
+        return cmp(a,b)
+    return dict_cmp_py3(a,b)
+
 #@cython.ccall
 #@cython.returns(int)
 def proxied_list_cmp(a, b):
@@ -1519,10 +1542,15 @@ def proxied_list_cmp(a, b):
         selfe = a[i]
         othere = b[i]
 
-        if selfe < othere:
-            return -1
-        elif selfe > othere:
-            return 1
+        if isinstance(selfe, dict):
+            r = dict_cmp(selfe, othere)
+            if r:
+                return r
+        else:
+            if selfe < othere:
+                return -1
+            elif selfe > othere:
+                return 1
 
     if alen < blen:
         return -1
@@ -7067,7 +7095,11 @@ class ObjectIdMapper(_CZipMapBase):
         index = index[shuffle]
 
         indexpos = curpos
-        write(buffer(index))
+        if six.PY3:
+            d = buffer(index).tobytes()
+        else:
+            d = buffer(index)
+        write(d)
         nitems = len(index)
 
         finalpos = destfile.tell()
