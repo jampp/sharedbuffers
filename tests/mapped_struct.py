@@ -1590,10 +1590,10 @@ class IndexedCollectionPackingTest(CollectionPackingTestHelpers):
     def testIndexedCollectionStructs(self):
 
         mapped_struct.mapped_object.TYPE_CODES.pop(SimpleStruct,None)
-        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop(b'}',None)
 
         schema = mapped_struct.Schema.from_typed_slots(SimpleStruct)
-        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, '}')
+        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, b'}')
 
         c = self.pack([SimpleStruct(a=1, b=2.0), SimpleStruct(a=2, b=None)])
 
@@ -1878,10 +1878,10 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
 
     def testProxiedListIterFast(self):
         mapped_struct.mapped_object.TYPE_CODES.pop(SimpleStruct,None)
-        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop(b'}',None)
 
         schema = mapped_struct.Schema.from_typed_slots(SimpleStruct)
-        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, '}')
+        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, b'}')
 
         l = []
         l.append(SimpleStruct(a=1, b=2.0))
@@ -1931,10 +1931,10 @@ class ProxiedListPackingTest(unittest.TestCase, CommonCollectionPackingTest, Ind
 
     def testProxiedListGetterFast(self):
         mapped_struct.mapped_object.TYPE_CODES.pop(SimpleStruct,None)
-        mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop(b'}',None)
 
         schema = mapped_struct.Schema.from_typed_slots(SimpleStruct)
-        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, '}')
+        mapped_struct.mapped_object.register_schema(SimpleStruct, schema, b'}')
 
         l = []
         l.append(SimpleStruct(a=1, b=2.0))
