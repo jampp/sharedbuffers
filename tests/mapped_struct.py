@@ -539,14 +539,14 @@ class ObjectPackagingTest(SimplePackingTest):
         { 'o' : [ 1,2,3 ] },
         { 'o' : ( 2,3,4 ) },
         { 'o' : frozenset([ 1,3,8 ]) },
-        { 'o' : "blabla" },
+        { 'o' : b"blabla" },
         { 'o' : u"bláblá€" },
         { 'o' : datetime.now() },
         { 'o' : date.today() },
         { 'o' : buffer(bytearray(xrange(100)))},
-        { 'b' : "blabla", 'o' : "blabla" },
-        { 'q' : "blabla", 'o' : "blabla" },
-        { 'b' : "blabla", 'o' : "blabla", 'q' : "blabla" },
+        { 'b' : b"blabla", 'o' : b"blabla" },
+        { 'q' : b"blabla", 'o' : b"blabla" },
+        { 'b' : b"blabla", 'o' : b"blabla", 'q' : b"blabla" },
     ]
 
 class ObjectNDArrayPackagingTest(SimplePackingTest):
