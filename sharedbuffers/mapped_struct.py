@@ -823,7 +823,11 @@ class mapped_tuple(tuple):
             if min_offs >= -0x80000000 and max_offs <= 0x7fffffff and (len(buf) - baseoffs) <= 0x7fffffff:
                 # We can use narrow pointers, guaranteed
                 use_narrow = True
-                offs = indexoffs + len(index_buffer) // 2
+                if six.PY3:
+                    size_bytes = len(index_buffer) * index_buffer.itemsize
+                else:
+                    size_bytes = len(index_buffer)
+                offs = indexoffs + size_bytes // 2
                 offs += (8 - offs & 7) & 7
                 dataoffs = offs
                 buf[baseoffs] = ord('T')
@@ -869,7 +873,12 @@ class mapped_tuple(tuple):
                 index_buffer = buffer(index)
 
             # write index
-            buf[indexoffs:indexoffs+len(index_buffer)] = index_buffer
+            if six.PY3:
+                size_bytes = len(index_buffer) * index_buffer.itemsize
+            else:
+                size_bytes = len(index_buffer)
+
+            buf[indexoffs:indexoffs+size_bytes] = index_buffer
 
             return offs
 
@@ -961,7 +970,7 @@ class mapped_list(list):
             objlen >>= 8
             offs += 8
 
-            index = array(dtype, buf[offs:offs+itemsize*objlen])
+            index = array(dtype.decode(), buf[offs:offs+itemsize*objlen])
 
             if idmap is None:
                 idmap = {}
@@ -1615,9 +1624,9 @@ class proxied_list(object):
                 return dcode, objlen, itemsizes['l'], dataoffs, struct.Struct('l')
 
             elif dcode == b'T':
-                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + b'\x00')
+                objlen, = struct.unpack('<Q', bytes(buf[dataoffs+1:dataoffs+8]) + b'\x00')
                 dataoffs += 8
-                return dcode, objlen, itemsizes['i'], dataoffs, struct.Struct('i')
+                return dcode, objlen, itemsizes[b'i'], dataoffs, struct.Struct('i')
 
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
@@ -1724,14 +1733,14 @@ class proxied_list(object):
         if index >= objlen or index < 0:
             raise IndexError(orig_index)
 
-        if dcode in ('t', 'T'):
+        if dcode in (b't', b'T'):
             if cython.compiled:
-                if dcode == 't':
+                if dcode == b't':
                     lpindex = cython.cast('const long *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
                     if lpindex[index] == 1:
                         return None
                     obj_offs = self.offs + lpindex[index]
-                elif dcode == 'T':
+                elif dcode == b'T':
                     ipindex = cython.cast('const int *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
                     if ipindex[index] == 1:
                         return None
@@ -1745,7 +1754,7 @@ class proxied_list(object):
         else:
             obj_offs = dataoffs + itemsize * cython.cast(cython.size_t, int(index))
 
-        if dcode in ('t', 'T'):
+        if dcode in (b't', b'T'):
             res = _mapped_object_unpack_from(self.buf, obj_offs, None, proxy_into)
         elif cython.compiled:
             if dcode == 'B':
@@ -2912,34 +2921,34 @@ class mapped_object(object):
 
     CODE_PACKER = p(struct.Struct('=c'))
     PACKERS = {
-        'B' : p(struct.Struct('=cB')),
-        'b' : p(struct.Struct('=cb')),
-        'H' : p(struct.Struct('=cH')),
-        'h' : p(struct.Struct('=ch')),
-        'I' : p(struct.Struct('=cI')),
-        'i' : p(struct.Struct('=ci')),
-        'Q' : p(struct.Struct('=cQ')),
-        'q' : p(struct.Struct('=cq')),
-        'd' : p(struct.Struct('=cd')),
-        'f' : p(struct.Struct('=cf')),
-        'T' : p(struct.Struct('=c?')),
+        b'B' : p(struct.Struct('=cB')),
+        b'b' : p(struct.Struct('=cb')),
+        b'H' : p(struct.Struct('=cH')),
+        b'h' : p(struct.Struct('=ch')),
+        b'I' : p(struct.Struct('=cI')),
+        b'i' : p(struct.Struct('=ci')),
+        b'Q' : p(struct.Struct('=cQ')),
+        b'q' : p(struct.Struct('=cq')),
+        b'd' : p(struct.Struct('=cd')),
+        b'f' : p(struct.Struct('=cf')),
+        b'T' : p(struct.Struct('=c?')),
     }
     OBJ_PACKERS = {
-        'Z' : (mapped_frozenset.pack_into, mapped_frozenset.unpack_from, mapped_frozenset),
-        't' : (mapped_tuple.pack_into, mapped_tuple.unpack_from, mapped_tuple),
-        'e' : (mapped_list.pack_into, mapped_list.unpack_from, mapped_list),
-        's' : (mapped_bytes.pack_into, mapped_bytes.unpack_from, mapped_bytes),
-        'u' : (mapped_unicode.pack_into, mapped_unicode.unpack_from, mapped_unicode),
-        'm' : (mapped_dict.pack_into, mapped_dict.unpack_from, mapped_dict),
-        'n' : (proxied_ndarray.pack_into, proxied_ndarray.unpack_from, proxied_ndarray),
-        'r' : (proxied_buffer.pack_into, proxied_buffer.unpack_from, proxied_buffer),
-        'W' : (proxied_tuple.pack_into, proxied_tuple.unpack_from, proxied_tuple),
-        'E' : (proxied_list.pack_into, proxied_list.unpack_from, proxied_list),
-        'v' : (mapped_datetime.pack_into, mapped_datetime.unpack_from, mapped_datetime),
-        'V' : (mapped_date.pack_into, mapped_date.unpack_from, mapped_date),
-        'F' : (mapped_decimal.pack_into, mapped_decimal.unpack_from, mapped_decimal),
-        'M' : (proxied_dict.pack_into, proxied_dict.unpack_from, proxied_dict),
-        'z' : (proxied_frozenset.pack_into, proxied_frozenset.unpack_from, proxied_frozenset),
+        b'Z' : (mapped_frozenset.pack_into, mapped_frozenset.unpack_from, mapped_frozenset),
+        b't' : (mapped_tuple.pack_into, mapped_tuple.unpack_from, mapped_tuple),
+        b'e' : (mapped_list.pack_into, mapped_list.unpack_from, mapped_list),
+        b's' : (mapped_bytes.pack_into, mapped_bytes.unpack_from, mapped_bytes),
+        b'u' : (mapped_unicode.pack_into, mapped_unicode.unpack_from, mapped_unicode),
+        b'm' : (mapped_dict.pack_into, mapped_dict.unpack_from, mapped_dict),
+        b'n' : (proxied_ndarray.pack_into, proxied_ndarray.unpack_from, proxied_ndarray),
+        b'r' : (proxied_buffer.pack_into, proxied_buffer.unpack_from, proxied_buffer),
+        b'W' : (proxied_tuple.pack_into, proxied_tuple.unpack_from, proxied_tuple),
+        b'E' : (proxied_list.pack_into, proxied_list.unpack_from, proxied_list),
+        b'v' : (mapped_datetime.pack_into, mapped_datetime.unpack_from, mapped_datetime),
+        b'V' : (mapped_date.pack_into, mapped_date.unpack_from, mapped_date),
+        b'F' : (mapped_decimal.pack_into, mapped_decimal.unpack_from, mapped_decimal),
+        b'M' : (proxied_dict.pack_into, proxied_dict.unpack_from, proxied_dict),
+        b'z' : (proxied_frozenset.pack_into, proxied_frozenset.unpack_from, proxied_frozenset),
     }
 
     del p
@@ -2971,7 +2980,10 @@ class mapped_object(object):
         """
         if not isinstance(obj, cls):
             obj = cls(obj)
-        typecode = obj.typecode
+        if six.PY3:
+            typecode = obj.typecode.encode()
+        else:
+            typecode = obj.typecode
         endp = offs
         if typecode in cls.PACKERS:
             packer, padding = cls.PACKERS[typecode]
@@ -2979,7 +2991,7 @@ class mapped_object(object):
             endp += packer.size + padding
         elif typecode in cls.OBJ_PACKERS:
             cpacker, cpadding = cls.CODE_PACKER
-            cpacker.pack_into(buf, offs, typecode.encode())
+            cpacker.pack_into(buf, offs, typecode)
             endp += cpacker.size + cpadding
             packer = cls.OBJ_PACKERS[typecode][0]
             endp = packer(obj.value, buf, endp, idmap, implicit_offs)
@@ -3012,7 +3024,10 @@ class mapped_object(object):
         cpadding = 7
         cpacker_size = 1
         buf = _likerobuffer(buf)
-        typecode = chr(buf[offs])
+        if six.PY3:
+            typecode = bytes([buf[offs]])
+        else:
+            typecode = buf[offs]
 
         unpacker_info = _mapped_object_PACKERS.get(typecode)
         if unpacker_info is not None:
