@@ -662,25 +662,30 @@ class mapped_tuple(tuple):
             all_int = all_intlong = all_float = 0
             obj_dtype = obj.dtype
             if obj_dtype.isbuiltin:
-                dtype = obj_dtype.char
-                cdtype = cython.cast('const char*', dtype)[0]
-                if cdtype in ('l', 'I', 'i', 'H', 'h', 'B', 'b'):
+                if six.PY3:
+                    dtype = obj_dtype.char.encode()
+                    cdtype = bytes([dtype[0]])
+                else:
+                    dtype = obj_dtype.char
+                    cdtype = cython.cast('const char*', dtype)[0]
+
+                if cdtype in (b'l', b'I', b'i', b'H', b'h', b'B', b'b'):
                     all_int = all_intlong = 1
                     all_float = 0
-                elif cdtype == 'L':
+                elif cdtype == b'L':
                     all_int = all_float = 0
                     all_intlong = 1
-                elif cdtype in ('d', 'f'):
+                elif cdtype in (b'd', b'f'):
                     all_int = all_intlong = 0
                     all_float = 1
                 if all_int or all_intlong or all_float:
                     # translate l -> q
-                    if cdtype == 'l':
-                        buf[offs] = 'q'
-                    elif cdtype == 'L':
-                        buf[offs] = 'Q'
+                    if cdtype == b'l':
+                        buf[offs] = ord(b'q')
+                    elif cdtype == b'L':
+                        buf[offs] = ord(b'Q')
                     else:
-                        buf[offs] = dtype
+                        buf[offs] = ord(dtype)
         else:
             all_int = all_intlong = all_float = 1
             minval = maxval = 0
@@ -747,7 +752,7 @@ class mapped_tuple(tuple):
                         # longs are tricky, give up
                         all_int = all_intlong = 0
         if all_int or all_intlong:
-            if dtype == 'l' or dtype == 'L':
+            if dtype == b'l' or dtype == b'L':
                 buf[offs+1:offs+8] = _struct_l_Q.pack(objlen)[:7]
                 offs += 8
             elif objlen < 0xFFFFFF:
