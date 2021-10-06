@@ -592,8 +592,8 @@ class NestedObjectPackagingTest(SimplePackingTest):
         if self.doregister:
             # hack - unregister schema
             mapped_struct.mapped_object.TYPE_CODES.pop(self.SubStruct,None)
-            mapped_struct.mapped_object.OBJ_PACKERS.pop('}',None)
-            mapped_struct.mapped_object.register_schema(self.SubStruct, self.subschema, '{')
+            mapped_struct.mapped_object.OBJ_PACKERS.pop(b'}',None)
+            mapped_struct.mapped_object.register_schema(self.SubStruct, self.subschema, b'{')
         super(NestedObjectPackagingTest, self).setUp()
 
     def assertEqual(self, value, expected, *p, **kw):

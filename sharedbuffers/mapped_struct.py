@@ -3049,7 +3049,10 @@ class mapped_object(object):
         if not isinstance(obj, cls):
             obj = cls(obj)
         if six.PY3:
-            typecode = obj.typecode.encode()
+            if isinstance(obj.typecode, str):
+                typecode = obj.typecode.encode()
+            else:
+                typecode = obj.typecode
         else:
             typecode = obj.typecode
         endp = offs
