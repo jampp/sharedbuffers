@@ -6551,7 +6551,11 @@ class NumericIdMapper(_CZipMapBase):
             access = mmap.ACCESS_READ
         else:
             access = mmap.ACCESS_WRITE
-        buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
+        if hasattr(fileobj, "_file"):
+            fileno = fileobj._file.fileno()
+        else:
+            fileno = fileobj.fileno()
+        buf = mmap.mmap(fileno, map_size, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
         return rv
