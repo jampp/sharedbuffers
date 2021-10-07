@@ -1299,7 +1299,7 @@ class MappedApproxString32MultiMappingTest(MappedApproxStringMultiMappingTest):
     IdMapperClass = mapped_struct.ApproxStringId32MultiMapper
 
 class MappedStringMappingUnicodeTest(MappedStringMappingTest):
-    TEST_KEYS = [ "%s€ ···YEAH···" % (k,) for k in MappedStringMappingTest.TEST_KEYS ]
+    TEST_KEYS = [b'%s\xe2\x82\xac \xc2\xb7\xc2\xb7\xc2\xb7YEAH\xc2\xb7\xc2\xb7\xc2\xb7' % (k,) for k in MappedStringMappingTest.TEST_KEYS ]
 
 class MappedString32MappingUnicodeTest(MappedString32MappingTest):
     TEST_KEYS = MappedStringMappingUnicodeTest.TEST_KEYS
