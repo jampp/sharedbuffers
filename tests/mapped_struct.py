@@ -1238,7 +1238,7 @@ class MappedStringMultiMappingTest(MappedMultiMappingTest):
     TEST_VALUES = MappedStringMappingTest.TEST_VALUES * 2
 
     def _alt_k(self, k):
-        return k + '_alt'
+        return k + b'_alt'
 
 class MappedStringMappingRepeatedValuesTest(MappedStringMappingTest):
     TEST_KEYS = MappedStringMappingTest.TEST_KEYS + list(map(b'X2_'.__add__, MappedStringMappingTest.TEST_KEYS))
