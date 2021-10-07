@@ -5334,7 +5334,12 @@ class MappedArrayProxyBase(_ZipMapBase):
             access = mmap.ACCESS_READ
         else:
             access = mmap.ACCESS_WRITE
-        buf = mmap.mmap(fileobj.fileno(), total_size + offset - map_start,
+
+        if hasattr(fileobj, "_file"):
+            fileno = fileobj._file.fileno()
+        else:
+            fileno = fileobj.fileno()
+        buf = mmap.mmap(fileno, total_size + offset - map_start,
             access = access, offset = map_start)
         rv = cls(buffer_with_offset(buf, offset - map_start, total_size))
         rv._file = fileobj
