@@ -6123,7 +6123,7 @@ class NumericIdMapper(_CZipMapBase):
 
         # Initialize buffer
         if offset:
-            self._buf = self._likebuf = buffer(buf, offset)
+            self._buf = self._likebuf = buffer_with_offset(buf, offset)
         else:
             self._buf = buf
             self._likebuf = _likebuffer(buf)
