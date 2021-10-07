@@ -1305,7 +1305,7 @@ class MappedString32MappingUnicodeTest(MappedString32MappingTest):
     TEST_KEYS = MappedStringMappingUnicodeTest.TEST_KEYS
 
 class MappedStringMappingBigTest(MappedStringMappingTest):
-    TEST_KEYS = [ "%d%s" % (i,k) for k in MappedStringMappingTest.TEST_KEYS for i in xrange(64) ]
+    TEST_KEYS = [ b"%d%s" % (i,k) for k in MappedStringMappingTest.TEST_KEYS for i in xrange(64) ]
     TEST_VALUES = [ v for v in MappedStringMappingTest.TEST_VALUES for i in xrange(64) ]
 
 class MappedString32MappingBigTest(MappedString32MappingTest):
