@@ -684,18 +684,18 @@ class RegistryConflictTest(unittest.TestCase):
         # hack - make sure registry doesn't get screwed
         self.addCleanup(
             mapped_struct.mapped_object.OBJ_PACKERS.__setitem__,
-            't', mapped_struct.mapped_object.OBJ_PACKERS['t'])
+            b't', mapped_struct.mapped_object.OBJ_PACKERS[b't'])
         self.addCleanup(
             mapped_struct.mapped_object.PACKERS.__setitem__,
-            'b', mapped_struct.mapped_object.PACKERS['b'])
+            b'b', mapped_struct.mapped_object.PACKERS[b'b'])
 
     def testRegistryConflictSchema(self):
         with self.assertRaises(ValueError):
-            mapped_struct.mapped_object.register_schema(self.Struct, self.schema, 't')
+            mapped_struct.mapped_object.register_schema(self.Struct, self.schema, b't')
 
     def testRegistryConflictBuiltin(self):
         with self.assertRaises(ValueError):
-            mapped_struct.mapped_object.register_schema(self.Struct, self.schema, 'b')
+            mapped_struct.mapped_object.register_schema(self.Struct, self.schema, b'b')
 
 class MappedArrayTest(unittest.TestCase):
     Struct = ContainerStruct
