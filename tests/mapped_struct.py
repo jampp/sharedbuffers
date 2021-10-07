@@ -1784,7 +1784,7 @@ class MappedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest)
         self.assertIs(mapped_struct.mapped_frozenset.unpack_from(a, 0), fs)
 
     def testUnpackBeyondEnd(self):
-        b = buffer("m")
+        b = buffer(b"m")
         self.assertRaises(IndexError, self.PACKING_CLASS.unpack_from, b, 0)
 
     def testBitmapSets(self):
