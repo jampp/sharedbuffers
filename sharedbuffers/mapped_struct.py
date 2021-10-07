@@ -4992,11 +4992,14 @@ def _map_zipfile(cls, fileobj, offset, size, read_only):
         raise ValueError("Can only map uncompressed elements of a zip file")
     if fileobj._decrypter is not None:
         raise ValueError("Cannot map from an encrypted zip file")
-
-    if size is None:
-        size = fileobj._compress_size - offset
+    if six.PY3:
+        compress_size = fileobj._orig_compress_size
     else:
-        size = min(size, fileobj._compress_size - offset)
+        compress_size = fileobj._compress_size
+    if size is None:
+        size = compress_size - offset
+    else:
+        size = min(size, compress_size - offset)
     offset += fileobj._fileobj.tell()
 
     return cls.map_file(fileobj._fileobj, offset, size, read_only)
