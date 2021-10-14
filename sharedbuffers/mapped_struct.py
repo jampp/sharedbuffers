@@ -1069,7 +1069,11 @@ class mapped_dict(dict):
 @cython.locals(code=cython.ulonglong, nbits=cython.ulonglong)
 @cython.returns(cython.ulonglong)
 def _hash_rotl(code, nbits):
-    return (code << nbits) | (code >> (64 - nbits))
+    a = (code << nbits)
+    if not cython.compiled:
+        import ctypes
+        a = int(ctypes.c_ulonglong(a).value)
+    return a | (code >> (64 - nbits))
 
 
 @cython.cfunc
@@ -1121,6 +1125,9 @@ def _stable_hash(key):
         truncated = False
         try:
             trunc_key = int(flt)
+            if not cython.compiled:
+                import ctypes
+                trunc_key = int(ctypes.c_longlong(trunc_key).value)
             if trunc_key == flt:
                 hval = trunc_key
                 truncated = True
