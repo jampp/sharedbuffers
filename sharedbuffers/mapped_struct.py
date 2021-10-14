@@ -2366,6 +2366,7 @@ class proxied_frozenset(object):
 
     def __eq__(self, seq):
         if isinstance(self, proxied_frozenset):
+            return self._frozenset_eq(seq)
             return cython.cast(proxied_frozenset, self)._frozenset_eq(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._frozenset_eq(self)
@@ -2495,12 +2496,14 @@ class proxied_frozenset(object):
 
     def __lt__(self, seq):
         if isinstance(self, proxied_frozenset):
+            return self._subset(seq, True)
             return cython.cast(proxied_frozenset, self)._subset(seq, True)
         else:
             return cython.cast(proxied_frozenset, seq)._subset(self, True)
 
     def __le__(self, seq):
         if isinstance(self, proxied_frozenset):
+            return self._subset(seq, False)
             return cython.cast(proxied_frozenset, self)._subset(seq, False)
         else:
             return cython.cast(proxied_frozenset, seq)._subset(self, False)
