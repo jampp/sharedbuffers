@@ -1014,9 +1014,9 @@ class ApproxIntegerIdMultiMapperTest(IdMapperTest):
             elem = rv.get(k)
             if isinstance(elem, list):
                 for e in elem:
-                    self.assertTrue(isinstance(e, (int, long)))
+                    self.assertTrue(isinstance(e, (int, long, numpy.uint32)))
             else:
-                self.assertTrue(isinstance(elem, (int, long)))
+                self.assertTrue(isinstance(elem, (int, long, numpy.uint32, numpy.uint64)))
 
     # Too much memory
     testBuildHugeInMemShuffled = None
