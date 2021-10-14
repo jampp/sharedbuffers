@@ -512,13 +512,17 @@ class mapped_frozenset(frozenset):
             all_int = all_intlong = all_float = 0
             obj_dtype = obj.dtype
             if obj_dtype.isbuiltin:
-                dtype = obj_dtype.char
-                cdtype = cython.cast('const char*', dtype)[0]
-                if cdtype in ('l', 'I', 'i', 'H', 'h', 'B', 'b'):
+                if six.PY3:
+                    dtype = obj_dtype.char.encode()
+                    cdtype = bytes([dtype[0]])
+                else:
+                    dtype = obj_dtype.char
+                    cdtype = cython.cast('const char*', dtype)[0]
+                if cdtype in (b'l', b'I', b'i', b'H', b'h', b'B', b'b'):
                     all_int = all_intlong = 1
-                elif cdtype == 'L':
+                elif cdtype == b'L':
                     all_intlong = 1
-                elif cdtype in ('d', 'f'):
+                elif cdtype in (b'd', b'f'):
                     all_float = 1
         else:
             all_int = all_intlong = all_float = 1
