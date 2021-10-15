@@ -5549,26 +5549,27 @@ if cython.compiled:
             pindex = cython.cast(cython.p_char, indexbuf.buf)
             stride0 = indexbuf.strides[0]
             #lint:enable
-            dtype = cython.cast('char*', a.dtype.char)[0]
-            if dtype == 'L' or dtype == 'Q':
+            c = a.dtype.char.encode()
+            dtype = cython.cast('char*', c)[0]
+            if dtype == b'L' or dtype == b'Q':
                 ix = _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == 'I':
+            elif dtype == b'I':
                 ix = _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == 'l' or dtype == 'q':
+            elif dtype == b'l' or dtype == b'q':
                 ix = _c_search_hkey_i64(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == 'i':
+            elif dtype == b'i':
                 ix = _c_search_hkey_i32(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == 'H':
+            elif dtype == b'H':
                 ix = _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == 'h':
+            elif dtype == b'h':
                 ix = _c_search_hkey_i16(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == 'B':
+            elif dtype == b'B':
                 ix = _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == 'b':
+            elif dtype == b'b':
                 ix = _c_search_hkey_i8(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == 'd':
+            elif dtype == b'd':
                 ix = _c_search_hkey_f64(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == 'f':
+            elif dtype == b'f':
                 ix = _c_search_hkey_f32(hkey, pindex, stride0, hi, hint, check_equal)
             else:
                 raise NotImplementedError("Unsupported array type %s" % (chr(dtype),))
