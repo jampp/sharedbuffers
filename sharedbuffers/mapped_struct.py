@@ -5895,11 +5895,13 @@ if cython.compiled:
                         raise ValueError("Incompatible indexes")
                     if destbuf.strides[0] != stride0:
                         raise ValueError("Incompatible destination")
-
-                    dtype = cython.cast('char*', index1.dtype.char)[0]
-                    if cython.cast('char*', index2.dtype.char)[0] != dtype:
+                    c = index1.dtype.char.encode()
+                    dtype = cython.cast('char*', c)[0]
+                    c2 = index2.dtype.char.encode()
+                    if cython.cast('char*', c2)[0] != dtype:
                         raise ValueError("Incompatible indexes")
-                    if cython.cast('char*', dest.dtype.char)[0] != dtype:
+                    c3 = dest.dtype.char.encode()
+                    if cython.cast('char*', c3)[0] != dtype:
                         raise ValueError("Incompatible destination")
 
                     if ( pdest == pindex1 or pdest == pindex2
