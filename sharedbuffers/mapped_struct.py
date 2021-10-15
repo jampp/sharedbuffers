@@ -1877,9 +1877,6 @@ class proxied_list(object):
 
         return self._getitem(index)
 
-    @cython.locals(op = cython.char)
-    def  __richcmp__(self, other, op):
-        return proxied_list_richcmp(self, other, op)
 
     if not cython.compiled:
         def __cmp__(self, other):
