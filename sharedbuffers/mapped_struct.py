@@ -5616,6 +5616,10 @@ else:
     import bisect
 
     def _py__hinted_bsearch(a, hkey, hint, lo, hi, check_equal):
+        dtype = a.dtype.char.encode()
+        if dtype not in (b'L', b'Q', b'I', b'l', b'i', b'H', b'h', b'B', b'b', b'd', b'f'):
+            raise NotImplementedError("Unsupported array type %s" % dtype)
+
         ix = bisect.bisect_left(a, hkey)
         if check_equal and ix < hi and a[ix] != hkey:
             ix = hi
