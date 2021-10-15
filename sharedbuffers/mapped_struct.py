@@ -506,7 +506,7 @@ def get_wrapped_key(obj):
 class mapped_frozenset(frozenset):
 
     @classmethod
-    @cython.locals(cbuf = 'unsigned char[:]', i=int, ix=int, offs=cython.longlong)
+    @cython.locals(cbuf = 'unsigned char[:]', i=int, ix=int, offs=cython.longlong, cdtype=cython.uchar)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if isinstance(obj, npndarray):
             all_int = all_intlong = all_float = 0
@@ -514,7 +514,10 @@ class mapped_frozenset(frozenset):
             if obj_dtype.isbuiltin:
                 if six.PY3:
                     dtype = obj_dtype.char.encode()
-                    cdtype = bytes([dtype[0]])
+                    if cython.compiled:
+                        cdtype = dtype[0]
+                    else:
+                        cdtype = bytes([dtype[0]])
                 else:
                     dtype = obj_dtype.char
                     cdtype = cython.cast('const char*', dtype)[0]
@@ -657,7 +660,7 @@ class mapped_tuple(tuple):
     @cython.locals(widmap = StrongIdMap, pindex = 'long[:]',
         rel_offs = cython.longlong, min_offs = cython.longlong, max_offs = cython.longlong,
         offs = cython.Py_ssize_t, implicit_offs = cython.Py_ssize_t, val_offs = cython.Py_ssize_t,
-        i = cython.Py_ssize_t, iminval = cython.longlong, imaxval = cython.longlong)
+        i = cython.Py_ssize_t, iminval = cython.longlong, imaxval = cython.longlong, cdtype=cython.uchar)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
             array = array.array):
         baseoffs = offs
@@ -668,10 +671,13 @@ class mapped_tuple(tuple):
             if obj_dtype.isbuiltin:
                 if six.PY3:
                     dtype = obj_dtype.char.encode()
-                    cdtype = bytes([dtype[0]])
+                    if cython.compiled:
+                        cdtype = dtype[0]
+                    else:
+                        cdtype = bytes([dtype[0]])
                 else:
                     dtype = obj_dtype.char
-                    cdtype = cython.cast('const char*', dtype)[0]
+                    cdtype = cython.cast('const unsigned char*', dtype)[0]
 
                 if cdtype in (b'l', b'I', b'i', b'H', b'h', b'B', b'b'):
                     all_int = all_intlong = 1
