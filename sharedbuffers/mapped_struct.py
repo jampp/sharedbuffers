@@ -2077,8 +2077,12 @@ class proxied_frozenset(object):
                     bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs)[0] >> 8
                 else:
                     bitrep_lo = 0
-                    for i in range(7):
-                        bitrep_lo += pbuf[offs + i + 1] << i*8
+                    if six.PY3:
+                        for i in range(7):
+                            bitrep_lo += pbuf[offs + i + 1] << i*8
+                    else:
+                        for i in range(7):
+                            bitrep_lo += ord(pbuf[offs + i + 1]) << i*8
                 return proxied_frozenset(None, bitrep_lo, 0)
             elif d == b'M':
                 # inline bitmap (128 bits)
@@ -2089,11 +2093,17 @@ class proxied_frozenset(object):
                     bitrep_hi = cython.cast(cython.p_ulonglong, pbuf + offs)[1]
                 else:
                     bitrep_lo = 0
-                    for i in range(7):
-                        bitrep_lo += pbuf[offs + i + 1] << i*8
                     bitrep_hi = 0
-                    for i in range(8):
-                        bitrep_hi += pbuf[offs + 8 + i] << i*8
+                    if six.PY3:
+                        for i in range(7):
+                            bitrep_lo += pbuf[offs + i + 1] << i*8
+                        for i in range(8):
+                            bitrep_hi += pbuf[offs + 8 + i] << i*8
+                    else:
+                        for i in range(7):
+                            bitrep_lo += ord(pbuf[offs + i + 1]) << i*8
+                        for i in range(8):
+                            bitrep_hi += ord(pbuf[offs + 8 + i]) << i*8
                 bitrep_lo |= (bitrep_hi & 0xff) << 56
                 bitrep_hi >>= 8
                 return proxied_frozenset(None, bitrep_lo, bitrep_hi)
