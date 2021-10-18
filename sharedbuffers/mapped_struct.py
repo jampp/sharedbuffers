@@ -1750,7 +1750,7 @@ class proxied_list(object):
     def getter(self, proxy_into = None, fast = False):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
 
-        if proxy_into is None and fast and dcode in ('t', 'T'):
+        if proxy_into is None and fast and dcode in (b't', b'T'):
             proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
             if not cython.compiled:
                 proxy_into.buf = None
@@ -1971,7 +1971,7 @@ class proxied_list(object):
         pmask = 'const unsigned char[:]')
     def iter_fast(self, mask=None):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
-        if dcode in ('t', 'T'):
+        if dcode in (b't', b'T'):
             proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
             if not cython.compiled:
                 proxy_into.buf = None
