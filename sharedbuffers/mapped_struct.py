@@ -1384,7 +1384,7 @@ class proxied_buffer(object):
         """
         cur_offs = offs
         if six.PY3:
-            objlen = len(obj) * obj.itemsize
+            objlen = obj.nbytes
         else:
             objlen = len(obj)
         _BUFFER_HEADER_PACKER.pack_into(buf, offs, objlen)
