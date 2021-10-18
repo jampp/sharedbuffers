@@ -2052,7 +2052,7 @@ class proxied_frozenset(object):
     @cython.locals(
         i=int, j=int, offs=cython.longlong,
         pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar,
-        bitrep_lo=cython.ulonglong, bitrep_hi=cython.ulonglong)
+        bitrep_lo=cython.ulonglong, bitrep_hi=cython.ulonglong, d=cython.uchar)
     def unpack_from(cls, buf, offs, idmap = None):
         buf = _likerobuffer(buf)
         try:
@@ -2064,14 +2064,21 @@ class proxied_frozenset(object):
                     raise IndexError("Offset out of range")
             else:
                 pbuf = buf
+            if six.PY3:
+                d = bytes([pbuf[offs]])
+            else:
+                d = pbuf[offs]
 
-            if pbuf[offs] == 'm':
+            if d == b'm':
                 # inline bitmap (64 bits)
                 if cython.compiled and offs+7 >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
-                bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs)[0] >> 8
+                if cython.compiled:
+                    bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs)[0] >> 8
+                else:
+                    bitrep_lo = 0
                 return proxied_frozenset(None, bitrep_lo, 0)
-            elif pbuf[offs] == 'M':
+            elif d == b'M':
                 # inline bitmap (128 bits)
                 if cython.compiled and offs+15 >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
@@ -2132,8 +2139,10 @@ class proxied_frozenset(object):
 
         if eint != elem or eint >= 128 or eint < 0:
             return False
-        return (eint < 64 and (self.bitrep_lo & (1 << eint)) != 0) or (
-            (eint < 128 and (self.bitrep_hi & (1 << (eint - 64))) != 0))
+        if eint < 64:
+            return self.bitrep_lo & (1 << eint) != 0
+        # 64 < eint < 128
+        return self.bitrep_hi & (1 << (eint - 64)) != 0
 
     @cython.locals(lo=cython.Py_ssize_t, hi=cython.Py_ssize_t, mid=cython.Py_ssize_t,
         dcode=cython.char, objlen=cython.longlong, itemsize=cython.uchar,
@@ -2168,7 +2177,7 @@ class proxied_frozenset(object):
                         return True
                     mid -= 1
 
-                mid = lo + ((hi - lo) >> 1)
+                mid = lo + ((hi - lo) >> 1) - 1
                 while mid < hi:
                     val = self.objlist._c_getitem(mid, dcode, objlen, itemsize, offset, _struct, None)
                     h1 = _stable_hash(val)
@@ -2341,7 +2350,10 @@ class proxied_frozenset(object):
         objlen=cython.longlong, itemsize=cython.uchar, offset=cython.Py_ssize_t)
     def _frozenset_eq(self, x):
         if isinstance(x, proxied_frozenset):
-            pfset = cython.cast(proxied_frozenset, x)
+            if cython.compiled:
+                pfset = cython.cast(proxied_frozenset, x)
+            else:
+                pfset = x
             return (self.bitrep_lo == pfset.bitrep_lo and
                 self.bitrep_hi == pfset.bitrep_hi and
                 self.objlist == pfset.objlist)
@@ -2395,7 +2407,8 @@ class proxied_frozenset(object):
         xlen = len(self)
 
         if isinstance(seq, proxied_frozenset):
-            pfset = cython.cast(proxied_frozenset, seq)
+            # pfset = cython.cast(proxied_frozenset, seq)
+            pfset = seq
             if pfset.objlist is None:
                 if self.objlist is None:
                     # Both proxies use compressed representation.
