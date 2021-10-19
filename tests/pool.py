@@ -5,6 +5,8 @@ import unittest
 from .mapped_struct import TestStruct
 
 from sharedbuffers import mapped_struct, pool
+from six import iteritems
+from six.moves import xrange
 
 class ContainerStruct(TestStruct):
     __slot_types__ = {
@@ -39,9 +41,9 @@ class SmallIntContainerPackingTest(unittest.TestCase):
             schema = self.schema
         p = pool.TemporaryObjectPool()
         for TEST_VALUES in self.TEST_VALUES:
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             dx = p.pack(schema, x)[1]
-            for k,v in TEST_VALUES.iteritems():
+            for k,v in iteritems(TEST_VALUES):
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
@@ -58,11 +60,11 @@ class SmallIntContainerPackingTest(unittest.TestCase):
     def testPreload(self):
         p = pool.TemporaryObjectPool()
         for TEST_VALUES in self.TEST_VALUES:
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             p.add_preload(self.schema, x)
         for TEST_VALUES in self.TEST_VALUES:
             dx = p.pack(self.schema, x)[1]
-            for k,v in TEST_VALUES.iteritems():
+            for k,v in iteritems(TEST_VALUES):
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
@@ -73,9 +75,9 @@ class SmallIntContainerPackingTest(unittest.TestCase):
         p = pool.TemporaryObjectPool(section_size=4096)
         for i in xrange(300):
             for TEST_VALUES in self.TEST_VALUES:
-                x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+                x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
                 dx = p.pack(self.schema, x)[1]
-                for k,v in TEST_VALUES.iteritems():
+                for k,v in iteritems(TEST_VALUES):
                     self.assertTrue(hasattr(dx, k))
                     self.assertEqual(getattr(dx, k), v)
                 for k in self.Struct.__slots__:
@@ -86,7 +88,7 @@ class SmallIntContainerPackingTest(unittest.TestCase):
     def testStableSet(self):
         temp_idmap = {}
         for TEST_VALUES in self.TEST_VALUES:
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             self.schema.pack(x, idmap=temp_idmap)
 
         p = pool.TemporaryObjectPool(
@@ -96,9 +98,9 @@ class SmallIntContainerPackingTest(unittest.TestCase):
 
         for i in xrange(300):
             for TEST_VALUES in self.TEST_VALUES:
-                x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+                x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
                 dx = p.pack(self.schema, x)[1]
-                for k,v in TEST_VALUES.iteritems():
+                for k,v in iteritems(TEST_VALUES):
                     self.assertTrue(hasattr(dx, k))
                     self.assertEqual(getattr(dx, k), v)
                 for k in self.Struct.__slots__:
@@ -108,10 +110,10 @@ class SmallIntContainerPackingTest(unittest.TestCase):
     def testUnpack(self):
         p = pool.TemporaryObjectPool()
         for TEST_VALUES in self.TEST_VALUES:
-            x = self.Struct(**{k:v for k,v in TEST_VALUES.iteritems()})
+            x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             pos = p.pack(self.schema, x)[0]
             dx = p.unpack(self.schema, pos)
-            for k,v in TEST_VALUES.iteritems():
+            for k,v in iteritems(TEST_VALUES):
                 self.assertTrue(hasattr(dx, k))
                 self.assertEqual(getattr(dx, k), v)
             for k in self.Struct.__slots__:
