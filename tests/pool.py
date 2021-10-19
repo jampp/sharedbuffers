@@ -53,8 +53,8 @@ class SmallIntContainerPackingTest(unittest.TestCase):
     def testPackObject(self):
         # hack - unregister schema
         mapped_struct.mapped_object.TYPE_CODES.pop(self.Struct, None)
-        mapped_struct.mapped_object.OBJ_PACKERS.pop('\xfe', None)
-        mapped_struct.mapped_object.register_schema(self.Struct, self.schema, '\xfe')
+        mapped_struct.mapped_object.OBJ_PACKERS.pop(b'\xfe', None)
+        mapped_struct.mapped_object.register_schema(self.Struct, self.schema, b'\xfe')
         self.testPack(schema=mapped_struct.mapped_object)
 
     def testPreload(self):
