@@ -2065,7 +2065,10 @@ class proxied_frozenset(object):
             else:
                 pbuf = buf
             if six.PY3:
-                d = bytes([pbuf[offs]])
+                if cython.compiled:
+                    d = pbuf[offs]
+                else:
+                    d = bytes([pbuf[offs]])
             else:
                 d = pbuf[offs]
 
