@@ -8,7 +8,7 @@ import struct
 from .mapped_struct import StrongIdMap
 import six
 if six.PY3:
-    from .mapped_struct import buffer
+    buffer = memoryview
 
 
 # Default section size is set to 128MB which is a size at which most
