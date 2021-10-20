@@ -1706,6 +1706,39 @@ class ProxiedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest
         self.assertTrue(small < big)
         self.assertTrue(big > small)
 
+        a = self.pack([1., 2.])
+        b = self.pack([1., 2., 3., 4.])
+        self.assertTrue(a < b)
+        self.assertTrue(a <= b)
+        self.assertFalse(b < a)
+        self.assertFalse(b <= a)
+        self.assertNotEquals(a, b)
+
+        a = self.pack([1., 2., 3.])
+        b = self.pack([1., 2.5, 3., 4.])
+        self.assertFalse(a < b)
+        self.assertFalse(a <= b)
+        self.assertFalse(b < a)
+        self.assertFalse(b <= a)
+        self.assertNotEquals(a, b)
+
+        a = self.pack([1., 2.5, 3.])
+        b = self.pack([1., 2., 3., 4.])
+        self.assertFalse(a < b)
+        self.assertFalse(a <= b)
+        self.assertFalse(b < a)
+        self.assertFalse(b <= a)
+        self.assertNotEquals(a, b)
+
+        a = self.pack([1., 2., 3., 10.])
+        b = self.pack([1., 2., 3., 4.])
+        self.assertFalse(a < b)
+        self.assertFalse(a <= b)
+        self.assertFalse(b < a)
+        self.assertFalse(b <= a)
+        self.assertNotEquals(a, b)
+
+
     def testCompressed(self):
         small = self.pack([1, 2])
         big = self.pack([1, 2, 3, 4, 5])

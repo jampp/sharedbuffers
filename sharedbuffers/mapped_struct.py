@@ -2476,14 +2476,30 @@ class proxied_frozenset(object):
             dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
             dcode2, objlen2, itemsize2, offset2, _struct2 = pfset.objlist._metadata()
 
-            if dcode2 not in ('t', 'T') and cython.compiled:
-                # fast path, use the search_hkey variants
-                for i in range(xlen):
-                    val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
-                    tmp_idx = pfset._search_key(val, dcode, offset, j, seqlen - j, j, True)
-                    if tmp_idx >= seqlen - j:
-                        return False
-                    j = tmp_idx
+            if dcode2 not in (b't', b'T'):
+                if cython.compiled:
+                    # fast path, use the search_hkey variants
+                    for i in range(xlen):
+                        val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
+                        tmp_idx = pfset._search_key(val, dcode, offset, j, seqlen - j, j, True)
+                        if tmp_idx >= seqlen - j:
+                            return False
+                        j = tmp_idx
+                else:
+                    j = 0
+                    for i in range(xlen):
+                        a_val = self.objlist[i]
+                        while True:
+                            b_val = pfset.objlist[j]
+                            j += 1
+                            if a_val < b_val:
+                                return False
+                            elif a_val == b_val:
+                                break
+                            if j == seqlen:
+                                return False
+
+
             else:
                 for i in range(xlen):
                     val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
@@ -2563,25 +2579,25 @@ class proxied_frozenset(object):
 
     def __or__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return cython.cast(proxied_frozenset, self)._union_2(seq)
+            return self._union_2(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._union_2(self)
 
     def __and__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return cython.cast(proxied_frozenset, self)._intersect_2(seq)
+            return self._intersect_2(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._intersect_2(self)
 
     def __sub__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return cython.cast(proxied_frozenset, self)._diff_2(seq)
+            return self._diff_2(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._diff_2(self)
 
     def __xor__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return cython.cast(proxied_frozenset, self)._symdiff_2(seq)
+            return self._symdiff_2(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._symdiff_2(self)
 
