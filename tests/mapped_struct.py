@@ -1099,7 +1099,7 @@ class MappedMappingTest(unittest.TestCase):
     def testBuildValueDedup(self):
         test_values = self.test_values
         if isinstance(test_values, dict):
-            test_values = test_values.items()
+            test_values = iteritems(test_values)
         self.test_values = (
             list(test_values)
             + [(self._alt_k(k), v) for k,v in test_values]
