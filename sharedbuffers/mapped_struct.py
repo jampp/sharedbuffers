@@ -781,12 +781,8 @@ class mapped_tuple(tuple):
             else:
                 a = array(dtype.decode(), obj)
             abuf = buffer(a)
-            if six.PY3:
-                size_bytes = len(abuf) * abuf.itemsize
-            else:
-                size_bytes = len(abuf)
-            buf[offs:offs+size_bytes] = abuf
-            offs += size_bytes
+            buf[offs:offs+len(abuf)] = abuf
+            offs += len(abuf)
             offs = (offs + 7) // 8 * 8
             return offs
         elif all_float:
@@ -799,12 +795,8 @@ class mapped_tuple(tuple):
             buf[offs+1:offs+8] = _struct_l_Q.pack(objlen)[:7]
             offs += 8
             abuf = buffer(a)
-            if six.PY3:
-                size_bytes = len(abuf) * abuf.itemsize
-            else:
-                size_bytes = len(abuf)
-            buf[offs:offs + size_bytes] = abuf
-            offs += size_bytes
+            buf[offs:offs + len(abuf)] = abuf
+            offs += len(abuf)
             offs = (offs + 7) // 8 * 8
             return offs
         else:
@@ -852,11 +844,7 @@ class mapped_tuple(tuple):
             if min_offs >= -0x80000000 and max_offs <= 0x7fffffff and (len(buf) - baseoffs) <= 0x7fffffff:
                 # We can use narrow pointers, guaranteed
                 use_narrow = True
-                if six.PY3:
-                    size_bytes = len(index_buffer) * index_buffer.itemsize
-                else:
-                    size_bytes = len(index_buffer)
-                offs = indexoffs + size_bytes // 2
+                offs = indexoffs + len(index_buffer) // 2
                 offs += (8 - offs & 7) & 7
                 dataoffs = offs
                 buf[baseoffs] = ord('T')
@@ -902,12 +890,7 @@ class mapped_tuple(tuple):
                 index_buffer = buffer(index)
 
             # write index
-            if six.PY3:
-                size_bytes = len(index_buffer) * index_buffer.itemsize
-            else:
-                size_bytes = len(index_buffer)
-
-            buf[indexoffs:indexoffs+size_bytes] = index_buffer
+            buf[indexoffs:indexoffs+len(index_buffer)] = index_buffer
 
             return offs
 
@@ -6576,7 +6559,6 @@ class NumericIdMapper(_CZipMapBase):
             del bigparts
 
             indexpos = curpos
-            # print("$$$$$$BEFORE")
             if six.PY3:
                 if len(index):
                     w = buffer(index)
