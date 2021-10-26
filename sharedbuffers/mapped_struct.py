@@ -125,13 +125,16 @@ if six.PY3:
     long = int
     basestring = (bytes, str)
 
+def make_memoryview(a):
+    return memoryview(a).cast("B")
+
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
     if six.PY2:
         buffer = cython.declare(object, buffer)  # lint:ok
         from types import BufferType as buffer
     else:
-        buffer = memoryview
+        buffer = make_memoryview
 
     assert Py_LT == 0
     assert Py_LE == 1
@@ -141,7 +144,7 @@ if cython.compiled:
     assert Py_GE == 5
 else:
     if six.PY3:
-        buffer = memoryview
+        buffer = make_memoryview
 
 def buffer_with_offset(data, offset, size=None):
     if size is not None:
@@ -946,9 +949,6 @@ class mapped_list(list):
         else:
             dcode = buf[offs]
             dchar = cython.cast('const char*', dcode)[0]
-        if six.PY3:
-            if not isinstance(buf, bytes):
-                buf = buf.tobytes() # FIXME this copies the data
         if dchar in (b'B', b'b'):
             itemsize = 1
         elif dchar in (b'H', b'h'):
@@ -967,7 +967,10 @@ class mapped_list(list):
             if objlen == 0xFFFFFF:
                 objlen = _struct_l_Q.unpack_from(buf, offs)
                 offs += 8
-            rv = array(dtype, buf[offs:offs+itemsize*objlen])
+            w = buf[offs:offs+itemsize*objlen]
+            if six.PY3:
+                w = bytes(w)
+            rv = array(dtype, w)
         elif dchar == b'q' or dchar == b'Q':
             if dchar == b'q':
                 dtype = b'l'
@@ -978,13 +981,19 @@ class mapped_list(list):
             objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
             objlen >>= 8
             offs += 8
-            rv = array(dtype.decode(), buf[offs:offs+itemsize*objlen])
+            q = buf[offs:offs + itemsize * objlen]
+            if six.PY3:
+                q = bytes(q)
+            rv = array(dtype.decode(), q)
         elif dchar == b'd':
             dtype = b'd'
             objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
             objlen >>= 8
             offs += 8
-            rv = array(dtype.decode(), buf[offs:offs+itemsize*objlen])
+            q = buf[offs:offs + itemsize * objlen]
+            if six.PY3:
+                q = bytes(q)
+            rv = array(dtype.decode(), q)
         elif dchar == b't' or dchar == b'T':
             if dchar == b't':
                 dtype = b'l'
@@ -996,8 +1005,10 @@ class mapped_list(list):
             objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
             objlen >>= 8
             offs += 8
-
-            index = array(dtype.decode(), buf[offs:offs+itemsize*objlen])
+            q = buf[offs:offs+itemsize*objlen]
+            if six.PY3:
+                q = bytes(q)
+            index = array(dtype.decode(), q)
 
             if idmap is None:
                 idmap = {}
@@ -3355,7 +3366,7 @@ VARIABLE_TYPES = {
     Decimal : mapped_decimal,
     cDecimal : mapped_decimal,
     numpy.ndarray : proxied_ndarray,
-    buffer : proxied_buffer,
+    [buffer, memoryview][six.PY3] : proxied_buffer,
 }
 
 FIXED_TYPES = {
@@ -6565,7 +6576,15 @@ class NumericIdMapper(_CZipMapBase):
             del bigparts
 
             indexpos = curpos
-            write(buffer(index))
+            # print("$$$$$$BEFORE")
+            if six.PY3:
+                if len(index):
+                    w = buffer(index)
+                else:
+                    w = b''
+            else:
+                w = buffer(index)
+            write(w)
             nitems = len(index)
         finally:
             if partsfile is not None:
@@ -7194,7 +7213,10 @@ class ObjectIdMapper(_CZipMapBase):
 
         indexpos = curpos
         if six.PY3:
-            d = buffer(index).tobytes()
+            if len(index):
+                d = buffer(index)
+            else:
+                d = b''
         else:
             d = buffer(index)
         write(d)
@@ -7706,7 +7728,14 @@ class StringIdMapper(_CZipMapBase):
         index = index[shuffle]
 
         indexpos = curpos
-        write(buffer(index))
+        if six.PY3:
+            if len(index):
+                d = buffer(index)
+            else:
+                d = b''
+        else:
+            d = buffer(index)
+        write(d)
         nitems = len(index)
 
         finalpos = destfile.tell()
