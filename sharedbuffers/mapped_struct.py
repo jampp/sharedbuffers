@@ -745,15 +745,15 @@ class mapped_tuple(tuple):
                         # inline unsigned ints
                         dtype = b'I'
                         buf[offs] = ord(dtype)
-                    elif (cython.cast(cython.longlong, long(-0x8000000000000000)) <= iminval
-                            and imaxval <= cython.cast(cython.longlong, long(0x7FFFFFFFFFFFFFFF))):
+                    elif (cython.cast(cython.longlong, -0x8000000000000000) <= iminval
+                            and imaxval <= cython.cast(cython.longlong, 0x7FFFFFFFFFFFFFFF)):
                         # inline signed int64 list
                         buf[offs] = ord('q')
                         dtype = b'l'
                     else:
                         raise OverflowError
                 except OverflowError:
-                    if 0 <= minval and maxval <= long(0xFFFFFFFFFFFFFFFF):
+                    if 0 <= minval and maxval <= cython.cast(cython.longlong, 0xFFFFFFFFFFFFFFFF):
                         # inline unsigned int64 list
                         buf[offs] = ord('Q')
                         dtype = b'L'
