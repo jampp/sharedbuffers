@@ -103,6 +103,9 @@ except ImportError:
 
 import cython
 
+python2 = cython.declare(cython.bint, six.PY2)
+python3 = cython.declare(cython.bint, six.PY3)
+
 npuint64 = cython.declare(object, numpy.uint64)
 npint64 = cython.declare(object, numpy.int64)
 npuint32 = cython.declare(object, numpy.uint32)
@@ -121,7 +124,7 @@ frexp = cython.declare(object, math.frexp)
 
 ctypes_Array = cython.declare(object, ctypes.Array)
 
-if six.PY3:
+if python3:
     long = int
     basestring = (bytes, str)
 
@@ -130,7 +133,7 @@ def make_memoryview(a):
 
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
-    if six.PY2:
+    if python2:
         buffer = cython.declare(object, buffer)  # lint:ok
         from types import BufferType as buffer
     else:
@@ -143,16 +146,16 @@ if cython.compiled:
     assert Py_GT == 4
     assert Py_GE == 5
 else:
-    if six.PY3:
+    if python3:
         buffer = make_memoryview
 
 def buffer_with_offset(data, offset, size=None):
     if size is not None:
-        if six.PY3:
+        if python3:
             return buffer(data)[offset:offset+size]
         return buffer(data, offset, size)
     else:
-        if six.PY3:
+        if python3:
             return buffer(data)[offset:]
         return buffer(data, offset)
 
@@ -492,7 +495,7 @@ def is_wrapped_key(obj):
 @cython.inline
 def get_wrapped_key(obj):
     # the key for the unwrapped value
-    if six.PY2:
+    if python2:
         if isinstance(obj, tuple):
             return obj[1]
         elif isinstance(obj, int):
@@ -515,7 +518,7 @@ class mapped_frozenset(frozenset):
             all_int = all_intlong = all_float = 0
             obj_dtype = obj.dtype
             if obj_dtype.isbuiltin:
-                if six.PY3:
+                if python3:
                     dtype = obj_dtype.char.encode()
                     if cython.compiled:
                         cdtype = dtype[0]
@@ -618,7 +621,7 @@ class mapped_frozenset(frozenset):
         else:
             pbuf = buf
         try:
-            if six.PY3 and not cython.compiled:
+            if python3 and not cython.compiled:
                 fs_type = bytes([pbuf[offs]])
             else:
                 fs_type = pbuf[offs]
@@ -634,7 +637,7 @@ class mapped_frozenset(frozenset):
                     raise IndexError("Object spans beyond buffer end")
                 rv = []
                 for i in range(fs_size):
-                    if six.PY3:
+                    if python3:
                         b = pbuf[offs+1+i]
                     else:
                         b = ord(pbuf[offs + 1 + i])
@@ -672,7 +675,7 @@ class mapped_tuple(tuple):
             all_int = all_intlong = all_float = 0
             obj_dtype = obj.dtype
             if obj_dtype.isbuiltin:
-                if six.PY3:
+                if python3:
                     dtype = obj_dtype.char.encode()
                     if cython.compiled:
                         cdtype = dtype[0]
@@ -922,7 +925,7 @@ class mapped_list(list):
 
         baseoffs = offs
         buf = _likerobuffer(buf)
-        if six.PY3:
+        if python3:
             dcode = chr(buf[offs])
             dcode_enc = dcode.encode()
             if cython.compiled:
@@ -951,7 +954,7 @@ class mapped_list(list):
                 objlen = _struct_l_Q.unpack_from(buf, offs)
                 offs += 8
             w = buf[offs:offs+itemsize*objlen]
-            if six.PY3:
+            if python3:
                 w = bytes(w)
             rv = array(dtype, w)
         elif dchar == b'q' or dchar == b'Q':
@@ -965,7 +968,7 @@ class mapped_list(list):
             objlen >>= 8
             offs += 8
             q = buf[offs:offs + itemsize * objlen]
-            if six.PY3:
+            if python3:
                 q = bytes(q)
             rv = array(dtype.decode(), q)
         elif dchar == b'd':
@@ -974,7 +977,7 @@ class mapped_list(list):
             objlen >>= 8
             offs += 8
             q = buf[offs:offs + itemsize * objlen]
-            if six.PY3:
+            if python3:
                 q = bytes(q)
             rv = array(dtype.decode(), q)
         elif dchar == b't' or dchar == b'T':
@@ -989,7 +992,7 @@ class mapped_list(list):
             objlen >>= 8
             offs += 8
             q = buf[offs:offs+itemsize*objlen]
-            if six.PY3:
+            if python3:
                 q = bytes(q)
             index = array(dtype.decode(), q)
 
@@ -1198,7 +1201,7 @@ class BufferIO(object):
 _DICT_HEADER_PACKER = cython.declare(object, struct.Struct('=Q'))
 _DICT_HEADER_SIZE = cython.declare(cython.Py_ssize_t, _DICT_HEADER_PACKER.size)
 
-if six.PY3:
+if python3:
     def cmp(a, b):
         return (a > b) - (a < b)
 
@@ -1377,7 +1380,7 @@ class proxied_buffer(object):
         See `mapped_object.pack_into` for argument details.
         """
         cur_offs = offs
-        if six.PY3:
+        if python3:
             objlen = obj.nbytes
         else:
             objlen = len(obj)
@@ -1538,7 +1541,7 @@ def dict_cmp_py3(A, B):
     return cmp(A[adiff], B[bdiff])
 
 def dict_cmp(a, b):
-    if six.PY2:
+    if python2:
         return cmp(a,b)
     return dict_cmp_py3(a,b)
 
@@ -1651,7 +1654,7 @@ class proxied_list(object):
             dataoffs = self.offs
             buf = self.buf
 
-            if six.PY3 and not cython.compiled:
+            if python3 and not cython.compiled:
                 dcode = bytes([buf[dataoffs]])
             else:
                 dcode = buf[dataoffs]
@@ -2058,7 +2061,7 @@ class proxied_frozenset(object):
                     raise IndexError("Offset out of range")
             else:
                 pbuf = buf
-            if six.PY3:
+            if python3:
                 if cython.compiled:
                     d = pbuf[offs]
                 else:
@@ -2074,7 +2077,7 @@ class proxied_frozenset(object):
                     bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs)[0] >> 8
                 else:
                     bitrep_lo = 0
-                    if six.PY3:
+                    if python3:
                         for i in range(7):
                             bitrep_lo += pbuf[offs + i + 1] << i*8
                     else:
@@ -2091,7 +2094,7 @@ class proxied_frozenset(object):
                 else:
                     bitrep_lo = 0
                     bitrep_hi = 0
-                    if six.PY3:
+                    if python3:
                         for i in range(7):
                             bitrep_lo += pbuf[offs + i + 1] << i*8
                         for i in range(8):
@@ -2600,7 +2603,7 @@ class proxied_frozenset(object):
 
     __str__ = __repr__
 
-if six.PY3:
+if python3:
     _cpython = sys.implementation.name == 'cpython'
 else:
     _cpython = sys.subversion[0] == 'CPython'
@@ -3118,7 +3121,7 @@ class mapped_object(object):
         """
         if not isinstance(obj, cls):
             obj = cls(obj)
-        if six.PY3:
+        if python3:
             if isinstance(obj.typecode, str):
                 typecode = obj.typecode.encode()
             else:
@@ -3165,7 +3168,7 @@ class mapped_object(object):
         cpadding = 7
         cpacker_size = 1
         buf = _likerobuffer(buf)
-        if six.PY3:
+        if python3:
             typecode = bytes([buf[offs]])
         else:
             typecode = buf[offs]
@@ -3349,7 +3352,7 @@ VARIABLE_TYPES = {
     Decimal : mapped_decimal,
     cDecimal : mapped_decimal,
     numpy.ndarray : proxied_ndarray,
-    [buffer, memoryview][six.PY3] : proxied_buffer,
+    [buffer, memoryview][python3] : proxied_buffer,
 }
 
 FIXED_TYPES = {
@@ -5060,7 +5063,7 @@ def _map_zipfile(cls, fileobj, offset, size, read_only):
         raise ValueError("Can only map uncompressed elements of a zip file")
     if fileobj._decrypter is not None:
         raise ValueError("Cannot map from an encrypted zip file")
-    if six.PY3:
+    if python3:
         compress_size = fileobj._orig_compress_size
     else:
         compress_size = fileobj._compress_size
@@ -6559,7 +6562,7 @@ class NumericIdMapper(_CZipMapBase):
             del bigparts
 
             indexpos = curpos
-            if six.PY3:
+            if python3:
                 if len(index):
                     w = buffer(index)
                 else:
@@ -7194,7 +7197,7 @@ class ObjectIdMapper(_CZipMapBase):
         index = index[shuffle]
 
         indexpos = curpos
-        if six.PY3:
+        if python3:
             if len(index):
                 d = buffer(index)
             else:
@@ -7710,7 +7713,7 @@ class StringIdMapper(_CZipMapBase):
         index = index[shuffle]
 
         indexpos = curpos
-        if six.PY3:
+        if python3:
             if len(index):
                 d = buffer(index)
             else:
