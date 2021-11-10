@@ -128,6 +128,8 @@ if python3:
     long = int
     basestring = (bytes, str)
 
+@cython.cfunc
+@cython.inline
 def make_memoryview(a):
     return memoryview(a).cast("B")
 
