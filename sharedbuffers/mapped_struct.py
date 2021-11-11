@@ -731,42 +731,42 @@ class mapped_tuple(tuple):
                     if 0 <= iminval and imaxval <= 0xFF:
                         # inline unsigned bytes
                         dtype = b'B'
-                        buf[offs] = ord(dtype)
+                        buf[offs] = ord(b'B')
                     elif -0x80 <= iminval and imaxval <= 0x7F:
                         # inline signed bytes
                         dtype = b'b'
-                        buf[offs] = ord(dtype)
+                        buf[offs] = ord(b'b')
                     elif 0 <= iminval and imaxval <= 0xFFFF:
                         # inline unsigned shorts
                         dtype = b'H'
-                        buf[offs] = ord(dtype)
+                        buf[offs] = ord(b'H')
                     elif -0x8000 <= iminval and imaxval <= 0x7FFF:
                         # inline signed shorts
                         dtype = b'h'
-                        buf[offs] = ord(dtype)
+                        buf[offs] = ord(b'h')
                     elif -0x80000000 <= iminval and imaxval <= 0x7FFFFFFF:
                         # inline signed ints
                         dtype = b'i'
-                        buf[offs] = ord(dtype)
+                        buf[offs] = ord(b'i')
                     elif 0 <= iminval and imaxval <= cython.cast(cython.longlong, 0xFFFFFFFF):
                         # inline unsigned ints
                         dtype = b'I'
-                        buf[offs] = ord(dtype)
+                        buf[offs] = ord(b'I')
                     elif (cython.cast(cython.longlong, -0x8000000000000000) <= iminval
                             and imaxval <= cython.cast(cython.longlong, 0x7FFFFFFFFFFFFFFF)):
                         # inline signed int64 list
-                        buf[offs] = ord('q')
+                        buf[offs] = ord(b'q')
                         dtype = b'l'
                     else:
                         raise OverflowError
                 except OverflowError:
                     if 0 <= minval and maxval <= cython.cast(cython.longlong, 0xFFFFFFFFFFFFFFFF):
                         # inline unsigned int64 list
-                        buf[offs] = ord('Q')
+                        buf[offs] = ord(b'Q')
                         dtype = b'L'
                     elif all_int:
                         # inline sorted int64 list
-                        buf[offs] = ord('q')
+                        buf[offs] = ord(b'q')
                         dtype = b'l'
                     else:
                         # longs are tricky, give up
