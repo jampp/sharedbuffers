@@ -955,9 +955,9 @@ class mapped_list(list):
             if objlen == 0xFFFFFF:
                 objlen = _struct_l_Q.unpack_from(buf, offs)
                 offs += 8
-            w = buf[offs:offs+itemsize*objlen]
+            w = buf[offs:offs + itemsize * objlen]
             if python3:
-                w = bytes(w)
+                w = memoryview(w).cast(dtype)
             rv = array(dtype, w)
         elif dchar == b'q' or dchar == b'Q':
             if dchar == b'q':
