@@ -623,7 +623,7 @@ class mapped_frozenset(frozenset):
         else:
             pbuf = buf
         try:
-            if python3 and not cython.compiled:
+            if not cython.compiled and python3:
                 fs_type = bytes([pbuf[offs]])
             else:
                 fs_type = pbuf[offs]
@@ -1656,7 +1656,7 @@ class proxied_list(object):
             dataoffs = self.offs
             buf = self.buf
 
-            if python3 and not cython.compiled:
+            if not cython.compiled and python3:
                 dcode = bytes([buf[dataoffs]])
             else:
                 dcode = buf[dataoffs]
