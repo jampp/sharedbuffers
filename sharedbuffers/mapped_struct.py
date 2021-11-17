@@ -514,28 +514,28 @@ def get_wrapped_key(obj):
 class mapped_frozenset(frozenset):
 
     @classmethod
-    @cython.locals(cbuf = 'unsigned char[:]', i=int, ix=int, offs=cython.longlong, py2_dtype=cython.uchar, py3_dtype="unicode")
+    @cython.locals(cbuf = 'unsigned char[:]', i=int, ix=int, offs=cython.longlong, cdtype=cython.uchar, udtype="unicode")
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if isinstance(obj, npndarray):
             all_int = all_intlong = all_float = 0
             obj_dtype = obj.dtype
             if obj_dtype.isbuiltin:
                 if python3:
-                    py3_dtype = obj_dtype.char
-                    if py3_dtype[0] in (u'l', u'I', u'i', u'H', u'h', u'B', u'b'):
+                    udtype = obj_dtype.char
+                    if udtype[0] in (u'l', u'I', u'i', u'H', u'h', u'B', u'b'):
                         all_int = all_intlong = 1
-                    elif py3_dtype[0] == u'L':
+                    elif udtype[0] == u'L':
                         all_intlong = 1
-                    elif py3_dtype[0] in (u'd', u'f'):
+                    elif udtype[0] in (u'd', u'f'):
                         all_float = 1
                 else:
                     temp = obj_dtype.char
-                    py2_dtype = cython.cast('const char*', temp)[0]
-                    if py2_dtype in (b'l', b'I', b'i', b'H', b'h', b'B', b'b'):
+                    cdtype = cython.cast('const char*', temp)[0]
+                    if cdtype in (b'l', b'I', b'i', b'H', b'h', b'B', b'b'):
                         all_int = all_intlong = 1
-                    elif py2_dtype == b'L':
+                    elif cdtype == b'L':
                         all_intlong = 1
-                    elif py2_dtype in (b'd', b'f'):
+                    elif cdtype in (b'd', b'f'):
                         all_float = 1
         else:
             all_int = all_intlong = all_float = 1
