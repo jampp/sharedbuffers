@@ -155,11 +155,13 @@ def buffer_with_offset(data, offset, size=None):
     if size is not None:
         if python3:
             return buffer(data)[offset:offset+size]
-        return buffer(data, offset, size)
+        else:
+            return buffer(data, offset, size)
     else:
         if python3:
             return buffer(data)[offset:]
-        return buffer(data, offset)
+        else:
+            return buffer(data, offset)
 
 class ubyte(int):
     pass
@@ -504,11 +506,11 @@ def get_wrapped_key(obj):
             return obj
         elif isinstance(obj, long):
             return obj & ~WRAP_MASK
-
-    if isinstance(obj, tuple):
-        return obj[1]
-    elif isinstance(obj, int):
-        return obj & ~WRAP_MASK
+    else:
+        if isinstance(obj, tuple):
+            return obj[1]
+        elif isinstance(obj, int):
+            return obj & ~WRAP_MASK
 
 
 class mapped_frozenset(frozenset):
@@ -1547,7 +1549,8 @@ def dict_cmp_py3(A, B):
 def dict_cmp(a, b):
     if python2:
         return cmp(a,b)
-    return dict_cmp_py3(a,b)
+    else:
+        return dict_cmp_py3(a,b)
 
 #@cython.ccall
 #@cython.returns(int)
