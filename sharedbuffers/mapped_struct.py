@@ -961,7 +961,7 @@ class mapped_list(list):
                 offs += 8
             w = buf[offs:offs + itemsize * objlen]
             if python3:
-                w = memoryview(w).cast(dtype)
+                w = w.cast(dtype)
             rv = array(dtype, w)
         elif dchar == b'q' or dchar == b'Q':
             if dchar == b'q':
