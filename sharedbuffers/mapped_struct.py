@@ -977,7 +977,7 @@ class mapped_list(list):
             offs += 8
             q = buf[offs:offs + itemsize * objlen]
             if python3:
-                q = bytes(q)
+                q = q.cast(dtype.decode())
             rv = array(dtype.decode(), q)
         elif dchar == b'd':
             dtype = b'd'
@@ -986,7 +986,7 @@ class mapped_list(list):
             offs += 8
             q = buf[offs:offs + itemsize * objlen]
             if python3:
-                q = bytes(q)
+                q = q.cast(dtype.decode())
             rv = array(dtype.decode(), q)
         elif dchar == b't' or dchar == b'T':
             if dchar == b't':
@@ -1001,7 +1001,7 @@ class mapped_list(list):
             offs += 8
             q = buf[offs:offs+itemsize*objlen]
             if python3:
-                q = bytes(q)
+                q = q.cast(dtype.decode())
             index = array(dtype.decode(), q)
 
             if idmap is None:
