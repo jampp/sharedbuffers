@@ -61,6 +61,8 @@ to make them portable. This is not done automatically except in some high level 
 when explicitly stated.
 """
 
+from __future__ import division
+
 import struct
 import array
 import mmap
