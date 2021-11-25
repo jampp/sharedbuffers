@@ -106,6 +106,8 @@ import cython
 python2 = cython.declare(cython.bint, six.PY2)
 python3 = cython.declare(cython.bint, six.PY3)
 
+assert python2 or python3
+
 npuint64 = cython.declare(object, numpy.uint64)
 npint64 = cython.declare(object, numpy.int64)
 npuint32 = cython.declare(object, numpy.uint32)
