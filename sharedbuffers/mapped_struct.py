@@ -501,17 +501,15 @@ def is_wrapped_key(obj):
 @cython.inline
 def get_wrapped_key(obj):
     # the key for the unwrapped value
+    if isinstance(obj, tuple):
+        return obj[1]
     if python2:
-        if isinstance(obj, tuple):
-            return obj[1]
-        elif isinstance(obj, int):
+        if isinstance(obj, int):
             return obj
         elif isinstance(obj, long):
             return obj & ~WRAP_MASK
     else:
-        if isinstance(obj, tuple):
-            return obj[1]
-        elif isinstance(obj, int):
+        if isinstance(obj, int):
             return obj & ~WRAP_MASK
 
 
