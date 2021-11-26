@@ -671,42 +671,57 @@ class mapped_tuple(tuple):
     @cython.locals(widmap = StrongIdMap, pindex = 'long[:]',
         rel_offs = cython.longlong, min_offs = cython.longlong, max_offs = cython.longlong,
         offs = cython.Py_ssize_t, implicit_offs = cython.Py_ssize_t, val_offs = cython.Py_ssize_t,
-        i = cython.Py_ssize_t, iminval = cython.longlong, imaxval = cython.longlong, cdtype=cython.uchar)
+        i = cython.Py_ssize_t, iminval = cython.longlong, imaxval = cython.longlong, cdtype=cython.uchar, udtype='unicode', check_udtype=cython.bint)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
             array = array.array):
         baseoffs = offs
         objlen = len(obj)
+        check_udtype = False
         if isinstance(obj, npndarray):
             all_int = all_intlong = all_float = 0
             obj_dtype = obj.dtype
             if obj_dtype.isbuiltin:
                 if python3:
-                    dtype = obj_dtype.char.encode()
-                    if cython.compiled:
-                        cdtype = dtype[0]
-                    else:
-                        cdtype = bytes([dtype[0]])
+                    check_udtype = True
+                    udtype = obj_dtype.char
+                    if udtype[0] in (u'l', u'I', u'i', u'H', u'h', u'B', u'b'):
+                        all_int = all_intlong = 1
+                        all_float = 0
+                    elif udtype[0] == u'L':
+                        all_int = all_float = 0
+                        all_intlong = 1
+                    elif udtype[0] in (u'd', u'f'):
+                        all_int = all_intlong = 0
+                        all_float = 1
+
+                    if all_int or all_intlong or all_float:
+                        # translate l -> q
+                        if udtype[0] == u'l':
+                            buf[offs] = ord(b'q')
+                        elif udtype[0] == u'L':
+                            buf[offs] = ord(b'Q')
+                        else:
+                            buf[offs] = ord(udtype[0])
                 else:
                     dtype = obj_dtype.char
                     cdtype = cython.cast('const unsigned char*', dtype)[0]
-
-                if cdtype in (b'l', b'I', b'i', b'H', b'h', b'B', b'b'):
-                    all_int = all_intlong = 1
-                    all_float = 0
-                elif cdtype == b'L':
-                    all_int = all_float = 0
-                    all_intlong = 1
-                elif cdtype in (b'd', b'f'):
-                    all_int = all_intlong = 0
-                    all_float = 1
-                if all_int or all_intlong or all_float:
-                    # translate l -> q
-                    if cdtype == b'l':
-                        buf[offs] = ord(b'q')
+                    if cdtype in (b'l', b'I', b'i', b'H', b'h', b'B', b'b'):
+                        all_int = all_intlong = 1
+                        all_float = 0
                     elif cdtype == b'L':
-                        buf[offs] = ord(b'Q')
-                    else:
-                        buf[offs] = ord(dtype)
+                        all_int = all_float = 0
+                        all_intlong = 1
+                    elif cdtype in (b'd', b'f'):
+                        all_int = all_intlong = 0
+                        all_float = 1
+                    if all_int or all_intlong or all_float:
+                        # translate l -> q
+                        if cdtype == b'l':
+                            buf[offs] = ord(b'q')
+                        elif cdtype == b'L':
+                            buf[offs] = ord(b'Q')
+                        else:
+                            buf[offs] = ord(dtype)
         else:
             all_int = all_intlong = all_float = 1
             minval = maxval = 0
@@ -773,7 +788,12 @@ class mapped_tuple(tuple):
                         # longs are tricky, give up
                         all_int = all_intlong = 0
         if all_int or all_intlong:
-            if dtype == b'l' or dtype == b'L':
+            l_or_L = False
+            if check_udtype:
+                l_or_L = udtype[0] == u'l' or udtype[0] == u'L'
+            else:
+                l_or_L = dtype == b'l' or dtype == b'L'
+            if l_or_L:
                 buf[offs+1:offs+8] = _struct_l_Q.pack(objlen)[:7]
                 offs += 8
             elif objlen < 0xFFFFFF:
