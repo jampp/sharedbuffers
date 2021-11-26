@@ -629,10 +629,7 @@ class mapped_frozenset(frozenset):
         else:
             pbuf = buf
         try:
-            if not cython.compiled and python3:
-                fs_type = bytes([pbuf[offs]])
-            else:
-                fs_type = pbuf[offs]
+            fs_type = pbuf[offs]
             if fs_type == b'm' or fs_type == b'M':
                 # inline bitmap
                 if fs_type == b'm':
