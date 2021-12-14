@@ -505,7 +505,7 @@ def get_wrapped_key(obj):
     # the key for the unwrapped value
     if isinstance(obj, tuple):
         return obj[1]
-    if python2:
+    elif python2:
         if isinstance(obj, int):
             return obj
         elif isinstance(obj, long):
