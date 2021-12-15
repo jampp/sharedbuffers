@@ -671,18 +671,18 @@ class mapped_tuple(tuple):
     @cython.locals(widmap = StrongIdMap, pindex = 'long[:]',
         rel_offs = cython.longlong, min_offs = cython.longlong, max_offs = cython.longlong,
         offs = cython.Py_ssize_t, implicit_offs = cython.Py_ssize_t, val_offs = cython.Py_ssize_t,
-        i = cython.Py_ssize_t, iminval = cython.longlong, imaxval = cython.longlong, cdtype=cython.uchar, udtype='unicode', check_udtype=cython.bint)
+        i = cython.Py_ssize_t, iminval = cython.longlong, imaxval = cython.longlong, cdtype=cython.uchar, udtype='unicode', l_or_L=cython.bint)
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
             array = array.array):
         baseoffs = offs
         objlen = len(obj)
-        check_udtype = False
+        udtype = u''
+        dtype = b''
         if isinstance(obj, npndarray):
             all_int = all_intlong = all_float = 0
             obj_dtype = obj.dtype
             if obj_dtype.isbuiltin:
                 if python3:
-                    check_udtype = True
                     udtype = obj_dtype.char
                     if udtype[0] in (u'l', u'I', u'i', u'H', u'h', u'B', u'b'):
                         all_int = all_intlong = 1
@@ -747,32 +747,39 @@ class mapped_tuple(tuple):
                     if 0 <= iminval and imaxval <= 0xFF:
                         # inline unsigned bytes
                         dtype = b'B'
+                        udtype = u'B'
                         buf[offs] = ord(b'B')
                     elif -0x80 <= iminval and imaxval <= 0x7F:
                         # inline signed bytes
                         dtype = b'b'
+                        udtype = u'b'
                         buf[offs] = ord(b'b')
                     elif 0 <= iminval and imaxval <= 0xFFFF:
                         # inline unsigned shorts
                         dtype = b'H'
+                        udtype = u'H'
                         buf[offs] = ord(b'H')
                     elif -0x8000 <= iminval and imaxval <= 0x7FFF:
                         # inline signed shorts
                         dtype = b'h'
+                        udtype = u'h'
                         buf[offs] = ord(b'h')
                     elif -0x80000000 <= iminval and imaxval <= 0x7FFFFFFF:
                         # inline signed ints
                         dtype = b'i'
+                        udtype = u'i'
                         buf[offs] = ord(b'i')
                     elif 0 <= iminval and imaxval <= cython.cast(cython.longlong, 0xFFFFFFFF):
                         # inline unsigned ints
                         dtype = b'I'
+                        udtype = u'I'
                         buf[offs] = ord(b'I')
                     elif (cython.cast(cython.longlong, -0x8000000000000000) <= iminval
                             and imaxval <= cython.cast(cython.longlong, 0x7FFFFFFFFFFFFFFF)):
                         # inline signed int64 list
                         buf[offs] = ord(b'q')
                         dtype = b'l'
+                        udtype = u'l'
                     else:
                         raise OverflowError
                 except OverflowError:
@@ -780,16 +787,19 @@ class mapped_tuple(tuple):
                         # inline unsigned int64 list
                         buf[offs] = ord(b'Q')
                         dtype = b'L'
+                        udtype = u'L'
+
                     elif all_int:
                         # inline sorted int64 list
                         buf[offs] = ord(b'q')
                         dtype = b'l'
+                        udtype = u'l'
                     else:
                         # longs are tricky, give up
                         all_int = all_intlong = 0
         if all_int or all_intlong:
             l_or_L = False
-            if check_udtype:
+            if python3:
                 l_or_L = udtype[0] == u'l' or udtype[0] == u'L'
             else:
                 l_or_L = dtype == b'l' or dtype == b'L'
@@ -807,7 +817,10 @@ class mapped_tuple(tuple):
             if isinstance(obj, npndarray):
                 a = obj
             else:
-                a = array(dtype.decode(), obj)
+                if python3:
+                    a = array(udtype, obj)
+                else:
+                    a = array(dtype, obj)
             abuf = buffer(a)
             buf[offs:offs+len(abuf)] = abuf
             offs += len(abuf)
