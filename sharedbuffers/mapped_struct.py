@@ -533,7 +533,7 @@ class mapped_frozenset(frozenset):
                     elif udtype[0] in (u'd', u'f'):
                         all_float = 1
                 else:
-                    temp = obj_dtype.char
+                    temp = obj_dtype.char  # need to keep a reference to the string while accessing the char*
                     cdtype = cython.cast('const char*', temp)[0]
                     if cdtype in (b'l', b'I', b'i', b'H', b'h', b'B', b'b'):
                         all_int = all_intlong = 1
