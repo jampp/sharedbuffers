@@ -783,7 +783,7 @@ class mapped_tuple(tuple):
                     else:
                         raise OverflowError
                 except OverflowError:
-                    if 0 <= minval and maxval <= cython.cast(cython.longlong, 0xFFFFFFFFFFFFFFFF):
+                    if 0 <= minval and maxval <= 0xFFFFFFFFFFFFFFFF:
                         # inline unsigned int64 list
                         buf[offs] = ord(b'Q')
                         dtype = b'L'
