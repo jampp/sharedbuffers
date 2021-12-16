@@ -817,10 +817,7 @@ class mapped_tuple(tuple):
             if isinstance(obj, npndarray):
                 a = obj
             else:
-                if python3:
-                    a = array(udtype, obj)
-                else:
-                    a = array(dtype, obj)
+                a = array(udtype if python3 else dtype, obj)
             abuf = buffer(a)
             buf[offs:offs+len(abuf)] = abuf
             offs += len(abuf)
