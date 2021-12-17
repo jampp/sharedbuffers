@@ -676,8 +676,8 @@ class mapped_tuple(tuple):
             array = array.array):
         baseoffs = offs
         objlen = len(obj)
-        udtype = u''
-        dtype = b''
+        udtype = None
+        dtype = None
         if isinstance(obj, npndarray):
             all_int = all_intlong = all_float = 0
             obj_dtype = obj.dtype
