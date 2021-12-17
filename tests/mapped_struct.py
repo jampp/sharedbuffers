@@ -2345,22 +2345,39 @@ class MappedDecimalPackingTest(unittest.TestCase):
 
 class ProxiedBufferPackingTest(unittest.TestCase):
 
-    def assertPackUnpackOk(self, offs):
+    def assertPackUnpackOk(self, obj, offs):
         proxied_buffer = mapped_struct.proxied_buffer
         buf = bytearray(64)
 
-        obj = buffer(bytearray(xrange(100)))
         new_offs = proxied_buffer.pack_into(obj, buf, offs)
         self.assertEquals(new_offs, offs + len(obj) + 8) # obj.size + ulong.size
 
         unpacked_obj = proxied_buffer.unpack_from(buf, offs)
-        self.assertEquals(obj, unpacked_obj)
+        self.assertEquals(obj[:], unpacked_obj[:])
 
-    def testPackUnpack(self):
-        self.assertPackUnpackOk(0)
+    def testBufferPackUnpack(self):
+        obj = buffer(bytearray(xrange(100)))
+        self.assertPackUnpackOk(obj, 0)
 
-    def testPackUnpackWithOffset(self):
-        self.assertPackUnpackOk(10)
+    def testBufferPackUnpackWithOffset(self):
+        obj = buffer(bytearray(xrange(100)))
+        self.assertPackUnpackOk(obj, 10)
+
+    def testBytesPackUnpack(self):
+        obj = bytes(bytearray(xrange(100)))
+        self.assertPackUnpackOk(obj, 0)
+
+    def testBytesPackUnpackWithOffset(self):
+        obj = bytes(bytearray(xrange(100)))
+        self.assertPackUnpackOk(obj, 10)
+
+    def testBytearrayPackUnpack(self):
+        obj = bytearray(xrange(100))
+        self.assertPackUnpackOk(obj, 0)
+
+    def testBytearrayPackUnpackWithOffset(self):
+        obj = bytearray(xrange(100))
+        self.assertPackUnpackOk(obj, 10)
 
 class ProxiedNDArrayPackingTest(unittest.TestCase):
 
