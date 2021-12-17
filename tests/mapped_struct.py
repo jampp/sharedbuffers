@@ -2353,7 +2353,7 @@ class ProxiedBufferPackingTest(unittest.TestCase):
         self.assertEquals(new_offs, offs + len(obj) + 8) # obj.size + ulong.size
 
         unpacked_obj = proxied_buffer.unpack_from(buf, offs)
-        self.assertEquals(obj[:], unpacked_obj[:])
+        self.assertEquals(buffer(obj), unpacked_obj)
 
     def testBufferPackUnpack(self):
         obj = buffer(bytearray(xrange(100)))
