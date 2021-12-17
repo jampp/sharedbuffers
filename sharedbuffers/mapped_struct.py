@@ -452,7 +452,7 @@ def shared_id(obj):
             return obj | LONG_MASK
         elif isinstance(obj, long):
             # Real longs must make room for the flag bits
-            return (obj & cython.cast(cython.longlong, 0xFFFFFFFFFFFFFFFF)) | ((obj >> 64) << 68) | LONG_MASK
+            return (obj & 0xFFFFFFFFFFFFFFFF) | ((obj >> 64) << 68) | LONG_MASK
 
         # For other keys, use the object itself as key if hashable
         try:
