@@ -5143,7 +5143,7 @@ class GenericFileMapper(_ZipMapBase):
             access = mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), size + offset - map_start,
             access = access, offset = map_start)
-        return buffer(buf, offset - map_start, size), buf
+        return buffer_with_offset(buf, offset - map_start, size), buf
 
 class MappedArrayProxyBase(_ZipMapBase):
     """
