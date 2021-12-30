@@ -154,9 +154,7 @@ if cython.compiled:
     assert Py_NE == 3
     assert Py_GT == 4
     assert Py_GE == 5
-else:
-    if python3:
-        buffer = make_memoryview
+
 
 def buffer_with_offset(data, offset, size=None):
     if size is not None:
