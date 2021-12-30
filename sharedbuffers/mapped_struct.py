@@ -135,7 +135,10 @@ if python3:
 @cython.cfunc
 @cython.inline
 def make_memoryview(a):
-    return memoryview(a).cast("B")
+    if python3:
+        return memoryview(a).cast("B")
+    else:
+        return buffer(a)
 
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
@@ -158,12 +161,12 @@ else:
 def buffer_with_offset(data, offset, size=None):
     if size is not None:
         if python3:
-            return buffer(data)[offset:offset+size]
+            return memoryview(data).cast("B")[offset:offset+size]
         else:
             return buffer(data, offset, size)
     else:
         if python3:
-            return buffer(data)[offset:]
+            return memoryview(data).cast("B")[offset:]
         else:
             return buffer(data, offset)
 
@@ -212,7 +215,7 @@ def _likebuffer(buf):
             isinstance(buf, (ctypes_Array, bytes))):
         return buf
     else:
-        return buffer(buf)
+        return make_memoryview(buf)
 
 @cython.inline
 @cython.cfunc
@@ -223,7 +226,7 @@ def _likerobuffer(buf):
     if type(buf) is buffer or type(buf) is bytes or isinstance(buf, bytes):
         return buf
     else:
-        return buffer(buf)
+        return make_memoryview(buf)
 
 class NONE:
     pass
@@ -818,7 +821,7 @@ class mapped_tuple(tuple):
                 a = obj
             else:
                 a = array(udtype if python3 else dtype, obj)
-            abuf = buffer(a)
+            abuf = make_memoryview(a)
             buf[offs:offs+len(abuf)] = abuf
             offs += len(abuf)
             offs = (offs + 7) // 8 * 8
@@ -832,7 +835,7 @@ class mapped_tuple(tuple):
                 buf[offs] = ord('d')
             buf[offs+1:offs+8] = _struct_l_Q.pack(objlen)[:7]
             offs += 8
-            abuf = buffer(a)
+            abuf = make_memoryview(a)
             buf[offs:offs + len(abuf)] = abuf
             offs += len(abuf)
             offs = (offs + 7) // 8 * 8
@@ -848,7 +851,7 @@ class mapped_tuple(tuple):
             # (it would point into this tuple's header, 0 would be the tuple itself so it's valid)
             indexoffs = offs
             pindex = index = npempty(len(obj), npint64)
-            index_buffer = buffer(index)
+            index_buffer = make_memoryview(index)
             offs += len(index_buffer)
 
             if idmap is None:
@@ -925,7 +928,7 @@ class mapped_tuple(tuple):
             if use_narrow:
                 del index_buffer
                 index = index.astype(npint32)
-                index_buffer = buffer(index)
+                index_buffer = make_memoryview(index)
 
             # write index
             buf[indexoffs:indexoffs+len(index_buffer)] = index_buffer
@@ -1496,7 +1499,7 @@ class proxied_ndarray(object):
         data_offs = cur_offs - baseoffs
 
         _NDARRAY_HEADER_PACKER.pack_into(buf, header_offs, dtype_offs, data_offs)
-        return proxied_buffer.pack_into(buffer(obj), buf, cur_offs)
+        return proxied_buffer.pack_into(make_memoryview(obj), buf, cur_offs)
 
 
     @classmethod
@@ -5032,7 +5035,7 @@ class Schema(object):
 
         See :meth:`unpack_from` for a description of the arguments.
         """
-        return self.unpack_from(buffer(buf), 0, idmap, factory_class_new, proxy_into)
+        return self.unpack_from(make_memoryview(buf), 0, idmap, factory_class_new, proxy_into)
 
 @cython.cclass
 class mapped_object_with_schema(object):
@@ -5380,7 +5383,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         else:
             index = numpy.array([], dtype = numpy.uint64)
         del index_parts
-        write(buffer(index))
+        write(make_memoryview(index))
         destfile.flush()
 
         schema_pos = destfile.tell()
@@ -6545,7 +6548,7 @@ class NumericIdMapper(_CZipMapBase):
                         if partsfile is None:
                             partsfile = tempfile.TemporaryFile(dir = tempdir)
                             partswrite = partsfile.write
-                        partswrite(buffer(apart))
+                        partswrite(make_memoryview(apart))
                     else:
                         # Accumulate in memory
                         bigparts.append(apart)
@@ -6559,7 +6562,7 @@ class NumericIdMapper(_CZipMapBase):
                 if bigparts:
                     # Flush the rest to do the final sort in mapped memory
                     for apart in bigparts:
-                        partswrite(buffer(apart))
+                        partswrite(make_memoryview(apart))
                     del bigparts[:]
                 partsfile.flush()
                 partsfile.seek(0)
@@ -6597,11 +6600,11 @@ class NumericIdMapper(_CZipMapBase):
             indexpos = curpos
             if python3:
                 if len(index):
-                    w = buffer(index)
+                    w = make_memoryview(index)
                 else:
                     w = b''
             else:
-                w = buffer(index)
+                w = make_memoryview(index)
             write(w)
             nitems = len(index)
         finally:
@@ -6707,7 +6710,7 @@ class NumericIdMapper(_CZipMapBase):
         # Merge the indexes
         index = _merge_all([mapper.index for mapper in parts], dtype, True)
 
-        write(buffer(index))
+        write(make_memoryview(index))
         nitems = len(index)
 
         finalpos = destfile.tell()
@@ -7232,11 +7235,11 @@ class ObjectIdMapper(_CZipMapBase):
         indexpos = curpos
         if python3:
             if len(index):
-                d = buffer(index)
+                d = make_memoryview(index)
             else:
                 d = b''
         else:
-            d = buffer(index)
+            d = make_memoryview(index)
         write(d)
         nitems = len(index)
 
@@ -7748,11 +7751,11 @@ class StringIdMapper(_CZipMapBase):
         indexpos = curpos
         if python3:
             if len(index):
-                d = buffer(index)
+                d = make_memoryview(index)
             else:
                 d = b''
         else:
-            d = buffer(index)
+            d = make_memoryview(index)
         write(d)
         nitems = len(index)
 
