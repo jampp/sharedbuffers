@@ -1679,10 +1679,7 @@ class proxied_list(object):
             dataoffs = self.offs
             buf = self.buf
 
-            if not cython.compiled and python3:
-                dcode = bytes([buf[dataoffs]])
-            else:
-                dcode = buf[dataoffs]
+            dcode = buf[dataoffs]
 
             if dcode in (b'B',b'b',b'H',b'h',b'I',b'i'):
                 objlen, = struct.unpack('<I', bytes(buf[dataoffs+1:dataoffs+4]) + b'\x00')
