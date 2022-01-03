@@ -965,10 +965,7 @@ class mapped_list(list):
         if python3:
             dcode = chr(buf[offs])
             dcode_enc = dcode.encode()
-            if cython.compiled:
-                dchar = dcode_enc[0]
-            else:
-                dchar = dcode_enc
+            dchar = dcode_enc[0]
         else:
             dcode = buf[offs]
             dchar = cython.cast('const char*', dcode)[0]
