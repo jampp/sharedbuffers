@@ -2364,10 +2364,7 @@ class proxied_frozenset(object):
         objlen=cython.longlong, itemsize=cython.uchar, offset=cython.Py_ssize_t)
     def _frozenset_eq(self, x):
         if isinstance(x, proxied_frozenset):
-            if cython.compiled:
-                pfset = cython.cast(proxied_frozenset, x)
-            else:
-                pfset = x
+            pfset = cython.cast(proxied_frozenset, x)
             return (self.bitrep_lo == pfset.bitrep_lo and
                 self.bitrep_hi == pfset.bitrep_hi and
                 self.objlist == pfset.objlist)
