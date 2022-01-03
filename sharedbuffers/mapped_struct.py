@@ -2083,13 +2083,8 @@ class proxied_frozenset(object):
                     raise IndexError("Offset out of range")
             else:
                 pbuf = buf
-            if python3:
-                if cython.compiled:
-                    d = pbuf[offs]
-                else:
-                    d = bytes([pbuf[offs]])
-            else:
-                d = pbuf[offs]
+
+            d = pbuf[offs]
 
             if d == b'm':
                 # inline bitmap (64 bits)
