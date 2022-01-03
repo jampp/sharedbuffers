@@ -1158,9 +1158,6 @@ def _stable_hash(key):
         truncated = False
         try:
             trunc_key = int(flt)
-            if not cython.compiled:
-                import ctypes
-                trunc_key = int(ctypes.c_longlong(trunc_key).value)
             if trunc_key == flt:
                 hval = trunc_key
                 truncated = True
