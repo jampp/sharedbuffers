@@ -85,7 +85,7 @@ import ctypes
 from datetime import timedelta, datetime, date
 from decimal import Decimal
 from six import itervalues, reraise, iteritems, iterkeys
-from six.moves import cPickle, range
+from six.moves import cPickle
 
 
 try:
