@@ -6595,11 +6595,8 @@ class NumericIdMapper(_CZipMapBase):
             del bigparts
 
             indexpos = curpos
-            if python3:
-                if len(index):
-                    w = make_memoryview(index)
-                else:
-                    w = b''
+            if python3 and len(index) == 0:
+                w = b''
             else:
                 w = make_memoryview(index)
             write(w)
