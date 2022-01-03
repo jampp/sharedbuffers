@@ -2090,16 +2090,7 @@ class proxied_frozenset(object):
                 # inline bitmap (64 bits)
                 if cython.compiled and offs+7 >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
-                if cython.compiled:
-                    bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs)[0] >> 8
-                else:
-                    bitrep_lo = 0
-                    if python3:
-                        for i in range(7):
-                            bitrep_lo += pbuf[offs + i + 1] << i*8
-                    else:
-                        for i in range(7):
-                            bitrep_lo += ord(pbuf[offs + i + 1]) << i*8
+                bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs)[0] >> 8
                 return proxied_frozenset(None, bitrep_lo, 0)
             elif d == b'M':
                 # inline bitmap (128 bits)
