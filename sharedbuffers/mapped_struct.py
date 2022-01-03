@@ -685,24 +685,25 @@ class mapped_tuple(tuple):
             if obj_dtype.isbuiltin:
                 if python3:
                     udtype = obj_dtype.char
-                    if udtype[0] in (u'l', u'I', u'i', u'H', u'h', u'B', u'b'):
+                    udtype0 = udtype[0]
+                    if udtype0 in (u'l', u'I', u'i', u'H', u'h', u'B', u'b'):
                         all_int = all_intlong = 1
                         all_float = 0
-                    elif udtype[0] == u'L':
+                    elif udtype0 == u'L':
                         all_int = all_float = 0
                         all_intlong = 1
-                    elif udtype[0] in (u'd', u'f'):
+                    elif udtype0 in (u'd', u'f'):
                         all_int = all_intlong = 0
                         all_float = 1
 
                     if all_int or all_intlong or all_float:
                         # translate l -> q
-                        if udtype[0] == u'l':
+                        if udtype0 == u'l':
                             buf[offs] = ord(b'q')
-                        elif udtype[0] == u'L':
+                        elif udtype0 == u'L':
                             buf[offs] = ord(b'Q')
                         else:
-                            buf[offs] = ord(udtype[0])
+                            buf[offs] = ord(udtype0)
                 else:
                     dtype = obj_dtype.char
                     cdtype = cython.cast('const unsigned char*', dtype)[0]
