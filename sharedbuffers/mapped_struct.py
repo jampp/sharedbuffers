@@ -145,8 +145,6 @@ if cython.compiled:
     if python2:
         buffer = cython.declare(object, buffer)  # lint:ok
         from types import BufferType as buffer
-    else:
-        buffer = make_memoryview
 
     assert Py_LT == 0
     assert Py_LE == 1
