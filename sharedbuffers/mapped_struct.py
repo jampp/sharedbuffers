@@ -1301,19 +1301,28 @@ class proxied_dict(object):
             yield key, self.vlist[idx]
 
     def items(self):
-        return list(self.iteritems())
+        if python3:
+            return self.iteritems()
+        else:
+            return list(self.iteritems())
 
     def iterkeys(self):
         return iter(self.objmapper)
 
     def keys(self):
-        return self.objmapper.keys()
+        if python3:
+            return iter(self.objmapper)
+        else:
+            return self.objmapper.keys()
 
     def itervalues(self):
         return iter(self.vlist)
 
     def values(self):
-        return self.vlist
+        if python3:
+            return iter(self.vlist)
+        else:
+            return self.vlist
 
     def __iter__(self):
         return self.iterkeys()
