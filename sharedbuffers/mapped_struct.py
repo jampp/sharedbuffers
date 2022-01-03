@@ -153,7 +153,8 @@ if cython.compiled:
     assert Py_GT == 4
     assert Py_GE == 5
 
-
+@cython.cfunc
+@cython.inline
 def buffer_with_offset(data, offset, size=None):
     if size is not None:
         if python3:
