@@ -526,11 +526,12 @@ class mapped_frozenset(frozenset):
             if obj_dtype.isbuiltin:
                 if python3:
                     udtype = obj_dtype.char
-                    if udtype[0] in (u'l', u'I', u'i', u'H', u'h', u'B', u'b'):
+                    udtype0 = udtype[0]
+                    if udtype0 in (u'l', u'I', u'i', u'H', u'h', u'B', u'b'):
                         all_int = all_intlong = 1
-                    elif udtype[0] == u'L':
+                    elif udtype0 == u'L':
                         all_intlong = 1
-                    elif udtype[0] in (u'd', u'f'):
+                    elif udtype0 in (u'd', u'f'):
                         all_float = 1
                 else:
                     temp = obj_dtype.char  # need to keep a reference to the string while accessing the char*
