@@ -2465,29 +2465,13 @@ class proxied_frozenset(object):
             dcode2, objlen2, itemsize2, offset2, _struct2 = pfset.objlist._metadata()
 
             if dcode2 not in (b't', b'T'):
-                if cython.compiled:
-                    # fast path, use the search_hkey variants
-                    for i in range(xlen):
-                        val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
-                        tmp_idx = pfset._search_key(val, dcode, offset, j, seqlen - j, j, True)
-                        if tmp_idx >= seqlen - j:
-                            return False
-                        j = tmp_idx
-                else:
-                    j = 0
-                    for i in range(xlen):
-                        a_val = self.objlist[i]
-                        while True:
-                            b_val = pfset.objlist[j]
-                            j += 1
-                            if a_val < b_val:
-                                return False
-                            elif a_val == b_val:
-                                break
-                            if j == seqlen:
-                                return False
-
-
+                # fast path, use the search_hkey variants
+                for i in range(xlen):
+                    val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
+                    tmp_idx = pfset._search_key(val, dcode, offset, j, seqlen - j, j, True)
+                    if tmp_idx >= seqlen - j:
+                        return False
+                    j = tmp_idx
             else:
                 for i in range(xlen):
                     val = self.objlist._c_getitem(i, dcode, objlen, itemsize, offset, _struct, None)
