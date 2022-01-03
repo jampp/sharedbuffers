@@ -1106,11 +1106,7 @@ class mapped_dict(dict):
 @cython.locals(code=cython.ulonglong, nbits=cython.ulonglong)
 @cython.returns(cython.ulonglong)
 def _hash_rotl(code, nbits):
-    a = (code << nbits)
-    if not cython.compiled:
-        import ctypes
-        a = int(ctypes.c_ulonglong(a).value)
-    return a | (code >> (64 - nbits))
+    return (code << nbits) | (code >> (64 - nbits))
 
 
 @cython.cfunc
