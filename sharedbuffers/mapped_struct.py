@@ -107,7 +107,7 @@ import cython
 
 python2 = cython.declare(cython.bint, six.PY2)
 python3 = cython.declare(cython.bint, six.PY3)
-
+python38 = cython.declare(cython.bint, sys.version_info[0:2] >= (3, 8))
 assert python2 or python3
 
 npuint64 = cython.declare(object, numpy.uint64)
@@ -2624,7 +2624,7 @@ class proxied_tuple(proxied_list):
     def __hash__(self):
         if self._hash == -1:
             if cython.compiled and is_cpython:
-                if sys.version_info[0:2] >= (3, 8):
+                if python38:
                     # From Python 3.8 source code
                     len_ = len(self)
                     acc = XXPRIME_5
