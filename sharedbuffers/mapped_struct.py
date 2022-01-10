@@ -2593,6 +2593,10 @@ else:
     _cpython = sys.subversion[0] == 'CPython'
 is_cpython = cython.declare(cython.bint, _cpython)
 
+XXPRIME_1 = cython.declare(cython.long, 11400714785074694791)
+XXPRIME_2 = cython.declare(cython.long, 14029467366897019727)
+XXPRIME_5 = cython.declare(cython.long, 2870177450012600261)
+
 @cython.cclass
 class proxied_tuple(proxied_list):
 
@@ -2608,24 +2612,49 @@ class proxied_tuple(proxied_list):
     def _make_empty(self):
         return ()
 
-    @cython.locals(mult = cython.long, x = cython.long, y = cython.long, len_ = cython.Py_ssize_t, i = cython.Py_ssize_t)
+    @cython.locals(
+        mult=cython.long,
+        x=cython.long,
+        y=cython.long,
+        len_=cython.Py_ssize_t,
+        i=cython.Py_ssize_t,
+        acc=cython.size_t,
+        lane=cython.size_t,
+    )
     def __hash__(self):
         if self._hash == -1:
             if cython.compiled and is_cpython:
-                # From Python 2.7 source code
-                mult = 1000003
-                x = 0x345678
-                len_ = len(self)
-                for i in range(len_):
-                    len_ -= 1
-                    y = hash(self[i])
-                    x = (x ^ y) * mult;
-                    mult += 82520 + len_ + len_;
+                if sys.version_info[0:2] >= (3, 8):
+                    # From Python 3.8 source code
+                    len_ = len(self)
+                    acc = XXPRIME_5
+                    for i in range(len_):
+                        lane = hash(self[i])
+                        if lane == -1:
+                            return -1
+                        acc += lane * XXPRIME_2
+                        acc = (acc << 31) | (acc >> 33)
+                        acc *= XXPRIME_1
+                    acc += len_ ^ (XXPRIME_5 ^ 3527539)
+                    if acc == -1:
+                        self._hash = 1546275796
+                        return self._hash
+                    self._hash = acc
+                else:
+                    # From Python 2.7 source code
+                    mult = 1000003
+                    x = 0x345678
+                    len_ = len(self)
+                    for i in range(len_):
+                        len_ -= 1
+                        y = hash(self[i])
+                        x = (x ^ y) * mult
+                        mult += 82520 + len_ + len_
 
-                x += 97531
-                if x == -1:
-                    x = -2
-                self._hash = x
+                    x += 97531
+                    if x == -1:
+                        x = -2
+                    self._hash = x
             else:
                 self._hash = hash(tuple(iter(self)))
         return self._hash
