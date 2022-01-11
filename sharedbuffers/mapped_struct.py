@@ -6578,12 +6578,10 @@ class NumericIdMapper(_CZipMapBase):
             del bigparts
 
             indexpos = curpos
-            if python3 and len(index) == 0:
-                w = b''
-            else:
-                w = make_memoryview(index)
-            write(w)
+
             nitems = len(index)
+            if nitems != 0:
+                write(make_memoryview(index))
         finally:
             if partsfile is not None:
                 partsfile.close()
