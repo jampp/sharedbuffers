@@ -7208,15 +7208,10 @@ class ObjectIdMapper(_CZipMapBase):
         index = index[shuffle]
 
         indexpos = curpos
-        if python3:
-            if len(index):
-                d = make_memoryview(index)
-            else:
-                d = b''
-        else:
-            d = make_memoryview(index)
-        write(d)
+
         nitems = len(index)
+        if nitems != 0:
+            write(make_memoryview(index))
 
         finalpos = destfile.tell()
         if finalpos & 31:
