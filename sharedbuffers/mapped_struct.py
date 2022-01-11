@@ -158,12 +158,12 @@ if cython.compiled:
 def buffer_with_offset(data, offset, size=None):
     if size is not None:
         if python3:
-            return memoryview(data).cast("B")[offset:offset+size]
+            return make_memoryview(data)[offset:offset+size]
         else:
             return buffer(data, offset, size)
     else:
         if python3:
-            return memoryview(data).cast("B")[offset:]
+            return make_memoryview(data)[offset:]
         else:
             return buffer(data, offset)
 
