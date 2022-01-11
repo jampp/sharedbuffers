@@ -4619,8 +4619,11 @@ class Schema(object):
 
         rv = self.packer_cache.get(packer_key)
         if rv is None:
+            bitmap_packer_format = self.bitmap_packer.format
+            if isinstance(bitmap_packer_format, bytes):
+                bitmap_packer_format = bitmap_packer_format.decode("ascii")
             packer = struct.Struct("".join([
-                self.bitmap_packer.format,
+                bitmap_packer_format,
             ] + [
                 self.slot_struct_types[slot]
                 for i,slot in enumerate(self.slot_keys)
