@@ -1590,7 +1590,11 @@ class proxied_list(object):
             if self.pybuf.buf != cython.NULL:
                 PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
                 self.pybuf.buf = cython.NULL
-            PyObject_GetBuffer(self.buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
+            try:
+                PyObject_GetBuffer(self.buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
+            except BufferError:
+                self.pybuf.buf = cython.NULL
+                raise
 
         # Call metadata to check the object
         self._metadata()
@@ -1899,10 +1903,11 @@ class proxied_frozenset(object):
         bitrep_lo=cython.ulonglong, bitrep_hi=cython.ulonglong)
     def unpack_from(cls, buf, offs, idmap = None):
         buf = _likerobuffer(buf)
+        if cython.compiled:
+            pybuf.buf = cython.NULL
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
         try:
             if cython.compiled:
-                pybuf.buf = cython.NULL
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
                 pbuf = cython.cast(cython.p_uchar, pybuf.buf)
                 if offs >= pybuf.len:
                     raise IndexError("Offset out of range")
@@ -2535,9 +2540,9 @@ def _unpack_bytes_from_pybuffer(buf, offs, idmap):
         return idmap[offs]
 
     if cython.compiled:
+        buf = _likebuffer(buf)
+        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
         try:
-            buf = _likebuffer(buf)
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
             rv = _unpack_bytes_from_cbuffer(cython.cast(cython.p_char, pybuf.buf), offs, pybuf.len, None)  # lint:ok
         finally:
             PyBuffer_Release(cython.address(pybuf))  # lint:ok
@@ -2605,9 +2610,9 @@ class mapped_bytes(bytes):
         if (offs + 16 + len(obj)) > len(buf):
             raise struct.error('buffer too small')
         if cython.compiled:
+            buf = _likebuffer(buf)
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_WRITABLE)  # lint:ok
             try:
-                buf = _likebuffer(buf)
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_WRITABLE)  # lint:ok
                 pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
 
                 if objlen < 0x7FFF:
@@ -3217,7 +3222,11 @@ class BufferProxyObject(object):
             try:
                 PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_WRITABLE)  # lint:ok
             except BufferError:
-                PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
+                try:
+                    PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
+                except BufferError:
+                    self.pybuf.buf = cython.NULL
+                    raise
 
     @cython.ccall
     @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
@@ -4613,13 +4622,13 @@ class Schema(object):
             # Inlined bitmap unpacking
             rbuf = _likebuffer(buf)
             PyObject_GetBuffer(rbuf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
-            assert (offs + self.bitmap_size) <= pybuf.len  # lint:ok
-            pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
         else:
             offs = int(offs)
 
         try:
             if cython.compiled:
+                assert (offs + self.bitmap_size) <= pybuf.len  # lint:ok
+                pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
                 if self.bitmap_size == 2:
                     has_bitmap = cython.cast(cython.p_uchar, pbuf)[0]
                     none_bitmap = cython.cast(cython.p_uchar, pbuf)[1]
