@@ -5,6 +5,16 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
+v0.9.2 - Unreleased
+===================
+
+Bugfixes
+--------
+
+- Fix buffer acquisition error handling to prevent the possibility of
+  double-release or other buffer reference mismanagement if an error
+  happens during the GetBuffer call.
+
 v0.9.1 - 2021-03-25
 ===================
 
