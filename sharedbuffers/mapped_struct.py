@@ -1324,7 +1324,7 @@ class proxied_dict(object):
 
     def keys(self):
         if python3:
-            return iter(self.objmapper)
+            return self.objmapper
         else:
             return self.objmapper.keys()
 
