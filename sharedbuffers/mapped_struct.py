@@ -1332,10 +1332,7 @@ class proxied_dict(object):
         return iter(self.vlist)
 
     def values(self):
-        if python3:
-            return iter(self.vlist)
-        else:
-            return self.vlist
+        return self.vlist
 
     def __iter__(self):
         return self.iterkeys()
