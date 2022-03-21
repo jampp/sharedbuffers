@@ -84,7 +84,7 @@ import weakref
 import ctypes
 from datetime import timedelta, datetime, date
 from decimal import Decimal
-from six import reraise, iteritems, iterkeys
+from six import reraise, iterkeys
 from six.moves import cPickle
 
 
@@ -4427,7 +4427,7 @@ class Schema(object):
 
     @staticmethod
     def _map_types(slot_types):
-        return { k:TYPES.get(v,v) for k,v in iteritems(slot_types) }
+        return { k:TYPES.get(v,v) for k,v in slot_types.iteritems() }
 
     @classmethod
     def from_typed_slots(cls, struct_class_or_slot_types, *p, **kw):
@@ -4484,7 +4484,7 @@ class Schema(object):
             slot_types = self.slot_types
 
         # Map compatible types
-        for k, typ in iteritems(slot_types):
+        for k, typ in slot_types.iteritems():
             if not isinstance(typ, mapped_object_with_schema):
                 continue
             if typ in mapped_object.TYPE_CODES:
@@ -4548,7 +4548,7 @@ class Schema(object):
         # with negative offsets)
         self.slot_struct_types = {
             slot : FIXED_TYPES.get(typ, 'q')
-            for slot, typ in iteritems(self.slot_types)
+            for slot, typ in self.slot_types.iteritems()
         }
 
         var_bitmap = 0
@@ -8378,7 +8378,10 @@ class ApproxStringId32MultiMapper(ApproxStringIdMultiMapper):
 @cython.locals(i = int)
 def _iter_values_dump_keys(items, keys_file, value_cache_size = 1024):
     if isinstance(items, dict):
-        items = iteritems(items)
+        if python3:
+            items = items.items()
+        else:
+            items = items.iteritems()
     dump = cPickle.dump
     i = -1
     value_cache = Cache(value_cache_size)
