@@ -132,19 +132,28 @@ if python3:
     long = int
     basestring = (bytes, str)
 
+_memoryview = cython.declare(object)
+_memoryview = memoryview
+
 @cython.cfunc
 @cython.inline
 def make_memoryview(a):
     if python3:
-        return memoryview(a).cast("B")
+        if type(a) is not _memoryview:
+            a = _memoryview(a)
+        if a.format != 'B' or a.ndim != 1:
+            a = a.cast('B')
+        return a
     else:
         return buffer(a)
 
 if cython.compiled:
     # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
+    buffer = cython.declare(object, buffer)  # lint:ok
     if python2:
-        buffer = cython.declare(object, buffer)  # lint:ok
         from types import BufferType as buffer
+    else:
+        buffer = _memoryview
 
     assert Py_LT == 0
     assert Py_LE == 1
@@ -208,7 +217,9 @@ def _likebuffer(buf):
     """
     Takes a buffer object as parameter and returns a writable object with buffer protocol.
     """
-    if (type(buf) is buffer or type(buf) is bytearray or type(buf) is bytes or
+    if type(buf) is buffer:
+        return make_memoryview(buf)
+    elif (type(buf) is bytearray or type(buf) is bytes or
             isinstance(buf, (ctypes_Array, bytes))):
         return buf
     else:
@@ -220,7 +231,9 @@ def _likerobuffer(buf):
     """
     Takes a buffer object as parameter and returns a read-only object with buffer protocol.
     """
-    if type(buf) is buffer or type(buf) is bytes or isinstance(buf, bytes):
+    if type(buf) is buffer:
+        return make_memoryview(buf)
+    elif type(buf) is bytes or isinstance(buf, bytes):
         return buf
     else:
         return make_memoryview(buf)
@@ -1311,7 +1324,7 @@ class proxied_dict(object):
 
     def keys(self):
         if python3:
-            return iter(self.objmapper)
+            return self.objmapper
         else:
             return self.objmapper.keys()
 
@@ -1319,10 +1332,7 @@ class proxied_dict(object):
         return iter(self.vlist)
 
     def values(self):
-        if python3:
-            return iter(self.vlist)
-        else:
-            return self.vlist
+        return self.vlist
 
     def __iter__(self):
         return self.iterkeys()
@@ -1641,6 +1651,13 @@ class proxied_list(object):
                 PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
                 self.pybuf.buf = cython.NULL
 
+    def __del__(self):
+        # For python 3.4+, in earlier versions it will not be called and we'll depend on dealloc
+        if cython.compiled:
+            if self.pybuf.buf != cython.NULL:
+                PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+                self.pybuf.buf = cython.NULL
+
     @cython.ccall
     @cython.locals(dataoffs = cython.Py_ssize_t, dcode = cython.char, pbuf = 'const char *',
         itemsize = cython.uchar, objlen = cython.Py_ssize_t)
@@ -1752,7 +1769,11 @@ class proxied_list(object):
             if self.pybuf.buf != cython.NULL:
                 PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
                 self.pybuf.buf = cython.NULL
-            PyObject_GetBuffer(self.buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
+            try:
+                PyObject_GetBuffer(self.buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
+            except BufferError:
+                self.pybuf.buf = cython.NULL
+                raise
 
         # Call metadata to check the object
         self._metadata()
@@ -2083,10 +2104,11 @@ class proxied_frozenset(object):
         bitrep_lo=cython.ulonglong, bitrep_hi=cython.ulonglong, d=cython.uchar)
     def unpack_from(cls, buf, offs, idmap = None):
         buf = _likerobuffer(buf)
+        if cython.compiled:
+            pybuf.buf = cython.NULL
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
         try:
             if cython.compiled:
-                pybuf.buf = cython.NULL
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
                 pbuf = cython.cast(cython.p_uchar, pybuf.buf)
                 if offs >= pybuf.len:
                     raise IndexError("Offset out of range")
@@ -2760,9 +2782,9 @@ def _unpack_bytes_from_pybuffer(buf, offs, idmap):
         return idmap[offs]
 
     if cython.compiled:
+        buf = _likebuffer(buf)
+        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
         try:
-            buf = _likebuffer(buf)
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
             rv = _unpack_bytes_from_cbuffer(cython.cast(cython.p_char, pybuf.buf), offs, pybuf.len, None)  # lint:ok
         finally:
             PyBuffer_Release(cython.address(pybuf))  # lint:ok
@@ -2830,9 +2852,9 @@ class mapped_bytes(bytes):
         if (offs + 16 + len(obj)) > len(buf):
             raise struct.error('buffer too small')
         if cython.compiled:
+            buf = _likebuffer(buf)
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_WRITABLE)  # lint:ok
             try:
-                buf = _likebuffer(buf)
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_WRITABLE)  # lint:ok
                 pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
 
                 if objlen < 0x7FFF:
@@ -3449,9 +3471,13 @@ class BufferProxyObject(object):
 
         if cython.compiled:
             try:
-                PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_WRITABLE)  # lint:ok
-            except BufferError:
-                PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
+                try:
+                    PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_WRITABLE)  # lint:ok
+                except BufferError:
+                    PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
+            except Exception:
+                self.pybuf.buf = cython.NULL
+                raise
 
     @cython.ccall
     @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
@@ -3471,6 +3497,13 @@ class BufferProxyObject(object):
         self._reset_internal(offs, none_bitmap, idmap)
 
     def __dealloc__(self):
+        if cython.compiled:
+            if self.pybuf.buf != cython.NULL:
+                PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+                self.pybuf.buf = cython.NULL
+
+    def __del__(self):
+        # For python 3.4+, in earlier versions it will not be called and we'll depend on dealloc
         if cython.compiled:
             if self.pybuf.buf != cython.NULL:
                 PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
@@ -4850,13 +4883,13 @@ class Schema(object):
             # Inlined bitmap unpacking
             rbuf = _likebuffer(buf)
             PyObject_GetBuffer(rbuf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
-            assert (offs + self.bitmap_size) <= pybuf.len  # lint:ok
-            pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
         else:
             offs = int(offs)
 
         try:
             if cython.compiled:
+                assert (offs + self.bitmap_size) <= pybuf.len  # lint:ok
+                pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
                 if self.bitmap_size == 2:
                     has_bitmap = cython.cast(cython.p_uchar, pbuf)[0]
                     none_bitmap = cython.cast(cython.p_uchar, pbuf)[1]
