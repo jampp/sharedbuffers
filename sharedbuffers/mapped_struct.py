@@ -84,7 +84,7 @@ import weakref
 import ctypes
 from datetime import timedelta, datetime, date
 from decimal import Decimal
-from six import itervalues, reraise, iteritems, iterkeys
+from six import reraise, iteritems, iterkeys
 from six.moves import cPickle
 
 
@@ -3397,7 +3397,7 @@ TYPES = {
 TYPES.update(VARIABLE_TYPES)
 TYPES.update({
     v : v
-    for v in itervalues(VARIABLE_TYPES)
+    for v in VARIABLE_TYPES.itervalues()
 })
 del t
 
@@ -4495,7 +4495,7 @@ class Schema(object):
                 continue
 
             # Find compatible type
-            for packer, unpacker, packable_type in itervalues(mapped_object.OBJ_PACKERS):
+            for packer, unpacker, packable_type in mapped_object.OBJ_PACKERS.itervalues():
                 if not isinstance(packable_type, mapped_object_with_schema):
                     continue
 
