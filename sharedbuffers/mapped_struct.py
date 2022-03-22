@@ -70,7 +70,6 @@ import numpy
 import tempfile
 import functools
 import os
-import sys
 
 import six
 import xxhash
