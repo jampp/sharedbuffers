@@ -84,7 +84,7 @@ import weakref
 import ctypes
 from datetime import timedelta, datetime, date
 from decimal import Decimal
-from six import reraise, iterkeys
+from six import reraise
 from six.moves import cPickle
 
 
@@ -1207,7 +1207,7 @@ def _stable_hash(key):
 
 @cython.locals(idx=int)
 def _enum_keys(obj):
-    for idx, key in enumerate(iterkeys(obj)):
+    for idx, key in enumerate(obj.iterkeys()):
         yield key, idx
 
 
@@ -1282,7 +1282,7 @@ class proxied_dict(object):
             idmap=idmap,
             implicit_offs=implicit_offs + cur_offs))
         _DICT_HEADER_PACKER.pack_into(buf, basepos, cur_offs - basepos)
-        return proxied_list.pack_into([obj[k] for k in iterkeys(obj)], buf, cur_offs, idmap, implicit_offs)
+        return proxied_list.pack_into([obj[k] for k in obj.iterkeys()], buf, cur_offs, idmap, implicit_offs)
 
     @classmethod
     @cython.locals(values_offs = cython.Py_ssize_t, ioffs = cython.Py_ssize_t)
