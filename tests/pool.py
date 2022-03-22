@@ -40,6 +40,7 @@ class SmallIntContainerPackingTest(unittest.TestCase):
         if schema is None:
             schema = self.schema
         p = pool.TemporaryObjectPool()
+        self.addCleanup(p.close, True)
         for TEST_VALUES in self.TEST_VALUES:
             x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             dx = p.pack(schema, x)[1]
