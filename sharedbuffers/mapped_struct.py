@@ -2656,8 +2656,7 @@ class proxied_tuple(proxied_list):
                         acc *= XXPRIME_1
                     acc += len_ ^ (XXPRIME_5 ^ 3527539)
                     if acc == -1:
-                        self._hash = 1546275796
-                        return self._hash
+                        acc = 1546275796
                     self._hash = acc
                 else:
                     # From Python 2.7 source code
