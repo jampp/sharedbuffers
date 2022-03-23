@@ -2651,8 +2651,6 @@ class proxied_tuple(proxied_list):
                     acc = XXPRIME_5
                     for i in range(len_):
                         lane = hash(self[i])
-                        if lane == -1:
-                            return -1
                         acc += lane * XXPRIME_2
                         acc = (acc << 31) | (acc >> 33)
                         acc *= XXPRIME_1
