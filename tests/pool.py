@@ -40,6 +40,7 @@ class SmallIntContainerPackingTest(unittest.TestCase):
         if schema is None:
             schema = self.schema
         p = pool.TemporaryObjectPool()
+        self.addCleanup(p.close, True)
         for TEST_VALUES in self.TEST_VALUES:
             x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             dx = p.pack(schema, x)[1]
@@ -59,6 +60,7 @@ class SmallIntContainerPackingTest(unittest.TestCase):
 
     def testPreload(self):
         p = pool.TemporaryObjectPool()
+        self.addCleanup(p.close, True)
         for TEST_VALUES in self.TEST_VALUES:
             x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             p.add_preload(self.schema, x)
@@ -73,6 +75,7 @@ class SmallIntContainerPackingTest(unittest.TestCase):
 
     def testOverflow(self):
         p = pool.TemporaryObjectPool(section_size=4096)
+        self.addCleanup(p.close, True)
         for i in xrange(300):
             for TEST_VALUES in self.TEST_VALUES:
                 x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
@@ -94,6 +97,7 @@ class SmallIntContainerPackingTest(unittest.TestCase):
         p = pool.TemporaryObjectPool(
             section_size=1<<20,
             idmap_kwargs=dict(stable_set=set(temp_idmap)))
+        self.addCleanup(p.close, True)
         del temp_idmap
 
         for i in xrange(300):
@@ -109,6 +113,7 @@ class SmallIntContainerPackingTest(unittest.TestCase):
 
     def testUnpack(self):
         p = pool.TemporaryObjectPool()
+        self.addCleanup(p.close, True)
         for TEST_VALUES in self.TEST_VALUES:
             x = self.Struct(**{k:v for k,v in iteritems(TEST_VALUES)})
             pos = p.pack(self.schema, x)[0]
