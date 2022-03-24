@@ -64,7 +64,7 @@ when explicitly stated.
 from __future__ import division
 
 import struct
-import array
+from array import array
 import mmap
 import numpy
 import tempfile
@@ -122,14 +122,22 @@ npfloat32 = cython.declare(object, numpy.float32)
 npempty = cython.declare(object, numpy.empty)
 npfrombuffer = cython.declare(object, numpy.frombuffer)
 npndarray = cython.declare(object, numpy.ndarray)
+nparray = cython.declare(object, numpy.array)
 
 frexp = cython.declare(object, math.frexp)
 
 ctypes_Array = cython.declare(object, ctypes.Array)
 
+bchr = cython.declare(list)
+
 if python3:
     long = int
     basestring = (bytes, str)
+
+    bchr = [bytes([c]) for c in range(256)]
+else:
+    bchr = list(map(chr, range(256)))
+
 
 _memoryview = cython.declare(object)
 _memoryview = memoryview
@@ -685,8 +693,7 @@ class mapped_tuple(tuple):
         rel_offs = cython.longlong, min_offs = cython.longlong, max_offs = cython.longlong,
         offs = cython.Py_ssize_t, implicit_offs = cython.Py_ssize_t, val_offs = cython.Py_ssize_t,
         i = cython.Py_ssize_t, iminval = cython.longlong, imaxval = cython.longlong, cdtype=cython.uchar, udtype='unicode', l_or_L=cython.bint)
-    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0,
-            array = array.array):
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         baseoffs = offs
         objlen = len(obj)
         udtype = None
@@ -967,17 +974,16 @@ class mapped_list(list):
 
     @classmethod
     @cython.locals(lrv = list, dchar = cython.char, objlen = cython.Py_ssize_t, absix = object,
-        offs = cython.Py_ssize_t, baseoffs = cython.Py_ssize_t, ix = cython.Py_ssize_t)
-    def unpack_from(cls, buf, offs, idmap = None, array = array.array, klass = list):
+        offs = cython.Py_ssize_t, baseoffs = cython.Py_ssize_t, ix = cython.Py_ssize_t,
+        index = array, i = cython.Py_ssize_t)
+    def unpack_from(cls, buf, offs, idmap = None, klass = list):
         if idmap is not None and offs in idmap:
             return idmap[offs]
 
         baseoffs = offs
         buf = _likerobuffer(buf)
         if python3:
-            dcode = chr(buf[offs])
-            dcode_enc = dcode.encode()
-            dchar = dcode_enc[0]
+            dchar = buf[offs]
         else:
             dcode = buf[offs]
             dchar = cython.cast('const char*', dcode)[0]
@@ -990,9 +996,9 @@ class mapped_list(list):
         elif dchar in (b'Q', b'q', b'd', b't'):
             itemsize = 8
         else:
-            raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+            raise ValueError("Inconsistent data, unknown type code %r" % (chr(dchar),))
         if dchar in (b'B',b'b',b'H',b'h',b'I',b'i'):
-            dtype = dcode
+            dtype = chr(dchar)
             objlen, = _struct_l_I.unpack(buf[offs:offs+4])
             objlen >>= 8
             offs += 4
@@ -1001,36 +1007,42 @@ class mapped_list(list):
                 offs += 8
             w = buf[offs:offs + itemsize * objlen]
             if python3:
-                w = w.cast(dtype)
-            rv = array(dtype, w)
+                rv = w.cast(dtype)
+            else:
+                rv = array(dtype)
+                rv.frombytes(w)
         elif dchar == b'q' or dchar == b'Q':
             if dchar == b'q':
-                dtype = b'l'
+                dtype = 'l'
             elif dchar == b'Q':
-                dtype = b'L'
+                dtype = 'L'
             else:
-                raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+                raise ValueError("Inconsistent data, unknown type code %r" % (chr(dchar),))
             objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
             objlen >>= 8
             offs += 8
             q = buf[offs:offs + itemsize * objlen]
             if python3:
-                q = q.cast(dtype.decode())
-            rv = array(dtype.decode(), q)
+                rv = q.cast(dtype)
+            else:
+                rv = array(dtype)
+                rv.frombytes(q)
         elif dchar == b'd':
-            dtype = b'd'
+            dtype = 'd'
             objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
             objlen >>= 8
             offs += 8
             q = buf[offs:offs + itemsize * objlen]
             if python3:
-                q = q.cast(dtype.decode())
-            rv = array(dtype.decode(), q)
+                rv = q.cast(dtype)
+            else:
+                rv = array(dtype)
+                rv.frombytes(q)
         elif dchar == b't' or dchar == b'T':
             if dchar == b't':
-                dtype = b'l'
+                dtype = 'l'
             elif dchar == b'T':
-                dtype = b'i'
+                dtype = 'i'
             else:
                 raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
 
@@ -1038,9 +1050,8 @@ class mapped_list(list):
             objlen >>= 8
             offs += 8
             q = buf[offs:offs+itemsize*objlen]
-            if python3:
-                q = q.cast(dtype.decode())
-            index = array(dtype.decode(), q)
+            index = array(dtype)
+            index.frombytes(q)
 
             if idmap is None:
                 idmap = {}
@@ -1050,7 +1061,11 @@ class mapped_list(list):
                 # Will turn recursive references into sets, but recursive references aren't
                 # easy to build with frozensets, so we're cool
                 idmap[baseoffs] = srv = set()
-                for i,ix in enumerate(index):
+                for i in range(objlen):
+                    if dchar == b't':
+                        ix = index.data.as_longs[i]
+                    else:
+                        ix = index.data.as_ints[i]
                     if ix == 1:
                         srv.add(None)
                     else:
@@ -1069,7 +1084,11 @@ class mapped_list(list):
             else:
                 # Can't make perfect recursive references here, we'll do what we can
                 idmap[baseoffs] = lrv = ([None] * objlen)
-                for i,ix in enumerate(index):
+                for i in range(objlen):
+                    if dchar == b't':
+                        ix = index.data.as_longs[i]
+                    else:
+                        ix = index.data.as_ints[i]
                     if ix != 1:
                         absix = ix + baseoffs
                         if absix in idmap:
@@ -1088,15 +1107,15 @@ class mapped_list(list):
         if type(rv) is not klass:
             # Cython can specialize each conversion, so we do this ugly switch
             if klass is list:
-                rv = list(rv)
+                rv = rv.tolist()
             elif klass is tuple:
-                rv = tuple(rv)
+                rv = tuple(rv.tolist())
             elif klass is frozenset:
-                rv = frozenset(rv)
+                rv = frozenset(rv.tolist())
             elif klass is set:
-                rv = set(rv)
+                rv = set(rv.tolist())
             else:
-                rv = klass(rv)
+                rv = klass(rv.tolist())
         return rv
 
 class mapped_dict(dict):
@@ -1661,7 +1680,7 @@ class proxied_list(object):
     @cython.locals(dataoffs = cython.Py_ssize_t, dcode = cython.char, pbuf = 'const char *',
         itemsize = cython.uchar, objlen = cython.Py_ssize_t)
     def _metadata(self,
-        itemsizes = dict([(dtype, array.array(dtype.decode(), []).itemsize) for dtype in (b'B',b'b',b'H',b'h',b'I',b'i',b'l',b'L',b'd')])):
+        itemsizes = dict([(dtype, array(dtype.decode(), []).itemsize) for dtype in (b'B',b'b',b'H',b'h',b'I',b'i',b'l',b'L',b'd')])):
 
         if cython.compiled:
             # Cython version
@@ -3045,50 +3064,50 @@ class mapped_object(object):
     __slots__ = ('value', 'typecode')
 
     TYPE_CODES = {
-        uint8 : 'B',
-        int8 : 'b',
-        uint16 : 'H',
-        int16 : 'h',
-        uint32 : 'I',
-        int32 : 'i',
-        uint64 : 'Q',
-        int64 : 'q',
-        float64 : 'd',
-        float32 : 'f',
-        bool : 'T',
+        uint8 : b'B',
+        int8 : b'b',
+        uint16 : b'H',
+        int16 : b'h',
+        uint32 : b'I',
+        int32 : b'i',
+        uint64 : b'Q',
+        int64 : b'q',
+        float64 : b'd',
+        float32 : b'f',
+        bool : b'T',
 
-        mapped_frozenset : 'Z',
-        mapped_tuple : 't',
-        mapped_list : 'e',
-        mapped_unicode : 'u',
-        mapped_dict : 'm',
-        mapped_bytes : 's',
-        mapped_datetime : 'v',
-        mapped_date : 'V',
-        mapped_decimal : 'F',
+        mapped_frozenset : b'Z',
+        mapped_tuple : b't',
+        mapped_list : b'e',
+        mapped_unicode : b'u',
+        mapped_dict : b'm',
+        mapped_bytes : b's',
+        mapped_datetime : b'v',
+        mapped_date : b'V',
+        mapped_decimal : b'F',
 
-        proxied_list: 'E',
-        proxied_tuple: 'W',
-        proxied_ndarray: 'n',
-        proxied_buffer: 'r',
-        proxied_dict: 'M',
-        proxied_frozenset: 'z',
+        proxied_list: b'E',
+        proxied_tuple: b'W',
+        proxied_ndarray: b'n',
+        proxied_buffer: b'r',
+        proxied_dict: b'M',
+        proxied_frozenset: b'z',
 
-        int : 'q',
-        long : 'q',
-        float : 'd',
-        bytes : 's',
-        six.text_type : 'u',
-        datetime : 'v',
-        date : 'V',
-        Decimal : 'F',
-        cDecimal : 'F',
-        numpy.ndarray : 'n',
-        buffer : 'r',
+        int : b'q',
+        long : b'q',
+        float : b'd',
+        bytes : b's',
+        six.text_type : b'u',
+        datetime : b'v',
+        date : b'V',
+        Decimal : b'F',
+        cDecimal : b'F',
+        numpy.ndarray : b'n',
+        buffer : b'r',
 
-        dict : 'm',
-        collections.defaultdict : 'm',
-        set : 'Z',
+        dict : b'm',
+        collections.defaultdict : b'm',
+        set : b'Z',
     }
 
     def p(s):
@@ -3203,7 +3222,7 @@ class mapped_object(object):
         cpacker_size = 1
         buf = _likerobuffer(buf)
         if python3:
-            typecode = bytes([buf[offs]])
+            typecode = bchr[buf[offs]]
         else:
             typecode = buf[offs]
 
@@ -3319,29 +3338,29 @@ class mapped_object(object):
                 ivalue = value
             except OverflowError:
                 if 0 <= value <= 0xffffffffffffffff:
-                    self.typecode = 'Q'
+                    self.typecode = b'Q'
                     return
             else:
                 if -0x80 <= ivalue <= 0x7f:
-                    self.typecode = 'b'
+                    self.typecode = b'b'
                     return
                 elif 0 <= ivalue <= 0xff:
-                    self.typecode = 'B'
+                    self.typecode = b'B'
                     return
                 elif -0x8000 <= ivalue <= 0x7fff:
-                    self.typecode = 'h'
+                    self.typecode = b'h'
                     return
                 elif 0 <= ivalue <= 0xffff:
-                    self.typecode = 'H'
+                    self.typecode = b'H'
                     return
                 elif -0x80000000 <= ivalue <= 0x7fffffff:
-                    self.typecode = 'i'
+                    self.typecode = b'i'
                     return
                 elif 0 <= ivalue <= 0xffffffff:
-                    self.typecode = 'I'
+                    self.typecode = b'I'
                     return
                 else:
-                    self.typecode = 'q'
+                    self.typecode = b'q'
                     return
 
         typ = TYPES.get(typ, typ)
@@ -5381,19 +5400,19 @@ class MappedArrayProxyBase(_ZipMapBase):
             write(buf)
             data_pos += len(buf)
             if len(_index) >= 100000:
-                index_parts.append(numpy.array(_index, dtype = numpy.uint64))
+                index_parts.append(nparray(_index, dtype = numpy.uint64))
                 del _index[:]
         destfile.flush()
         index_pos = destfile.tell()
         if _index:
-            index_parts.append(numpy.array(_index, dtype = numpy.uint64))
+            index_parts.append(nparray(_index, dtype = numpy.uint64))
             del _index
         if len(index_parts) > 1:
             index = numpy.concatenate(index_parts)
         elif index_parts:
             index = index_parts[0]
         else:
-            index = numpy.array([], dtype = numpy.uint64)
+            index = nparray([], dtype = numpy.uint64)
         del index_parts
         write(make_memoryview(index))
         destfile.flush()
@@ -6438,7 +6457,7 @@ class NumericIdMapper(_CZipMapBase):
                 ('value', dtype),
             ])
             return self.index.view(struct_dt).reshape(self.index.shape[0]).searchsorted(
-                numpy.array([(hkey,0)],dtype=struct_dt))[0]
+                nparray([(hkey,0)],dtype=struct_dt))[0]
 
     @cython.ccall
     @cython.locals(
@@ -6476,7 +6495,8 @@ class NumericIdMapper(_CZipMapBase):
     @classmethod
     @cython.locals(
         basepos = cython.Py_ssize_t, curpos = cython.Py_ssize_t, endpos = cython.Py_ssize_t, finalpos = cython.Py_ssize_t,
-        discard_duplicates = cython.bint, discard_duplicate_keys = cython.bint)
+        discard_duplicates = cython.bint, discard_duplicate_keys = cython.bint,
+        ppartbuf = 'unsigned long long[:,:]', partpos = cython.Py_ssize_t)
     def build(cls, initializer, destfile = None, tempdir = None,
             discard_duplicates = False, discard_duplicate_keys = False, return_mapper = True, read_only = True):
         """
@@ -6527,48 +6547,43 @@ class NumericIdMapper(_CZipMapBase):
             bigparts = []
             parts = []
             islice = itertools.islice
-            array = numpy.array
             curpos = basepos + cls._Header.size
-            part = []
             struct_dt = numpy.dtype([
                 ('key', dtype),
                 ('value', dtype),
             ])
+            ppartbuf = partbuf = numpy.empty((1000000, 2), npuint64)
             void_dt = numpy.dtype((numpy.void, struct_dt.itemsize))
             concatenate = numpy.concatenate
             while 1:
-                del part[:]
-                for k,i in islice(initializer, 1000):
+                partpos = 0
+                for k,i in islice(initializer, 1000000):
                     # Add the index item
-                    part.append((k,i))
-                if part:
+                    ppartbuf[partpos, 0] = k
+                    ppartbuf[partpos, 1] = i
+                    partpos += 1
+                if partpos:
                     parts.append(_discard_duplicates(
-                        array(part, dtype), void_dt,
+                        partbuf[:partpos].astype(dtype), void_dt,
                         discard_duplicate_keys, discard_duplicates, False))
                 else:
                     break
-                if len(parts) > 1000:
+                if len(parts) > 1:
                     # merge into a big part to flatten
-                    apart = concatenate(parts)
-                    del parts[:]
-                    apart = _discard_duplicates(
-                        apart, void_dt,
-                        discard_duplicate_keys, discard_duplicates,
-                        tempdir is None)
                     if tempdir is not None:
-                        # Accumulate in tempfile
-                        if partsfile is None:
-                            partsfile = tempfile.TemporaryFile(dir = tempdir)
-                            partswrite = partsfile.write
-                        partswrite(make_memoryview(apart))
+                        for apart in parts:
+                            # Accumulate in tempfile
+                            if partsfile is None:
+                                partsfile = tempfile.TemporaryFile(dir = tempdir)
+                                partswrite = partsfile.write
+                            partswrite(make_memoryview(apart))
+                            del apart
                     else:
-                        # Accumulate in memory
-                        bigparts.append(apart)
-                    del apart
-            del part
+                        bigparts.extend(parts)
+                    del parts[:]
 
             bigparts.extend(parts)
-            del parts
+            del parts, ppartbuf, partbuf
 
             if partsfile is not None:
                 if bigparts:
@@ -7076,7 +7091,7 @@ class ObjectIdMapper(_CZipMapBase):
                 ('value', dtype),
             ])
             return self.index.view(struct_dt).reshape(self.index.shape[0]).searchsorted(
-                numpy.array([(hkey,0,0)],dtype=struct_dt))[0]
+                nparray([(hkey,0,0)],dtype=struct_dt))[0]
 
     @cython.ccall
     def _compare_keys(self, buf, offs, key):
@@ -7166,7 +7181,6 @@ class ObjectIdMapper(_CZipMapBase):
             initializer = iter(initializer)
         parts = []
         islice = itertools.islice
-        array = numpy.array
         curpos = cls._Header.size
         pack_into = mapped_object.pack_into
         valbuf = bytearray(65536)
@@ -7228,7 +7242,7 @@ class ObjectIdMapper(_CZipMapBase):
 
                     curpos += endpos
             if part:
-                parts.append(array(part, dtype))
+                parts.append(nparray(part, dtype))
             else:
                 break
         if parts:
@@ -7608,7 +7622,7 @@ class StringIdMapper(_CZipMapBase):
                 ('value', dtype),
             ])
             return self.index.view(struct_dt).reshape(self.index.shape[0]).searchsorted(
-                numpy.array([(hkey,0,0)],dtype=struct_dt))[0]
+                nparray([(hkey,0,0)],dtype=struct_dt))[0]
 
     @cython.ccall
     @cython.locals(
@@ -7712,7 +7726,6 @@ class StringIdMapper(_CZipMapBase):
         parts = []
         xxh = cls.xxh
         islice = itertools.islice
-        array = numpy.array
         curpos = basepos + cls._Header.size
         encode = cls.encode
         bytes_pack_into = mapped_bytes.pack_into
@@ -7739,7 +7752,7 @@ class StringIdMapper(_CZipMapBase):
                 write(valbuf[:endpos])
                 curpos += endpos
             if part:
-                parts.append(array(part, dtype))
+                parts.append(nparray(part, dtype))
             else:
                 break
         if parts:
