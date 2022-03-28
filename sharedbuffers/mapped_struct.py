@@ -1010,7 +1010,7 @@ class mapped_list(list):
                 rv = w.cast(dtype)
             else:
                 rv = array(dtype)
-                rv.frombytes(w)
+                rv.fromstring(w)
         elif dchar == b'q' or dchar == b'Q':
             if dchar == b'q':
                 dtype = 'l'
@@ -1026,7 +1026,7 @@ class mapped_list(list):
                 rv = q.cast(dtype)
             else:
                 rv = array(dtype)
-                rv.frombytes(q)
+                rv.fromstring(q)
         elif dchar == b'd':
             dtype = 'd'
             objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
@@ -1037,7 +1037,7 @@ class mapped_list(list):
                 rv = q.cast(dtype)
             else:
                 rv = array(dtype)
-                rv.frombytes(q)
+                rv.fromstring(q)
         elif dchar == b't' or dchar == b'T':
             if dchar == b't':
                 dtype = 'l'
@@ -1051,7 +1051,10 @@ class mapped_list(list):
             offs += 8
             q = buf[offs:offs+itemsize*objlen]
             index = array(dtype)
-            index.frombytes(q)
+            if python3:
+                index.frombytes(q)
+            else:
+                index.fromstring(q)
 
             if idmap is None:
                 idmap = {}
