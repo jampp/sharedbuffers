@@ -2607,9 +2607,9 @@ else:
     _cpython = sys.subversion[0] == 'CPython'
 is_cpython = cython.declare(cython.bint, _cpython)
 
-XXPRIME_1 = cython.declare(cython.size_t, 11400714785074694791)
-XXPRIME_2 = cython.declare(cython.size_t, 14029467366897019727)
-XXPRIME_5 = cython.declare(cython.size_t, 2870177450012600261)
+XXPRIME_1 = cython.declare("unsigned long long", 11400714785074694791)
+XXPRIME_2 = cython.declare("unsigned long long", 14029467366897019727)
+XXPRIME_5 = cython.declare("unsigned long long", 2870177450012600261)
 
 @cython.cclass
 class proxied_tuple(proxied_list):
