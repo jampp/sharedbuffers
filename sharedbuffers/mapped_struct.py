@@ -2648,7 +2648,7 @@ class proxied_tuple(proxied_list):
                         acc = (acc << 31) | (acc >> 33)
                         acc *= XXPRIME_1
                     acc += len_ ^ (XXPRIME_5 ^ 3527539)
-                    if acc == -1:
+                    if acc == cython.cast(cython.size_t, -1):
                         acc = 1546275796
                     self._hash = acc
                 else:
