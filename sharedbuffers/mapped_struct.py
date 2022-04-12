@@ -92,15 +92,8 @@ try:
 except:
     cDecimal = Decimal
 
-try:
-    from chorde.clients.inproc import Cache
-except ImportError:
-    from clru.lrucache import LRUCache as Cache
-
-try:
-    from chorde.clients.inproc import CuckooCache as FastCache
-except ImportError:
-    FastCache = Cache
+from clru.lrucache import LRUCache as Cache
+from clru.cuckoocache import LazyCuckooCache as FastCache
 
 import cython
 
@@ -2636,9 +2629,9 @@ else:
     _cpython = sys.subversion[0] == 'CPython'
 is_cpython = cython.declare(cython.bint, _cpython)
 
-XXPRIME_1 = cython.declare(cython.long, 11400714785074694791)
-XXPRIME_2 = cython.declare(cython.long, 14029467366897019727)
-XXPRIME_5 = cython.declare(cython.long, 2870177450012600261)
+XXPRIME_1 = cython.declare(cython.ulonglong, 11400714785074694791)
+XXPRIME_2 = cython.declare(cython.ulonglong, 14029467366897019727)
+XXPRIME_5 = cython.declare(cython.ulonglong, 2870177450012600261)
 
 @cython.cclass
 class proxied_tuple(proxied_list):
@@ -2673,15 +2666,12 @@ class proxied_tuple(proxied_list):
                     acc = XXPRIME_5
                     for i in range(len_):
                         lane = hash(self[i])
-                        if lane == -1:
-                            return -1
                         acc += lane * XXPRIME_2
                         acc = (acc << 31) | (acc >> 33)
                         acc *= XXPRIME_1
                     acc += len_ ^ (XXPRIME_5 ^ 3527539)
-                    if acc == -1:
-                        self._hash = 1546275796
-                        return self._hash
+                    if acc == cython.cast(cython.size_t, -1):
+                        acc = 1546275796
                     self._hash = acc
                 else:
                     # From Python 2.7 source code
