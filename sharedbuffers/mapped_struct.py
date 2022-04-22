@@ -6239,6 +6239,8 @@ class NumericIdMapper(_CZipMapBase):
         dtypemax = cython.ulonglong,
     )
 
+    BUILD_BUFFER_SIZE = 1000000
+
     @property
     def buf(self):
         return self._buf
@@ -6545,12 +6547,13 @@ class NumericIdMapper(_CZipMapBase):
                 ('key', dtype),
                 ('value', dtype),
             ])
-            ppartbuf = partbuf = numpy.empty((1000000, 2), npuint64)
+            bufsize = cls.BUILD_BUFFER_SIZE
+            ppartbuf = partbuf = numpy.empty((bufsize, 2), npuint64)
             void_dt = numpy.dtype((numpy.void, struct_dt.itemsize))
             concatenate = numpy.concatenate
             while 1:
                 partpos = 0
-                for k,i in islice(initializer, 1000000):
+                for k,i in islice(initializer, bufsize):
                     # Add the index item
                     ppartbuf[partpos, 0] = k
                     ppartbuf[partpos, 1] = i
