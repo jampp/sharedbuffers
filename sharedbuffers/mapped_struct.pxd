@@ -1,6 +1,7 @@
 from cpython.buffer cimport PyBUF_SIMPLE, PyBUF_WRITABLE, PyBUF_STRIDED_RO, PyObject_GetBuffer, PyBuffer_Release
 from cpython.object cimport Py_EQ, Py_NE, Py_LT, Py_LE, Py_GT, Py_GE
 from cpython.bytes cimport PyBytes_FromStringAndSize
+from cpython.array cimport array
 from libc.string cimport memcpy, memcmp
 from libc.math cimport isinf, isnan
 
