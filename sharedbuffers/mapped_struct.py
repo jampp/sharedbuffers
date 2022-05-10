@@ -125,12 +125,9 @@ bchr = cython.declare(list)
 
 if python3:
     long = int
-    basestring = (bytes, str)
-
     bchr = [bytes([c]) for c in range(256)]
 else:
     bchr = list(map(chr, range(256)))
-
 
 _memoryview = cython.declare(object)
 _memoryview = memoryview
@@ -416,7 +413,7 @@ def is_equality_key(obj):
     # where the LONG_MASK must be checked
     if (obj is None or obj is ()
             or (isinstance(obj, (int, long)) and obj & LONG_MASK)
-            or (isinstance(obj, basestring) and len(obj) < 16)):
+            or (isinstance(obj, (bytes, unicode)) and len(obj) < 16)):
         return True
     elif is_wrapped_key(obj):
         return is_equality_key(get_wrapped_key(obj))
@@ -431,7 +428,7 @@ def is_equality_key_compatible(obj):
     # singletons, small strings and integers
     if (obj is None or obj is ()
             or isinstance(obj, (int, long))
-            or (isinstance(obj, basestring) and len(obj) < 16)):
+            or (isinstance(obj, (bytes, unicode)) and len(obj) < 16)):
         return True
     elif is_wrapped_key(obj):
         return is_equality_key(get_wrapped_key(obj))
@@ -1173,7 +1170,7 @@ def _stable_hash(key):
     """
     if key is None:
         hval = 1
-    elif isinstance(key, basestring):
+    elif isinstance(key, (bytes, unicode)):
         hval = xxhash.xxh64(safe_utf8(key)).intdigest()
     elif isinstance(key, (int, long)):
         try:
@@ -1515,7 +1512,7 @@ class proxied_ndarray(object):
         dtype_offs = cur_offs - baseoffs
 
         dtype_params = cls._make_dtype_params(obj.dtype)
-        if isinstance(dtype_params, basestring):
+        if isinstance(dtype_params, (bytes, unicode)):
             dtype_params = _NDARRAY_STANDARD_DTYPES_TO_CODE.get(dtype_params, dtype_params)
         cur_offs = mapped_object.pack_into(dtype_params, buf, cur_offs)
         data_offs = cur_offs - baseoffs
@@ -7625,7 +7622,7 @@ class StringIdMapper(_CZipMapBase):
         hkey = cython.ulonglong, startpos = int, nitems = int, bkey = bytes, stride0 = cython.size_t,
         stride1 = cython.size_t, blen = cython.size_t, pbkey = 'const char *', pybuf = 'Py_buffer')
     def get(self, key, default = None):
-        if not isinstance(key, basestring):
+        if not isinstance(key, (bytes, unicode)):
             return default
 
         nitems = self.index_elements
@@ -8135,7 +8132,7 @@ class StringIdMultiMapper(StringIdMapper):
         hkey = cython.ulonglong, startpos = int, nitems = int, bkey = bytes,
         blen = cython.size_t, pbkey = 'const char *', pybuf = 'Py_buffer')
     def get(self, key, default = None):
-        if not isinstance(key, basestring):
+        if not isinstance(key, (bytes, unicode)):
             return default
         bkey = self._encode(key)
         hkey = self._xxh(bkey).intdigest()
@@ -8202,7 +8199,7 @@ class StringIdMultiMapper(StringIdMapper):
         """
         See :meth:`NuericIdMultiMapper.get_iter`
         """
-        if not isinstance(key, basestring):
+        if not isinstance(key, (bytes, unicode)):
             return
 
         nitems = self.index_elements
@@ -8290,7 +8287,7 @@ class StringIdMultiMapper(StringIdMapper):
         stride0 = cython.size_t, stride1 = cython.size_t, blen = cython.size_t, pbkey = 'const char *',
         indexbuf = 'Py_buffer', pybuf = 'Py_buffer', pindex = cython.p_char)
     def has_key(self, key):
-        if not isinstance(key, basestring):
+        if not isinstance(key, (bytes, unicode)):
             return False
 
         nitems = self.index_elements
