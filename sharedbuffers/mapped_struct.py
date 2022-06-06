@@ -1616,7 +1616,7 @@ def proxied_list_cmp(a, b):
             if r:
                 return r
         else:
-            if selfe is None and othere is None:
+            if selfe is othere:
                 continue
             if selfe < othere:
                 return -1
