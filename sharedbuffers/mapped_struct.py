@@ -1560,21 +1560,23 @@ def proxied_list_richcmp(a, b, op):
         else:
             raise NotImplementedError
 
-    _cmp = proxied_list_cmp(a, b)
     if op == 2: # Py_EQ
-        return _cmp == 0
+        return proxied_list_eq(a, b)
     elif op == 3: # Py_NE
-        return _cmp != 0
-    elif op == 0: # Py_LT
-        return _cmp < 0
-    elif op == 1: # Py_LE
-        return _cmp <= 0
-    elif op == 4: # Py_GT
-        return _cmp > 0
-    elif op == 5: # op == Py_GE:
-        return _cmp >= 0
+        return not proxied_list_eq(a, b)
     else:
-        raise NotImplementedError
+        _cmp = proxied_list_cmp(a, b)
+
+        if op == 0: # Py_LT
+            return _cmp < 0
+        elif op == 1: # Py_LE
+            return _cmp <= 0
+        elif op == 4: # Py_GT
+            return _cmp > 0
+        elif op == 5: # op == Py_GE:
+            return _cmp >= 0
+        else:
+            raise NotImplementedError
 
 def smallest_diff_key(A, B):
     """return the smallest key adiff in A such that adiff not in B or A[adiff] != B[bdiff]"""
@@ -1599,6 +1601,18 @@ def dict_cmp(a, b):
         return cmp(a,b)
     else:
         return dict_cmp_py3(a,b)
+
+def proxied_list_eq(a, b):
+    alen = len(a)
+    blen = len(b)
+
+    if alen != blen:
+        return 0
+    for i in range(alen):
+        if a[i] != b[i]:
+            return 0
+    else:
+        return 1
 
 #@cython.ccall
 #@cython.returns(int)
