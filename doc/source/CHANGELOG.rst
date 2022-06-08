@@ -13,6 +13,16 @@ Changed
 
 - BTS-90_: Migrate sharedbuffers to Python 3
 
+v0.9.2 - Unreleased
+===================
+
+Bugfixes
+--------
+
+- Fix buffer acquisition error handling to prevent the possibility of
+  double-release or other buffer reference mismanagement if an error
+  happens during the GetBuffer call.
+
 v0.9.1 - 2021-03-25
 ===================
 

@@ -3469,13 +3469,13 @@ class BufferProxyObject(object):
 
         if cython.compiled:
             try:
+                PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_WRITABLE)  # lint:ok
+            except BufferError:
                 try:
-                    PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_WRITABLE)  # lint:ok
-                except BufferError:
                     PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
-            except Exception:
-                self.pybuf.buf = cython.NULL
-                raise
+                except BufferError:
+                    self.pybuf.buf = cython.NULL
+                    raise
 
     @cython.ccall
     @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
