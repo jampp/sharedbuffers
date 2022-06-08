@@ -1966,7 +1966,7 @@ class proxied_list(object):
         def __eq__(self, other):
             if not islist(other):
                 return False
-            return proxied_list_cmp(self, other) == 0
+            return proxied_list_eq(self, other)
 
         def __le__(self, other):
             if not islist(other):
