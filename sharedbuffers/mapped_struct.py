@@ -1596,12 +1596,6 @@ def dict_cmp_py3(A, B):
         return cmp(adiff, bdiff)
     return cmp(A[adiff], B[bdiff])
 
-def dict_cmp(a, b):
-    if python2:
-        return cmp(a,b)
-    else:
-        return dict_cmp_py3(a,b)
-
 def proxied_list_eq(a, b):
     alen = len(a)
     blen = len(b)
