@@ -1625,17 +1625,12 @@ def proxied_list_cmp(a, b):
         selfe = a[i]
         othere = b[i]
 
-        if isinstance(selfe, dict):
-            r = dict_cmp(selfe, othere)
-            if r:
-                return r
-        else:
-            if selfe is othere:
-                continue
-            if selfe < othere:
-                return -1
-            elif selfe > othere:
-                return 1
+        if selfe is othere:
+            continue
+        if selfe < othere:
+            return -1
+        elif selfe > othere:
+            return 1
 
     if alen < blen:
         return -1
