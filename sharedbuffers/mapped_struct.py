@@ -1583,19 +1583,6 @@ def smallest_diff_key(A, B):
     diff_keys = [k for k in A if k not in B or A[k] != B[k]]
     return min(diff_keys)
 
-def dict_cmp_py3(A, B):
-    if len(A) != len(B):
-        return cmp(len(A), len(B))
-    try:
-        adiff = smallest_diff_key(A, B)
-    except ValueError:
-        # No difference.
-        return 0
-    bdiff = smallest_diff_key(B, A)
-    if adiff != bdiff:
-        return cmp(adiff, bdiff)
-    return cmp(A[adiff], B[bdiff])
-
 def proxied_list_eq(a, b):
     alen = len(a)
     blen = len(b)
