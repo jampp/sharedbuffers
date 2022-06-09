@@ -2022,9 +2022,8 @@ class proxied_frozenset(object):
             else:
                 return proxied_frozenset(proxied_list.unpack_from(buf, offs, idmap))
         finally:
-            if cython.compiled:
-                if type(buf) is buffer and pybuf.buf != cython.NULL:
-                    PyBuffer_Release(cython.address(pybuf))
+            if type(buf) is buffer and pybuf.buf != cython.NULL:
+                PyBuffer_Release(cython.address(pybuf))
 
     def copy(self):
         return self
