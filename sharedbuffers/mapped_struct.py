@@ -2713,34 +2713,24 @@ class mapped_bytes(bytes):
 
         if (offs + 16 + len(obj)) > len(buf):
             raise struct.error('buffer too small')
-        if cython.compiled:
-            buf = _likebuffer(buf)
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_WRITABLE)  # lint:ok
-            try:
-                pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
 
-                if objlen < 0x7FFF:
-                    cython.cast('_varstr_header *', pbuf).shortlen = objlen | compressed
-                    offs += cython.sizeof(cython.ushort)
-                    pbuf += cython.sizeof(cython.ushort)
-                else:
-                    cython.cast('_varstr_header *', pbuf).shortlen = 0x7FFF | compressed
-                    cython.cast('_varstr_header *', pbuf).biglen = objlen
-                    offs += cython.sizeof('_varstr_header')
-                    pbuf += cython.sizeof('_varstr_header')
-                memcpy(pbuf, cython.cast(cython.p_char, obj), objlen)  # lint:ok
-            finally:
-                PyBuffer_Release(cython.address(pybuf))  # lint:ok
-        else:
+        buf = _likebuffer(buf)
+        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_WRITABLE)  # lint:ok
+        try:
+            pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
+
             if objlen < 0x7FFF:
-                hpacker = struct.Struct('=H')
-                hpacker.pack_into(buf, offs, objlen | compressed)
-                offs += hpacker.size
+                cython.cast('_varstr_header *', pbuf).shortlen = objlen | compressed
+                offs += cython.sizeof(cython.ushort)
+                pbuf += cython.sizeof(cython.ushort)
             else:
-                qpacker = struct.Struct('=HQ')
-                qpacker.pack_into(buf, offs, 0x7FFF | compressed, objlen)
-                offs += qpacker.size
-            buf[offs:offs+objlen] = obj
+                cython.cast('_varstr_header *', pbuf).shortlen = 0x7FFF | compressed
+                cython.cast('_varstr_header *', pbuf).biglen = objlen
+                offs += cython.sizeof('_varstr_header')
+                pbuf += cython.sizeof('_varstr_header')
+            memcpy(pbuf, cython.cast(cython.p_char, obj), objlen)  # lint:ok
+        finally:
+            PyBuffer_Release(cython.address(pybuf))  # lint:ok
         offs += objlen
         return offs
 
