@@ -3716,7 +3716,7 @@ class LongBufferProxyProperty(BaseBufferProxyProperty):
 
 @cython.cclass
 class DoubleBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.double) if cython.compiled else struct.Struct('d').size
+    stride = cython.sizeof(cython.double)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
