@@ -3748,10 +3748,7 @@ class FloatBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.float, new_val = cython.float)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.float](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'f', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.float](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.float)
     def add(self, obj, value):
