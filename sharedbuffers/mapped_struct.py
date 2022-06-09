@@ -1631,84 +1631,40 @@ class proxied_list(object):
     def _metadata(self,
         itemsizes = dict([(dtype, array(dtype.decode(), []).itemsize) for dtype in (b'B',b'b',b'H',b'h',b'I',b'i',b'l',b'L',b'd')])):
 
-        if cython.compiled:
-            # Cython version
-            dataoffs = self.offs
-            pbuf = cython.cast(cython.p_char, self.pybuf.buf)
-            dcode = pbuf[dataoffs]
+        # Cython version
+        dataoffs = self.offs
+        pbuf = cython.cast(cython.p_char, self.pybuf.buf)
+        dcode = pbuf[dataoffs]
 
-            if dcode in ('B','b','H','h','I','i'):
+        if dcode in ('B','b','H','h','I','i'):
 
-                objlen = cython.cast(cython.p_uint, pbuf + dataoffs)[0] >> 8
-                dataoffs += 4
+            objlen = cython.cast(cython.p_uint, pbuf + dataoffs)[0] >> 8
+            dataoffs += 4
 
-                if objlen == 0xFFFFFF:
-                    objlen = cython.cast(cython.p_longlong, pbuf + dataoffs)[0]
-                    dataoffs += 8
-
-                if dcode in ('B', 'b'):
-                    itemsize = 1
-                elif dcode in ('H', 'h'):
-                    itemsize = 2
-                else:
-                    itemsize = 4
-
-                return dcode, objlen, itemsize, dataoffs, None
-
-            elif dcode in ('q', 'Q', 'd', 't', 'T'):
-                objlen = cython.cast(cython.p_longlong, pbuf + dataoffs)[0] >> 8
+            if objlen == 0xFFFFFF:
+                objlen = cython.cast(cython.p_longlong, pbuf + dataoffs)[0]
                 dataoffs += 8
-                if dcode == 'T':
-                    itemsize = 4
-                else:
-                    itemsize = 8
-                return dcode, objlen, itemsize, dataoffs, None
 
+            if dcode in ('B', 'b'):
+                itemsize = 1
+            elif dcode in ('H', 'h'):
+                itemsize = 2
             else:
-                raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+                itemsize = 4
+
+            return dcode, objlen, itemsize, dataoffs, None
+
+        elif dcode in ('q', 'Q', 'd', 't', 'T'):
+            objlen = cython.cast(cython.p_longlong, pbuf + dataoffs)[0] >> 8
+            dataoffs += 8
+            if dcode == 'T':
+                itemsize = 4
+            else:
+                itemsize = 8
+            return dcode, objlen, itemsize, dataoffs, None
 
         else:
-            # Python version
-            dataoffs = self.offs
-            buf = self.buf
-
-            dcode = buf[dataoffs]
-
-            if dcode in (b'B',b'b',b'H',b'h',b'I',b'i'):
-                objlen, = struct.unpack('<I', bytes(buf[dataoffs+1:dataoffs+4]) + b'\x00')
-                dataoffs += 4
-                if objlen == 0xFFFFFF:
-                    objlen = struct.unpack_from('<Q', buf, dataoffs)
-                    dataoffs += 8
-                return dcode, objlen, itemsizes[dcode], dataoffs, struct.Struct(dcode)
-
-            elif dcode == b'q':
-                objlen, = struct.unpack('<Q', bytes(buf[dataoffs+1:dataoffs+8]) + b'\x00')
-                dataoffs += 8
-                return dcode, objlen, itemsizes[b'l'], dataoffs, struct.Struct('q')
-
-            elif dcode == b'Q':
-                objlen, = struct.unpack('<Q', bytes(buf[dataoffs+1:dataoffs+8]) + b'\x00')
-                dataoffs += 8
-                return dcode, objlen, itemsizes[b'L'], dataoffs, struct.Struct('Q')
-
-            elif dcode == b'd':
-                objlen, = struct.unpack('<Q', bytes(buf[dataoffs+1:dataoffs+8]) + b'\x00')
-                dataoffs += 8
-                return dcode, objlen, itemsizes[b'd'], dataoffs, struct.Struct('d')
-
-            elif dcode == b't':
-                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + b'\x00')
-                dataoffs += 8
-                return dcode, objlen, itemsizes['l'], dataoffs, struct.Struct('l')
-
-            elif dcode == b'T':
-                objlen, = struct.unpack('<Q', bytes(buf[dataoffs+1:dataoffs+8]) + b'\x00')
-                dataoffs += 8
-                return dcode, objlen, itemsizes[b'i'], dataoffs, struct.Struct('i')
-
-            else:
-                raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+            raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
 
     def __cinit__(self, buf, offs, idmap = None, elem_start = 0, elem_end = 0, elem_step = 0):
         if cython.compiled:
