@@ -5470,315 +5470,265 @@ def sorted_contains(a, hkey):
     ix = _hinted_bsearch(a, hkey, hi//2, 0, hi, True)
     return ix < hi
 
-if cython.compiled:
-
-    @cython.nogil
-    @cython.cfunc
-    @cython.returns(cython.size_t)
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
-        pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char,
-        ref = numeric_A)
-    def _c_merge_gen(pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref):
-        # Main merge
-        pend1 = pindex1 + stride0 * length1
-        pend2 = pindex2 + stride0 * length2
-        pdestend = pdest + stride0 * destlength
-        pdeststart = pdest
-        while pindex1 < pend1 and pindex2 < pend2 and pdest < pdestend:
-            ref = cython.cast('numeric_A *', pindex2)[0]
-            while pindex1 < pend1 and cython.cast('numeric_A *', pindex1)[0] <= ref and pdest < pdestend:
-                cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex1)[0]
-                cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex1)[1]
-                pdest += stride0
-                pindex1 += stride0
-            if pindex1 < pend1:
-                ref = cython.cast('numeric_A *', pindex1)[0]
-                while pindex2 < pend2 and cython.cast('numeric_A *', pindex2)[0] <= ref and pdest < pdestend:
-                    cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex2)[0]
-                    cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex2)[1]
-                    pdest += stride0
-                    pindex2 += stride0
-
-        # Copy leftover tails
-        while pindex1 < pend1 and pdest < pdestend:
+@cython.nogil
+@cython.cfunc
+@cython.returns(cython.size_t)
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
+    pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char,
+    ref = numeric_A)
+def _c_merge_gen(pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref):
+    # Main merge
+    pend1 = pindex1 + stride0 * length1
+    pend2 = pindex2 + stride0 * length2
+    pdestend = pdest + stride0 * destlength
+    pdeststart = pdest
+    while pindex1 < pend1 and pindex2 < pend2 and pdest < pdestend:
+        ref = cython.cast('numeric_A *', pindex2)[0]
+        while pindex1 < pend1 and cython.cast('numeric_A *', pindex1)[0] <= ref and pdest < pdestend:
             cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex1)[0]
             cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex1)[1]
             pdest += stride0
             pindex1 += stride0
-        while pindex2 < pend2 and pdest < pdestend:
-            cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex2)[0]
-            cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex2)[1]
-            pdest += stride0
-            pindex2 += stride0
-        return (pdest - pdeststart) // stride0
+        if pindex1 < pend1:
+            ref = cython.cast('numeric_A *', pindex1)[0]
+            while pindex2 < pend2 and cython.cast('numeric_A *', pindex2)[0] <= ref and pdest < pdestend:
+                cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex2)[0]
+                cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex2)[1]
+                pdest += stride0
+                pindex2 += stride0
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.ulonglong,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.ulonglong](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+    # Copy leftover tails
+    while pindex1 < pend1 and pdest < pdestend:
+        cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex1)[0]
+        cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex1)[1]
+        pdest += stride0
+        pindex1 += stride0
+    while pindex2 < pend2 and pdest < pdestend:
+        cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex2)[0]
+        cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex2)[1]
+        pdest += stride0
+        pindex2 += stride0
+    return (pdest - pdeststart) // stride0
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.longlong,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.slonglong](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.ulonglong,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.ulonglong](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.uint,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.uint](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.longlong,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.slonglong](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.int,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.sint](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.uint,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.uint](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.int,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_ui16(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.ushort](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.int,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.sint](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.int,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_i16(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.sshort](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.int,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_ui16(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.ushort](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.int,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_ui8(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.uchar](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.int,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_i16(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.sshort](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.int,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_i8(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.schar](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.int,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_ui8(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.uchar](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.double,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.double](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.int,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_i8(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.schar](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.float,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.float](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.double,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.double](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    # Commented cython directives in pxd
-    #@cython.ccall
-    @cython.locals(
-        stride0 = cython.size_t, length1 = cython.size_t, length2 = cython.size_t,
-        destlength = cython.size_t, rdestlength = cython.size_t,
-        index1buf = 'Py_buffer', index2buf = 'Py_buffer', destbuf = 'Py_buffer',
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def index_merge(index1, index2, dest):
-        length1 = len(index1)
-        length2 = len(index2)
-        destlength = len(dest)
-        rdestlength = min(destlength, length1+length2)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.float,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.float](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-        if len(index1.shape) != 2 or len(index2.shape) != 2:
-            raise ValueError("Indices must be two-dimensional")
-        if len(dest.shape) != 2:
-            raise ValueError("Destination must be two-dimensional")
-        if index1.shape[1] != 2 or index2.shape[1] != 2:
-            raise ValueError("Indices must be N x 2 matrices")
-        if dest.shape[1] != 2:
-            raise ValueError("Destination must be an N x 2 matrix")
+# Commented cython directives in pxd
+#@cython.ccall
+@cython.locals(
+    stride0 = cython.size_t, length1 = cython.size_t, length2 = cython.size_t,
+    destlength = cython.size_t, rdestlength = cython.size_t,
+    index1buf = 'Py_buffer', index2buf = 'Py_buffer', destbuf = 'Py_buffer',
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def index_merge(index1, index2, dest):
+    length1 = len(index1)
+    length2 = len(index2)
+    destlength = len(dest)
+    rdestlength = min(destlength, length1+length2)
 
-        #lint:disable
-        PyObject_GetBuffer(index1, cython.address(index1buf), PyBUF_STRIDED_RO)
+    if len(index1.shape) != 2 or len(index2.shape) != 2:
+        raise ValueError("Indices must be two-dimensional")
+    if len(dest.shape) != 2:
+        raise ValueError("Destination must be two-dimensional")
+    if index1.shape[1] != 2 or index2.shape[1] != 2:
+        raise ValueError("Indices must be N x 2 matrices")
+    if dest.shape[1] != 2:
+        raise ValueError("Destination must be an N x 2 matrix")
+
+    #lint:disable
+    PyObject_GetBuffer(index1, cython.address(index1buf), PyBUF_STRIDED_RO)
+    try:
+        PyObject_GetBuffer(index2, cython.address(index2buf), PyBUF_STRIDED_RO)
         try:
-            PyObject_GetBuffer(index2, cython.address(index2buf), PyBUF_STRIDED_RO)
+            PyObject_GetBuffer(dest, cython.address(destbuf), PyBUF_STRIDED_RO)
             try:
-                PyObject_GetBuffer(dest, cython.address(destbuf), PyBUF_STRIDED_RO)
-                try:
-                    if ( index1buf.strides == cython.NULL
-                            or index1buf.len < length1 * index1buf.strides[0] ):
-                        raise ValueError("Invalid buffer state on index1")
-                    if ( index2buf.strides == cython.NULL
-                            or index2buf.len < length2 * index2buf.strides[0] ):
-                        raise ValueError("Invalid buffer state on index2")
-                    if ( destbuf.strides == cython.NULL
-                            or destbuf.len < destlength * destbuf.strides[0] ):
-                        raise ValueError("Invalid buffer state on dest")
+                if ( index1buf.strides == cython.NULL
+                        or index1buf.len < length1 * index1buf.strides[0] ):
+                    raise ValueError("Invalid buffer state on index1")
+                if ( index2buf.strides == cython.NULL
+                        or index2buf.len < length2 * index2buf.strides[0] ):
+                    raise ValueError("Invalid buffer state on index2")
+                if ( destbuf.strides == cython.NULL
+                        or destbuf.len < destlength * destbuf.strides[0] ):
+                    raise ValueError("Invalid buffer state on dest")
 
-                    pindex1 = cython.cast(cython.p_char, index1buf.buf)
-                    pindex2 = cython.cast(cython.p_char, index2buf.buf)
-                    pdest = cython.cast(cython.p_char, destbuf.buf)
-                    stride0 = index1buf.strides[0]
-                    if stride0 == 0:
-                        raise ValueError("Invalid buffer stride")
-                    if index2buf.strides[0] != stride0:
-                        raise ValueError("Incompatible indexes")
-                    if destbuf.strides[0] != stride0:
-                        raise ValueError("Incompatible destination")
-                    c = index1.dtype.char.encode()
-                    dtype = cython.cast('char*', c)[0]
-                    c2 = index2.dtype.char.encode()
-                    if cython.cast('char*', c2)[0] != dtype:
-                        raise ValueError("Incompatible indexes")
-                    c3 = dest.dtype.char.encode()
-                    if cython.cast('char*', c3)[0] != dtype:
-                        raise ValueError("Incompatible destination")
+                pindex1 = cython.cast(cython.p_char, index1buf.buf)
+                pindex2 = cython.cast(cython.p_char, index2buf.buf)
+                pdest = cython.cast(cython.p_char, destbuf.buf)
+                stride0 = index1buf.strides[0]
+                if stride0 == 0:
+                    raise ValueError("Invalid buffer stride")
+                if index2buf.strides[0] != stride0:
+                    raise ValueError("Incompatible indexes")
+                if destbuf.strides[0] != stride0:
+                    raise ValueError("Incompatible destination")
+                c = index1.dtype.char.encode()
+                dtype = cython.cast('char*', c)[0]
+                c2 = index2.dtype.char.encode()
+                if cython.cast('char*', c2)[0] != dtype:
+                    raise ValueError("Incompatible indexes")
+                c3 = dest.dtype.char.encode()
+                if cython.cast('char*', c3)[0] != dtype:
+                    raise ValueError("Incompatible destination")
 
-                    if ( pdest == pindex1 or pdest == pindex2
-                            or (pdest < pindex1 + length1 * stride0 and pdest >= pindex1)
-                            or (pdest < pindex2 + length2 * stride0 and pdest >= pindex2)
-                            or (pindex1 < pdest + rdestlength * stride0 and pindex1 >= pdest)
-                            or (pindex2 < pdest + rdestlength * stride0 and pindex2 >= pdest) ):
-                        raise NotImplementedError("In-place merge not implemented, destination must not overlap")
+                if ( pdest == pindex1 or pdest == pindex2
+                        or (pdest < pindex1 + length1 * stride0 and pdest >= pindex1)
+                        or (pdest < pindex2 + length2 * stride0 and pdest >= pindex2)
+                        or (pindex1 < pdest + rdestlength * stride0 and pindex1 >= pdest)
+                        or (pindex2 < pdest + rdestlength * stride0 and pindex2 >= pdest) ):
+                    raise NotImplementedError("In-place merge not implemented, destination must not overlap")
 
-                    #lint:enable
-                    if dtype == 'L' or dtype == 'Q':
-                        with cython.nogil:
-                            return _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'I':
-                        with cython.nogil:
-                            return _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'l' or dtype == 'q':
-                        with cython.nogil:
-                            return _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'i':
-                        with cython.nogil:
-                            return _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'H':
-                        with cython.nogil:
-                            return _c_merge_ui16(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'h':
-                        with cython.nogil:
-                            return _c_merge_i16(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'B':
-                        with cython.nogil:
-                            return _c_merge_ui8(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'b':
-                        with cython.nogil:
-                            return _c_merge_i8(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'd':
-                        with cython.nogil:
-                            return _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'f':
-                        with cython.nogil:
-                            return _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    else:
-                        raise NotImplementedError("Unsupported array type %s" % (chr(dtype),))
-                finally:
-                    PyBuffer_Release(cython.address(destbuf)) #lint:ok
+                #lint:enable
+                if dtype == 'L' or dtype == 'Q':
+                    with cython.nogil:
+                        return _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'I':
+                    with cython.nogil:
+                        return _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'l' or dtype == 'q':
+                    with cython.nogil:
+                        return _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'i':
+                    with cython.nogil:
+                        return _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'H':
+                    with cython.nogil:
+                        return _c_merge_ui16(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'h':
+                    with cython.nogil:
+                        return _c_merge_i16(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'B':
+                    with cython.nogil:
+                        return _c_merge_ui8(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'b':
+                    with cython.nogil:
+                        return _c_merge_i8(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'd':
+                    with cython.nogil:
+                        return _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'f':
+                    with cython.nogil:
+                        return _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                else:
+                    raise NotImplementedError("Unsupported array type %s" % (chr(dtype),))
             finally:
-                PyBuffer_Release(cython.address(index2buf)) #lint:ok
+                PyBuffer_Release(cython.address(destbuf)) #lint:ok
         finally:
-            PyBuffer_Release(cython.address(index1buf)) #lint:ok
-else:
-    # Not so efficient pure-python fallback
-    def _index_merge(index1, index2, dest):
-        # Main merge
-        pdest = 0
-        pindex1 = 0
-        pindex2 = 0
-        pend1 = len(index1)
-        pend2 = len(index2)
-        pdestend = len(dest)
+            PyBuffer_Release(cython.address(index2buf)) #lint:ok
+    finally:
+        PyBuffer_Release(cython.address(index1buf)) #lint:ok
 
-        if len(index1.shape) != 2 or len(index2.shape) != 2:
-            raise ValueError("Indices must be two-dimensional")
-        if len(dest.shape) != 2:
-            raise ValueError("Destination must be two-dimensional")
-        if index1.shape[1] != 2 or index2.shape[1] != 2:
-            raise ValueError("Indices must be N x 2 matrices")
-        if dest.shape[1] != 2:
-            raise ValueError("Destination must be an N x 2 matrix")
-        if (    (dest.base if dest.base is not None else dest) is (
-                    index1.base if index1.base is not None else index1)
-                or (dest.base if dest.base is not None else dest) is (
-                    index2.base if index2.base is not None else index2) ):
-            raise NotImplementedError("In-place merge not implemented, destination must not overlap")
-
-        while pindex1 < pend1 and pindex2 < pend2 and pdest < pdestend:
-            ref = index2[pindex2][0]
-            while pindex1 < pend1 and index1[pindex1][0] <= ref and pdest < pdestend:
-                dest[pdest] = index1[pindex1]
-                pdest += 1
-                pindex1 += 1
-            if pindex1 < pend1:
-                ref = index1[pindex1][0]
-                while pindex2 < pend2 and index2[pindex2][0] <= ref and pdest < pdestend:
-                    dest[pdest] = index2[pindex2]
-                    pdest += 1
-                    pindex2 += 1
-
-        # Copy leftover tails
-        while pindex1 < pend1 and pdest < pdestend:
-            dest[pdest] = index1[pindex1]
-            pdest += 1
-            pindex1 += 1
-        while pindex2 < pend2 and pdest < pdestend:
-            dest[pdest] = index2[pindex2]
-            pdest += 1
-            pindex2 += 1
-        return pdest
-    globals()['index_merge'] = _index_merge
 
 @cython.ccall
 @cython.locals(i = int, clobber = cython.bint)
