@@ -3833,7 +3833,7 @@ class MissingBufferProxyProperty(BaseBufferProxyProperty):
 
 @cython.cclass
 class GenericBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
+    stride = cython.sizeof(cython.longlong)
 
     cython.declare(
         _unpack_from = object,
