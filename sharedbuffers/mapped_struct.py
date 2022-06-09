@@ -4600,23 +4600,20 @@ class Schema(object):
         PyObject_GetBuffer(rbuf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
 
         try:
-            if cython.compiled:
-                assert (offs + self.bitmap_size) <= pybuf.len  # lint:ok
-                pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
-                if self.bitmap_size == 2:
-                    has_bitmap = cython.cast(cython.p_uchar, pbuf)[0]
-                    none_bitmap = cython.cast(cython.p_uchar, pbuf)[1]
-                elif self.bitmap_size == 4:
-                    has_bitmap = cython.cast(cython.p_ushort, pbuf)[0]
-                    none_bitmap = cython.cast(cython.p_ushort, pbuf)[1]
-                elif self.bitmap_size == 8:
-                    has_bitmap = cython.cast(cython.p_uint, pbuf)[0]
-                    none_bitmap = cython.cast(cython.p_uint, pbuf)[1]
-                elif self.bitmap_size == 16:
-                    has_bitmap = cython.cast(cython.p_ulonglong, pbuf)[0]
-                    none_bitmap = cython.cast(cython.p_ulonglong, pbuf)[1]
-                else:
-                    has_bitmap, none_bitmap = self.bitmap_packer.unpack_from(buf, offs)
+            assert (offs + self.bitmap_size) <= pybuf.len  # lint:ok
+            pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
+            if self.bitmap_size == 2:
+                has_bitmap = cython.cast(cython.p_uchar, pbuf)[0]
+                none_bitmap = cython.cast(cython.p_uchar, pbuf)[1]
+            elif self.bitmap_size == 4:
+                has_bitmap = cython.cast(cython.p_ushort, pbuf)[0]
+                none_bitmap = cython.cast(cython.p_ushort, pbuf)[1]
+            elif self.bitmap_size == 8:
+                has_bitmap = cython.cast(cython.p_uint, pbuf)[0]
+                none_bitmap = cython.cast(cython.p_uint, pbuf)[1]
+            elif self.bitmap_size == 16:
+                has_bitmap = cython.cast(cython.p_ulonglong, pbuf)[0]
+                none_bitmap = cython.cast(cython.p_ulonglong, pbuf)[1]
             else:
                 has_bitmap, none_bitmap = self.bitmap_packer.unpack_from(buf, offs)
 
