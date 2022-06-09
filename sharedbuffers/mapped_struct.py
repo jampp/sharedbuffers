@@ -5112,81 +5112,79 @@ class MappedArrayProxyBase(_ZipMapBase):
         return rv
 
 
-if cython.compiled:
+@cython.cfunc
+@cython.locals(
+    hkey = numeric_A, elem = numeric_B,
+    lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
+    mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
+    pindex = cython.p_char, skip = cython.size_t, check_equal = cython.bint)
+@cython.returns(cython.size_t)
+def _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem):
+    hi = length
+    lo = 0
 
-    @cython.cfunc
-    @cython.locals(
-        hkey = numeric_A, elem = numeric_B,
-        lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
-        mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
-        pindex = cython.p_char, skip = cython.size_t, check_equal = cython.bint)
-    @cython.returns(cython.size_t)
-    def _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem):
-        hi = length
-        lo = 0
-
-        if hkey < cython.cast('numeric_B *', pindex)[0]:
-            if check_equal:
-                return hi
-            else:
-                return lo
-        elif hkey > cython.cast('numeric_B *', pindex + stride0 * (hi-1))[0]:
+    if hkey < cython.cast('numeric_B *', pindex)[0]:
+        if check_equal:
             return hi
+        else:
+            return lo
+    elif hkey > cython.cast('numeric_B *', pindex + stride0 * (hi-1))[0]:
+        return hi
 
-        elem = cython.cast(cython.typeof(elem), hkey)
-        if lo < hi:
-            # First iteration a quick guess assuming uniform distribution of keys
-            mid = min(hint, hi-1)
-            mkey = cython.cast('numeric_B *', pindex + stride0 * mid)[0]
-            if mkey < elem:
-                # Got a lo guess, now skip-search forward for a hi
-                lo = mid = mid+1
-                skip = 32
-                while skip > 0 and mid + skip < hi:
-                    if cython.cast('numeric_B *', pindex + stride0 * (mid+skip))[0] < elem:
-                        lo = mid+1
-                        mid += skip
-                        skip *= 2
-                    else:
-                        hi = mid + skip
-                        break
-            elif mkey > elem:
-                # Got a hi guess, now skip-search backwards for a lo
-                hi = mid
-                skip = 32
-                while skip > 0 and mid > lo + skip:
-                    if cython.cast('numeric_B *', pindex + stride0 * (mid-skip))[0] > elem:
-                        hi = mid
-                        mid -= skip
-                        skip *= 2
-                    else:
-                        mid -= skip
-                        while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
-                            mid -= 1
-                        lo = mid
-                        break
-            else:
-                # hit, but must find the first
-                # good idea to go sequential because we assume collisions are unlikely
-                while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
-                    mid -= 1
-                return mid
-        # Final stretch: search the remaining range with a regular binary search
-        while lo < hi:
-            mid = (lo+hi)//2
-            mkey = cython.cast('numeric_B *', pindex + stride0 * mid)[0]
-            if mkey < elem:
-                lo = mid+1
-            elif mkey > elem:
-                hi = mid
-            else:
-                while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
-                    mid -= 1
-                return mid
-        # Check equality if requested
-        if check_equal and lo < length and cython.cast('numeric_B *', pindex + stride0 * lo)[0] != elem:
-            lo = length
-        return lo
+    elem = cython.cast(cython.typeof(elem), hkey)
+    if lo < hi:
+        # First iteration a quick guess assuming uniform distribution of keys
+        mid = min(hint, hi-1)
+        mkey = cython.cast('numeric_B *', pindex + stride0 * mid)[0]
+        if mkey < elem:
+            # Got a lo guess, now skip-search forward for a hi
+            lo = mid = mid+1
+            skip = 32
+            while skip > 0 and mid + skip < hi:
+                if cython.cast('numeric_B *', pindex + stride0 * (mid+skip))[0] < elem:
+                    lo = mid+1
+                    mid += skip
+                    skip *= 2
+                else:
+                    hi = mid + skip
+                    break
+        elif mkey > elem:
+            # Got a hi guess, now skip-search backwards for a lo
+            hi = mid
+            skip = 32
+            while skip > 0 and mid > lo + skip:
+                if cython.cast('numeric_B *', pindex + stride0 * (mid-skip))[0] > elem:
+                    hi = mid
+                    mid -= skip
+                    skip *= 2
+                else:
+                    mid -= skip
+                    while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
+                        mid -= 1
+                    lo = mid
+                    break
+        else:
+            # hit, but must find the first
+            # good idea to go sequential because we assume collisions are unlikely
+            while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
+                mid -= 1
+            return mid
+    # Final stretch: search the remaining range with a regular binary search
+    while lo < hi:
+        mid = (lo+hi)//2
+        mkey = cython.cast('numeric_B *', pindex + stride0 * mid)[0]
+        if mkey < elem:
+            lo = mid+1
+        elif mkey > elem:
+            hi = mid
+        else:
+            while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
+                mid -= 1
+            return mid
+    # Check equality if requested
+    if check_equal and lo < length and cython.cast('numeric_B *', pindex + stride0 * lo)[0] != elem:
+        lo = length
+    return lo
 
     @cython.cfunc
     @cython.locals(hkey = cython.ulonglong, elem = cython.ulonglong,
