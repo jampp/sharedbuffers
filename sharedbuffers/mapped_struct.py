@@ -3720,10 +3720,7 @@ class DoubleBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.double](self, obj, 0)
-        else:
-            return _buffer_proxy_get(self, obj, 'd')
+        return _c_buffer_proxy_get_gen[cython.double](self, obj, 0)
 
     @cython.locals(obj = BufferProxyObject, elem = cython.double)
     def __set__(self, obj, elem):
