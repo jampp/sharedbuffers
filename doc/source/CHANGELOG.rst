@@ -5,6 +5,14 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
+v1.0.0 - Unreleased
+===================
+
+Changed
+-------
+
+- BTS-90_: Migrate sharedbuffers to Python 3
+
 v0.9.2 - Unreleased
 ===================
 
@@ -438,3 +446,4 @@ Added
 .. _chorde: https://bitbucket.org/claudiofreire/chorde
 .. _keepachangelog: http://keepachangelog.com/
 
+.. _BTS-90: https://jampphq.atlassian.net/browse/BTS-90

@@ -6,6 +6,10 @@ import mmap
 import struct
 
 from .mapped_struct import StrongIdMap
+import six
+if six.PY3:
+    buffer = memoryview
+
 
 # Default section size is set to 128MB which is a size at which most
 # malloc implementations turn to mmap
@@ -323,9 +327,15 @@ class BaseObjectPool(object):
         fileobj.write(section.real_buf[:write_bytes])
         return section.implicit_offs + write_bytes
 
-    def close(self):
+    def close(self, discard=False):
         """
         Release all pool resources. Resets the pool to empty state.
+
+        :type discard: bool
+        :param discard: If True, it will close all underlying files instead of
+            releasing them into the section freelist for reuse. Use close(True)
+            when immediate resource release is needed. If files are temporary
+            files, their contents will be lost (cannot be reopened).
         """
         sections = self.sections
         self.sections = []
@@ -333,7 +343,17 @@ class BaseObjectPool(object):
         if self.section_freelist is not None:
             for section in sections:
                 section.detach()
-            self.section_freelist.extend(sections)
+            if discard:
+                sections.extend(self.section_freelist)
+                del self.section_freelist[:]
+            else:
+                self.section_freelist.extend(sections)
+                del sections[:]
+
+        for section in sections:
+            fileobj = getattr(section, 'fileobj', None)
+            if fileobj is not None:
+                fileobj.close()
 
         self.total_size = 0
 

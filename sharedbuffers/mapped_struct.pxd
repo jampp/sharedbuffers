@@ -1,6 +1,7 @@
 from cpython.buffer cimport PyBUF_SIMPLE, PyBUF_WRITABLE, PyBUF_STRIDED_RO, PyObject_GetBuffer, PyBuffer_Release
 from cpython.object cimport Py_EQ, Py_NE, Py_LT, Py_LE, Py_GT, Py_GE
 from cpython.bytes cimport PyBytes_FromStringAndSize
+from cpython.array cimport array
 from libc.string cimport memcpy, memcmp
 from libc.math cimport isinf, isnan
 
@@ -15,6 +16,7 @@ cpdef bint hinted_sorted_contains(a, hkey, size_t hint) except 0xFFFFFFFFFFFFFFF
 cpdef bint sorted_contains(a, hkey) except 0xFFFFFFFFFFFFFFFF
 cpdef bint proxied_list_richcmp(a, b, char op) except 0xFFFFFFFFFFFFFFFF
 cpdef int proxied_list_cmp(a, b) except 0x02
+cpdef bint proxied_list_eq(a, b) except 0xFFFFFFFFFFFFFFFF
 
 cdef size_t _c_merge_ui64(
     char* pindex1, size_t length1, char* pindex2, size_t length2,
