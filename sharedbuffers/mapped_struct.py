@@ -576,7 +576,7 @@ class mapped_frozenset(frozenset):
                     isbuffer = True
                 except:
                     isbuffer = False
-                if cython.compiled and isbuffer:
+                if isbuffer:
                     if maxval < 56:
                         cbuf[offs] = 'm'
                         for i in range(1, 8):
