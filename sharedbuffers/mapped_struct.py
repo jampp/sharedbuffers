@@ -3626,10 +3626,7 @@ class UIntBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.uint, new_val = cython.uint)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.uint](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'I', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.uint](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.uint)
     def add(self, obj, value):
