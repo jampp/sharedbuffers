@@ -3516,7 +3516,7 @@ else:
 
 @cython.cclass
 class BoolBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.uchar) if cython.compiled else struct.Struct('B').size
+    stride = cython.sizeof(cython.uchar)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
