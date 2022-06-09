@@ -7242,47 +7242,42 @@ class StringIdMapper(_CZipMapBase):
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
-            if cython.compiled:
-                pbkey = bkey
-                blen = len(bkey)
-                #lint:disable
-                buf = self._likebuf
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-                try:
-                    if dtype is npuint64:
-                        return _str_id_get_gen[cython.ulonglong](
-                            self, 0, pbkey, blen, startpos, hkey,
-                            cython.cast(p_char, pybuf.buf), pybuf.len, default)
-                    elif dtype is npuint32:
-                        return _str_id_get_gen[cython.uint](
-                            self, 0, pbkey, blen, startpos, hkey,
-                            cython.cast(p_char, pybuf.buf), pybuf.len, default)
-                    elif dtype is npuint16:
-                        return _str_id_get_gen[cython.ushort](
-                            self, 0, pbkey, blen, startpos, hkey,
-                            cython.cast(p_char, pybuf.buf), pybuf.len, default)
-                    elif dtype is npuint8:
-                        return _str_id_get_gen[cython.uchar](
-                            self, 0, pbkey, blen, startpos, hkey,
-                            cython.cast(p_char, pybuf.buf), pybuf.len, default)
-                    else:
-                        index = self.index
-                        while startpos < nitems and index[startpos,0] == hkey:
-                            if _compare_bytes_from_cbuffer(pbkey, blen,
-                                    cython.cast(cython.p_char, pybuf.buf),
-                                    self.index[startpos,1],
-                                    pybuf.len) == bkey:
-                                return index[startpos,2]
-                            startpos += 1
-                finally:
-                    PyBuffer_Release(cython.address(pybuf))
-                #lint:enable
-            else:
-                index = self.index
-                while startpos < nitems and index[startpos,0] == hkey:
-                    if _unpack_bytes_from_pybuffer(buf, index[startpos,1], None) == bkey:
-                        return index[startpos,2]
-                    startpos += 1
+
+            pbkey = bkey
+            blen = len(bkey)
+            #lint:disable
+            buf = self._likebuf
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+            try:
+                if dtype is npuint64:
+                    return _str_id_get_gen[cython.ulonglong](
+                        self, 0, pbkey, blen, startpos, hkey,
+                        cython.cast(p_char, pybuf.buf), pybuf.len, default)
+                elif dtype is npuint32:
+                    return _str_id_get_gen[cython.uint](
+                        self, 0, pbkey, blen, startpos, hkey,
+                        cython.cast(p_char, pybuf.buf), pybuf.len, default)
+                elif dtype is npuint16:
+                    return _str_id_get_gen[cython.ushort](
+                        self, 0, pbkey, blen, startpos, hkey,
+                        cython.cast(p_char, pybuf.buf), pybuf.len, default)
+                elif dtype is npuint8:
+                    return _str_id_get_gen[cython.uchar](
+                        self, 0, pbkey, blen, startpos, hkey,
+                        cython.cast(p_char, pybuf.buf), pybuf.len, default)
+                else:
+                    index = self.index
+                    while startpos < nitems and index[startpos,0] == hkey:
+                        if _compare_bytes_from_cbuffer(pbkey, blen,
+                                cython.cast(cython.p_char, pybuf.buf),
+                                self.index[startpos,1],
+                                pybuf.len) == bkey:
+                            return index[startpos,2]
+                        startpos += 1
+            finally:
+                PyBuffer_Release(cython.address(pybuf))
+            #lint:enable
+
         return default
 
     @classmethod
