@@ -4645,108 +4645,82 @@ class Schema(object):
                 fixed_bitmap = self._fixed_bitmap
                 var_bitmap = self._var_bitmap
 
-                if cython.compiled:
-                    pformat = opformat
-                    value_ix = 0
-                    pbuf2 = pbuf
-                    for i in range(self.slot_count):
-                        mask = cython.cast(cython.ulonglong, 1) << i
-                        if has_bitmap & mask:
-                            slot = self.slot_keys[i]
+                pformat = opformat
+                value_ix = 0
+                pbuf2 = pbuf
+                for i in range(self.slot_count):
+                    mask = cython.cast(cython.ulonglong, 1) << i
+                    if has_bitmap & mask:
+                        slot = self.slot_keys[i]
 
-                            if none_bitmap & mask:
-                                setattr(rv, slot, None)
-                            elif fixed_bitmap & mask:
-                                formatchar = pformat[value_ix]
-                                if formatchar == 'B':
-                                    value = cython.cast(cython.p_uchar, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.uchar)
-                                elif formatchar == 'b':
-                                    value = cython.cast(cython.p_schar, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.schar)
-                                elif formatchar == '?':
-                                    value = cython.cast(cython.bint, cython.cast(cython.p_char, pbuf)[0])
-                                    pbuf += cython.sizeof(cython.char)
-                                elif formatchar == 'H':
-                                    value = cython.cast(cython.p_ushort, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.ushort)
-                                elif formatchar == 'h':
-                                    value = cython.cast(cython.p_short, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.sshort)
-                                elif formatchar == 'I':
-                                    value = cython.cast(cython.p_uint, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.uint)
-                                elif formatchar == 'i':
-                                    value = cython.cast(cython.p_int, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.int)
-                                elif formatchar == 'Q':
-                                    value = cython.cast(cython.p_ulonglong, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.ulonglong)
-                                elif formatchar == 'q':
-                                    value = cython.cast(cython.p_longlong, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.longlong)
-                                elif formatchar == 'd':
-                                    value = cython.cast(cython.p_double, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.double)
-                                elif formatchar == 'f':
-                                    value = cython.cast(cython.p_float, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.float)
-                                else:
-                                    raise ValueError("Inconsistent data (unknown format code %r)" % (
-                                        chr(formatchar),))
-                                setattr(rv, slot, value)
-                                value_ix += 1
-                            elif var_bitmap & mask:
-                                formatchar = pformat[value_ix]
-                                if formatchar == 'q':
-                                    value_offs = cython.cast(cython.p_longlong, pbuf)[0] + baseoffs
-                                    pbuf += cython.sizeof(cython.longlong)
-                                else:
-                                    raise ValueError("Inconsistent data (unexpected format code %r)" % (
-                                        chr(formatchar),))
-                                value_ix += 1
-                                if value_offs not in idmap:
-                                    slot_type = self.slot_types.get(slot)
-                                    if slot_type is _mapped_bytes:
-                                        value = _unpack_bytes_from_cbuffer(
-                                            cython.cast(cython.p_char, pybuf.buf),   # lint:ok
-                                            value_offs, pybuf.len, idmap)  # lint:ok
-                                    else:
-                                        value = slot_type.unpack_from(buf, value_offs, idmap)
-                                    idmap[value_offs] = value
-                                else:
-                                    value = idmap[value_offs]
-                                setattr(rv, slot, value)
+                        if none_bitmap & mask:
+                            setattr(rv, slot, None)
+                        elif fixed_bitmap & mask:
+                            formatchar = pformat[value_ix]
+                            if formatchar == 'B':
+                                value = cython.cast(cython.p_uchar, pbuf)[0]
+                                pbuf += cython.sizeof(cython.uchar)
+                            elif formatchar == 'b':
+                                value = cython.cast(cython.p_schar, pbuf)[0]
+                                pbuf += cython.sizeof(cython.schar)
+                            elif formatchar == '?':
+                                value = cython.cast(cython.bint, cython.cast(cython.p_char, pbuf)[0])
+                                pbuf += cython.sizeof(cython.char)
+                            elif formatchar == 'H':
+                                value = cython.cast(cython.p_ushort, pbuf)[0]
+                                pbuf += cython.sizeof(cython.ushort)
+                            elif formatchar == 'h':
+                                value = cython.cast(cython.p_short, pbuf)[0]
+                                pbuf += cython.sizeof(cython.sshort)
+                            elif formatchar == 'I':
+                                value = cython.cast(cython.p_uint, pbuf)[0]
+                                pbuf += cython.sizeof(cython.uint)
+                            elif formatchar == 'i':
+                                value = cython.cast(cython.p_int, pbuf)[0]
+                                pbuf += cython.sizeof(cython.int)
+                            elif formatchar == 'Q':
+                                value = cython.cast(cython.p_ulonglong, pbuf)[0]
+                                pbuf += cython.sizeof(cython.ulonglong)
+                            elif formatchar == 'q':
+                                value = cython.cast(cython.p_longlong, pbuf)[0]
+                                pbuf += cython.sizeof(cython.longlong)
+                            elif formatchar == 'd':
+                                value = cython.cast(cython.p_double, pbuf)[0]
+                                pbuf += cython.sizeof(cython.double)
+                            elif formatchar == 'f':
+                                value = cython.cast(cython.p_float, pbuf)[0]
+                                pbuf += cython.sizeof(cython.float)
                             else:
-                                raise ValueError("Inconsistent data")
-                    pbuf = pbuf2
-                    offs += stride
-                    pbuf += stride
-                else:
-                    values = unpacker.unpack_from(buf, offs)
-                    offs += stride
-
-                    value_ix = 0
-                    for i in range(self.slot_count):
-                        mask = 1 << i
-                        if has_bitmap & mask:
-                            slot = self.slot_keys[i]
-                            if none_bitmap & mask:
-                                setattr(rv, slot, None)
-                            elif fixed_bitmap & mask:
-                                setattr(rv, slot, values[value_ix])
-                                value_ix += 1
-                            elif var_bitmap & mask:
-                                value_offs = cython.cast(cython.longlong, values[value_ix]) + baseoffs
-                                value_ix += 1
-                                if value_offs not in idmap:
-                                    slot_type = self.slot_types.get(slot)
-                                    idmap[value_offs] = value = slot_type.unpack_from(buf, value_offs, idmap)
-                                else:
-                                    value = idmap[value_offs]
-                                setattr(rv, slot, value)
+                                raise ValueError("Inconsistent data (unknown format code %r)" % (
+                                    chr(formatchar),))
+                            setattr(rv, slot, value)
+                            value_ix += 1
+                        elif var_bitmap & mask:
+                            formatchar = pformat[value_ix]
+                            if formatchar == 'q':
+                                value_offs = cython.cast(cython.p_longlong, pbuf)[0] + baseoffs
+                                pbuf += cython.sizeof(cython.longlong)
                             else:
-                                raise ValueError("Inconsistent data")
+                                raise ValueError("Inconsistent data (unexpected format code %r)" % (
+                                    chr(formatchar),))
+                            value_ix += 1
+                            if value_offs not in idmap:
+                                slot_type = self.slot_types.get(slot)
+                                if slot_type is _mapped_bytes:
+                                    value = _unpack_bytes_from_cbuffer(
+                                        cython.cast(cython.p_char, pybuf.buf),   # lint:ok
+                                        value_offs, pybuf.len, idmap)  # lint:ok
+                                else:
+                                    value = slot_type.unpack_from(buf, value_offs, idmap)
+                                idmap[value_offs] = value
+                            else:
+                                value = idmap[value_offs]
+                            setattr(rv, slot, value)
+                        else:
+                            raise ValueError("Inconsistent data")
+                pbuf = pbuf2
+                offs += stride
+                pbuf += stride
             return rv
         finally:
             if cython.compiled:
