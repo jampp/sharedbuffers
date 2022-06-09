@@ -2035,9 +2035,6 @@ class proxied_list(object):
     def __str__(self):
         return "[%s]" % ",".join([str(x) for x in self])
 
-if not cython.compiled:
-    setattr(proxied_list, '__eq__', getattr(proxied_list, '_eq'))
-    setattr(proxied_list, '__ne__', getattr(proxied_list, '_ne'))
 
 if not cython.compiled:
     def _popcountll(x):
