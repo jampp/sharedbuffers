@@ -8124,5 +8124,3 @@ class MappedMultiMappingProxyBase(MappedMappingProxyBase):
     def get_iter(self, key):
         for ix in self.id_mapper.get_iter(key):
             yield self.value_array[ix]
-
-_cythonized = cython.compiled
