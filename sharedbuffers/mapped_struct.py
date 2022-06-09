@@ -7192,46 +7192,37 @@ class StringIdMapper(_CZipMapBase):
         lo = 0
         if hi <= lo:
             return hi
-        if cython.compiled:
-            dtype = self._dtype
-            if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
-                #lint:disable
-                PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                try:
-                    if ( indexbuf.strides == cython.NULL
-                            or indexbuf.len < hi * indexbuf.strides[0] ):
-                        raise ValueError("Invalid buffer state")
-                    pindex = cython.cast(cython.p_char, indexbuf.buf)
-                    stride0 = indexbuf.strides[0]
 
-                    if dtype is npuint64:
-                        # A quick guess assuming uniform distribution of keys over the 64-bit value range
-                        hint = (((hkey >> 32) * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint32:
-                        # A quick guess assuming uniform distribution of keys over the 64-bit value range
-                        hint = ((hkey * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint16:
-                        hint = ((hkey * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint8:
-                        hint = ((hkey * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
-                    else:
-                        raise AssertionError("Internal error")
-                finally:
-                    PyBuffer_Release(cython.address(indexbuf))
-                #lint:enable
-        else:
-            dtype = self.dtype
-            struct_dt = numpy.dtype([
-                ('key_hash', dtype),
-                ('key_offset', dtype),
-                ('value', dtype),
-            ])
-            return self.index.view(struct_dt).reshape(self.index.shape[0]).searchsorted(
-                nparray([(hkey,0,0)],dtype=struct_dt))[0]
+        dtype = self._dtype
+        if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
+            #lint:disable
+            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            try:
+                if ( indexbuf.strides == cython.NULL
+                        or indexbuf.len < hi * indexbuf.strides[0] ):
+                    raise ValueError("Invalid buffer state")
+                pindex = cython.cast(cython.p_char, indexbuf.buf)
+                stride0 = indexbuf.strides[0]
+
+                if dtype is npuint64:
+                    # A quick guess assuming uniform distribution of keys over the 64-bit value range
+                    hint = (((hkey >> 32) * (hi-lo)) >> 32) + lo
+                    return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint32:
+                    # A quick guess assuming uniform distribution of keys over the 64-bit value range
+                    hint = ((hkey * (hi-lo)) >> 32) + lo
+                    return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint16:
+                    hint = ((hkey * (hi-lo)) >> 32) + lo
+                    return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint8:
+                    hint = ((hkey * (hi-lo)) >> 32) + lo
+                    return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
+                else:
+                    raise AssertionError("Internal error")
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
+            #lint:enable
 
     @cython.ccall
     @cython.locals(
