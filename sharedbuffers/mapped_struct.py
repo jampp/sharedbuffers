@@ -5180,85 +5180,85 @@ def _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem):
         lo = length
     return lo
 
-    @cython.cfunc
-    @cython.locals(hkey = cython.ulonglong, elem = cython.ulonglong,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_ui64(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+@cython.cfunc
+@cython.locals(hkey = cython.ulonglong, elem = cython.ulonglong,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_ui64(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
-    @cython.cfunc
-    @cython.locals(hkey = cython.slonglong, elem = cython.slonglong,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_i64(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+@cython.cfunc
+@cython.locals(hkey = cython.slonglong, elem = cython.slonglong,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_i64(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
-    @cython.cfunc
-    @cython.locals(hkey = cython.ulonglong, elem = cython.uint,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_ui32(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+@cython.cfunc
+@cython.locals(hkey = cython.ulonglong, elem = cython.uint,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_ui32(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
-    @cython.cfunc
-    @cython.locals(hkey = cython.slonglong, elem = cython.sint,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_i32(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+@cython.cfunc
+@cython.locals(hkey = cython.slonglong, elem = cython.sint,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_i32(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
-    @cython.cfunc
-    @cython.locals(hkey = cython.ulonglong, elem = cython.ushort,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_ui16(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+@cython.cfunc
+@cython.locals(hkey = cython.ulonglong, elem = cython.ushort,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_ui16(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
-    @cython.cfunc
-    @cython.locals(hkey = cython.slonglong, elem = cython.sshort,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_i16(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+@cython.cfunc
+@cython.locals(hkey = cython.slonglong, elem = cython.sshort,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_i16(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
-    @cython.cfunc
-    @cython.locals(hkey = cython.ulonglong, elem = cython.uchar,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_ui8(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+@cython.cfunc
+@cython.locals(hkey = cython.ulonglong, elem = cython.uchar,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_ui8(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
-    @cython.cfunc
-    @cython.locals(hkey = cython.slonglong, elem = cython.schar,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_i8(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+@cython.cfunc
+@cython.locals(hkey = cython.slonglong, elem = cython.schar,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_i8(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
-    @cython.cfunc
-    @cython.locals(hkey = cython.double, elem = cython.double,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_f64(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+@cython.cfunc
+@cython.locals(hkey = cython.double, elem = cython.double,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_f64(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
-    @cython.cfunc
-    @cython.locals(hkey = cython.float, elem = cython.float,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_f32(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+@cython.cfunc
+@cython.locals(hkey = cython.float, elem = cython.float,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_f32(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
 # Commented cython directives in pxd
 #@cython.ccall
