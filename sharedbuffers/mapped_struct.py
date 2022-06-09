@@ -1842,46 +1842,45 @@ class proxied_list(object):
         return self._getitem(index)
 
 
-    if not cython.compiled:
-        def __cmp__(self, other):
-            if not islist(other):
-                raise NotImplementedError
-            return proxied_list_cmp(self, other)
+    def __cmp__(self, other):
+        if not islist(other):
+            raise NotImplementedError
+        return proxied_list_cmp(self, other)
 
-        def __lt__(self, other):
-            if not islist(other):
-                raise NotImplementedError
-            return proxied_list_cmp(self, other) < 0
+    def __lt__(self, other):
+        if not islist(other):
+            raise NotImplementedError
+        return proxied_list_cmp(self, other) < 0
 
-        def __gt__(self, other):
-            if not islist(other):
-                raise NotImplementedError
-            return proxied_list_cmp(self, other) > 0
+    def __gt__(self, other):
+        if not islist(other):
+            raise NotImplementedError
+        return proxied_list_cmp(self, other) > 0
 
-        def __eq__(self, other):
-            if not islist(other):
-                return False
-            return proxied_list_eq(self, other)
+    def __eq__(self, other):
+        if not islist(other):
+            return False
+        return proxied_list_eq(self, other)
 
-        def __le__(self, other):
-            if not islist(other):
-                raise NotImplementedError
-            return proxied_list_cmp(self, other) <= 0
+    def __le__(self, other):
+        if not islist(other):
+            raise NotImplementedError
+        return proxied_list_cmp(self, other) <= 0
 
-        def __ge__(self, other):
-            if not islist(other):
-                raise NotImplementedError
-            return proxied_list_cmp(self, other) >= 0
+    def __ge__(self, other):
+        if not islist(other):
+            raise NotImplementedError
+        return proxied_list_cmp(self, other) >= 0
 
-        def _ne(self, other):
-            if not islist(other):
-                return True
-            return proxied_list_cmp(self, other) != 0
+    def _ne(self, other):
+        if not islist(other):
+            return True
+        return proxied_list_cmp(self, other) != 0
 
-        def _eq(self, other):
-            if not islist(other):
-                return False
-            return proxied_list_cmp(self, other) == 0
+    def _eq(self, other):
+        if not islist(other):
+            return False
+        return proxied_list_cmp(self, other) == 0
 
     def __len__(self):
         if self.elem_step == 0:
