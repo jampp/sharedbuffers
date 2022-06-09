@@ -5266,121 +5266,90 @@ def _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem):
         elem = 0
         return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
 
-if cython.compiled:
-    # Commented cython directives in pxd
-    #@cython.ccall
-    @cython.locals(
-        lo = cython.size_t, hi = cython.size_t, hint = cython.size_t, stride0 = cython.size_t,
-        indexbuf = 'Py_buffer', pindex = cython.p_char, check_equal = cython.bint, ix = cython.size_t)
-    #@cython.returns(cython.size_t)
-    def _hinted_bsearch(a, hkey, hint, lo, hi, check_equal):
-        """
-        Does a binary search in "a" for "hkey", assuming the key is expected
-        to be found around position "hint" or at most between "lo" and "hi".
-        If check_equal is given and True, it will make sure to return exactly
-        "hi" iff "hkey" is not found in "a". Otherwise, the position where it
-        would be if it is there will be returned.
-        """
-        if hi <= lo:
-            return lo
+# Commented cython directives in pxd
+#@cython.ccall
+@cython.locals(
+    lo = cython.size_t, hi = cython.size_t, hint = cython.size_t, stride0 = cython.size_t,
+    indexbuf = 'Py_buffer', pindex = cython.p_char, check_equal = cython.bint, ix = cython.size_t)
+#@cython.returns(cython.size_t)
+def _hinted_bsearch(a, hkey, hint, lo, hi, check_equal):
+    """
+    Does a binary search in "a" for "hkey", assuming the key is expected
+    to be found around position "hint" or at most between "lo" and "hi".
+    If check_equal is given and True, it will make sure to return exactly
+    "hi" iff "hkey" is not found in "a". Otherwise, the position where it
+    would be if it is there will be returned.
+    """
+    if hi <= lo:
+        return lo
 
-        #lint:disable
-        PyObject_GetBuffer(a, cython.address(indexbuf), PyBUF_STRIDED_RO)
-        try:
-            if ( indexbuf.strides == cython.NULL
-                    or indexbuf.len < hi * indexbuf.strides[0] ):
-                raise ValueError("Invalid buffer state")
-            pindex = cython.cast(cython.p_char, indexbuf.buf)
-            stride0 = indexbuf.strides[0]
-            #lint:enable
-            c = a.dtype.char.encode()
-            dtype = cython.cast('char*', c)[0]
-            if dtype == b'L' or dtype == b'Q':
-                ix = _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'I':
-                ix = _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'l' or dtype == b'q':
-                ix = _c_search_hkey_i64(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'i':
-                ix = _c_search_hkey_i32(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'H':
-                ix = _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'h':
-                ix = _c_search_hkey_i16(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'B':
-                ix = _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'b':
-                ix = _c_search_hkey_i8(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'd':
-                ix = _c_search_hkey_f64(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'f':
-                ix = _c_search_hkey_f32(hkey, pindex, stride0, hi, hint, check_equal)
-            else:
-                raise NotImplementedError("Unsupported array type %s" % (chr(dtype),))
-        except OverflowError:
-            # The conversion of hkey to either longlong or ulonglong failed
-            # The key most certainly is not in the array, that can't hold the value at all,
-            # but we must check (in python fashion to support the extended range numbers)
-            # whether it lies on the left or right side
-            if hkey < a[0]:
-                ix = lo
-            elif hkey > a[hi-1]:
-                ix = hi
-            else:
-                raise
-        finally:
-            PyBuffer_Release(cython.address(indexbuf)) #lint:ok
-
-        return ix
-
-    def hinted_bsearch(a, hkey, hint):
-        """
-        Search into the sorted array ``a`` the value ``hkey``, assuming it should
-        be close to ``hint``.
-
-        :param ndarray a: Sorted array of one of the supported types (see :func:`bsearch`).
-
-        :param hkey: Value to search for
-
-        :param int hint: Expected location of ``hkey``
-
-        :rtype: int
-        :returns: Location where ``hkey`` should be, if it is there. See :func:`bsearch`.
-        """
-        hi = len(a)
-        lo = 0
-        return _hinted_bsearch(a, hkey, hint, lo, hi, False)
-else:
-    import bisect
-
-    def _py__hinted_bsearch(a, hkey, hint, lo, hi, check_equal):
-        dtype = a.dtype.char.encode()
-        if dtype not in (b'L', b'Q', b'I', b'l', b'i', b'H', b'h', b'B', b'b', b'd', b'f'):
-            raise NotImplementedError("Unsupported array type %s" % dtype)
-
-        ix = bisect.bisect_left(a, hkey)
-        if check_equal and ix < hi and a[ix] != hkey:
+    #lint:disable
+    PyObject_GetBuffer(a, cython.address(indexbuf), PyBUF_STRIDED_RO)
+    try:
+        if ( indexbuf.strides == cython.NULL
+                or indexbuf.len < hi * indexbuf.strides[0] ):
+            raise ValueError("Invalid buffer state")
+        pindex = cython.cast(cython.p_char, indexbuf.buf)
+        stride0 = indexbuf.strides[0]
+        #lint:enable
+        c = a.dtype.char.encode()
+        dtype = cython.cast('char*', c)[0]
+        if dtype == b'L' or dtype == b'Q':
+            ix = _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'I':
+            ix = _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'l' or dtype == b'q':
+            ix = _c_search_hkey_i64(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'i':
+            ix = _c_search_hkey_i32(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'H':
+            ix = _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'h':
+            ix = _c_search_hkey_i16(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'B':
+            ix = _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'b':
+            ix = _c_search_hkey_i8(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'd':
+            ix = _c_search_hkey_f64(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'f':
+            ix = _c_search_hkey_f32(hkey, pindex, stride0, hi, hint, check_equal)
+        else:
+            raise NotImplementedError("Unsupported array type %s" % (chr(dtype),))
+    except OverflowError:
+        # The conversion of hkey to either longlong or ulonglong failed
+        # The key most certainly is not in the array, that can't hold the value at all,
+        # but we must check (in python fashion to support the extended range numbers)
+        # whether it lies on the left or right side
+        if hkey < a[0]:
+            ix = lo
+        elif hkey > a[hi-1]:
             ix = hi
-        return ix
-    globals()['_hinted_bsearch'] = _py__hinted_bsearch
+        else:
+            raise
+    finally:
+        PyBuffer_Release(cython.address(indexbuf)) #lint:ok
 
-    def _py_hinted_bsearch(a, hkey, hint):
-        """
-        Search into the sorted array ``a`` the value ``hkey``, assuming it should
-        be close to ``hint``.
+    return ix
 
-        :param ndarray a: Sorted array of one of the supported types (see :func:`bsearch`).
+def hinted_bsearch(a, hkey, hint):
+    """
+    Search into the sorted array ``a`` the value ``hkey``, assuming it should
+    be close to ``hint``.
 
-        :param hkey: Value to search for
+    :param ndarray a: Sorted array of one of the supported types (see :func:`bsearch`).
 
-        :param int hint: Expected location of ``hkey``
+    :param hkey: Value to search for
 
-        :rtype: int
-        :returns: Location where ``hkey`` should be, if it is there. See :func:`bsearch`.
-        """
-        return bisect.bisect_left(a, hkey)
-    _py_hinted_bsearch.__name__ = 'hinted_bsearch'
-    globals()['hinted_bsearch'] = _py_hinted_bsearch
+    :param int hint: Expected location of ``hkey``
+
+    :rtype: int
+    :returns: Location where ``hkey`` should be, if it is there. See :func:`bsearch`.
+    """
+    hi = len(a)
+    lo = 0
+    return _hinted_bsearch(a, hkey, hint, lo, hi, False)
+
 
 #@cython.ccall
 @cython.locals(lo = cython.size_t, hi = cython.size_t)
