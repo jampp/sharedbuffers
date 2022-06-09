@@ -3712,10 +3712,7 @@ class LongBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject, value = cython.slonglong)
     def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.slonglong](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'q', value)
+        _c_buffer_proxy_atomic_add[cython.slonglong](self, obj, value)
 
 @cython.cclass
 class DoubleBufferProxyProperty(BaseBufferProxyProperty):
