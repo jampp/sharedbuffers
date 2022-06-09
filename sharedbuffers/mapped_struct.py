@@ -3728,10 +3728,7 @@ class DoubleBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.double, new_val = cython.double)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.double](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'd', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.double](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.double)
     def add(self, obj, value):
