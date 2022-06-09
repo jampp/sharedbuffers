@@ -4723,8 +4723,7 @@ class Schema(object):
                 pbuf += stride
             return rv
         finally:
-            if cython.compiled:
-                PyBuffer_Release(cython.address(pybuf))  # lint:ok
+            PyBuffer_Release(cython.address(pybuf))  # lint:ok
 
     def unpack(self, buf, idmap = None, factory_class_new = None, proxy_into = None):
         """
