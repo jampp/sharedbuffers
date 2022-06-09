@@ -3642,10 +3642,7 @@ class IntBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject, elem = cython.int)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.sint](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'i', elem)
+        _c_buffer_proxy_set_gen[cython.sint](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.sint, new_val = cython.sint)
     def cas(self, obj, exp_val, new_val):
