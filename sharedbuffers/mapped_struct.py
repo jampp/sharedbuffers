@@ -1687,15 +1687,14 @@ class proxied_list(object):
 
     @cython.ccall
     def _init(self):
-        if cython.compiled:
-            if self.pybuf.buf != cython.NULL:
-                PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
-                self.pybuf.buf = cython.NULL
-            try:
-                PyObject_GetBuffer(self.buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
-            except BufferError:
-                self.pybuf.buf = cython.NULL
-                raise
+        if self.pybuf.buf != cython.NULL:
+            PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+            self.pybuf.buf = cython.NULL
+        try:
+            PyObject_GetBuffer(self.buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
+        except BufferError:
+            self.pybuf.buf = cython.NULL
+            raise
 
         # Call metadata to check the object
         self._metadata()
