@@ -3594,7 +3594,7 @@ class UShortBufferProxyProperty(BaseBufferProxyProperty):
 
 @cython.cclass
 class ShortBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.sshort) if cython.compiled else struct.Struct('h').size
+    stride = cython.sizeof(cython.sshort)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
