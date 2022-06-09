@@ -3541,10 +3541,7 @@ class UByteBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject, elem = cython.uchar)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.uchar](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'B', elem)
+        _c_buffer_proxy_set_gen[cython.uchar](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.uchar, new_val = cython.uchar)
     def cas(self, obj, exp_val, new_val):
