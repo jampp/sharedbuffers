@@ -1779,8 +1779,6 @@ class proxied_list(object):
 
         if proxy_into is None and fast and dcode in (b't', b'T'):
             proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
-            if not cython.compiled:
-                proxy_into.buf = None
 
         @cython.locals(index = cython.longlong)
         def getter(index):
