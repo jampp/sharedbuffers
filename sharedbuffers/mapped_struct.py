@@ -7743,49 +7743,42 @@ class StringIdMultiMapper(StringIdMapper):
             buf = self._buf
             rv = []
             dtype = self._dtype
-            if cython.compiled:
-                pbkey = bkey
-                blen = len(bkey)
-                #lint:disable
-                buf = self._likebuf
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-                try:
-                    if dtype is npuint64:
-                        return _str_id_multi_get_gen[cython.ulonglong](
-                            self, 0, rv, pbkey, blen, startpos, hkey,
-                            cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
-                    elif dtype is npuint32:
-                        return _str_id_multi_get_gen[cython.uint](
-                            self, 0, rv, pbkey, blen, startpos, hkey,
-                            cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
-                    elif dtype is npuint16:
-                        return _str_id_multi_get_gen[cython.ushort](
-                            self, 0, rv, pbkey, blen, startpos, hkey,
-                            cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
-                    elif dtype is npuint8:
-                        return _str_id_multi_get_gen[cython.uchar](
-                            self, 0, rv, pbkey, blen, startpos, hkey,
-                            cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
-                    else:
-                        index = self.index
-                        while startpos < nitems and index[startpos,0] == hkey:
-                            if _compare_bytes_from_cbuffer(pbkey, blen,
-                                    cython.cast(cython.p_char, pybuf.buf),
-                                    self.index[startpos,1],
-                                    pybuf.len) == bkey:
-                                rv.append(index[startpos,2])
-                            startpos += 1
-                finally:
-                    PyBuffer_Release(cython.address(pybuf))
-                #lint:enable
-            else:
-                index = self.index
-                while startpos < nitems and index[startpos,0] == hkey:
-                    if _unpack_bytes_from_pybuffer(buf, index[startpos,1], None) == bkey:
-                        rv.append(index[startpos,2])
-                    startpos += 1
-                if rv:
-                    return rv
+
+            pbkey = bkey
+            blen = len(bkey)
+            #lint:disable
+            buf = self._likebuf
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+            try:
+                if dtype is npuint64:
+                    return _str_id_multi_get_gen[cython.ulonglong](
+                        self, 0, rv, pbkey, blen, startpos, hkey,
+                        cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
+                elif dtype is npuint32:
+                    return _str_id_multi_get_gen[cython.uint](
+                        self, 0, rv, pbkey, blen, startpos, hkey,
+                        cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
+                elif dtype is npuint16:
+                    return _str_id_multi_get_gen[cython.ushort](
+                        self, 0, rv, pbkey, blen, startpos, hkey,
+                        cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
+                elif dtype is npuint8:
+                    return _str_id_multi_get_gen[cython.uchar](
+                        self, 0, rv, pbkey, blen, startpos, hkey,
+                        cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
+                else:
+                    index = self.index
+                    while startpos < nitems and index[startpos,0] == hkey:
+                        if _compare_bytes_from_cbuffer(pbkey, blen,
+                                cython.cast(cython.p_char, pybuf.buf),
+                                self.index[startpos,1],
+                                pybuf.len) == bkey:
+                            rv.append(index[startpos,2])
+                        startpos += 1
+            finally:
+                PyBuffer_Release(cython.address(pybuf))
+            #lint:enable
+
         return default
 
     @cython.locals(
