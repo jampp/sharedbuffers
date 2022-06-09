@@ -6614,57 +6614,54 @@ class ObjectIdMapper(_CZipMapBase):
             index = self.index[numpy.argsort(self.index[:,1])]
         else:
             index = self.index
-        if cython.compiled:
-            #lint:disable
-            buf = self._likebuf
-            if dtype is npuint64:
-                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                try:
-                    if ( indexbuf.strides == cython.NULL
-                            or indexbuf.ndim < 2
-                            or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
-                        raise ValueError("Invalid buffer state")
-                    stride0 = indexbuf.strides[0]
-                    stride1 = indexbuf.strides[1]
-                    pindex = cython.cast(cython.p_char, indexbuf.buf)
-                    for i in range(self.index_elements):
-                        yield (
-                            self._unpack(buf,
-                                cython.cast(cython.p_ulonglong, pindex + stride1)[0]),
-                            cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
-                        )
-                        pindex += stride0
-                finally:
-                    PyBuffer_Release(cython.address(indexbuf))
-            elif dtype is npuint32:
-                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                try:
-                    if ( indexbuf.strides == cython.NULL
-                            or indexbuf.ndim < 2
-                            or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
-                        raise ValueError("Invalid buffer state")
-                    stride0 = indexbuf.strides[0]
-                    stride1 = indexbuf.strides[1]
-                    pindex = cython.cast(cython.p_char, indexbuf.buf)
-                    for i in range(self.index_elements):
-                        yield (
-                            self._unpack(buf,
-                                cython.cast(cython.p_uint, pindex + stride1)[0]),
-                            cython.cast(cython.p_uint, pindex + 2*stride1)[0]
-                        )
-                        pindex += stride0
-                finally:
-                    PyBuffer_Release(cython.address(indexbuf))
-            else:
+
+        #lint:disable
+        buf = self._likebuf
+        if dtype is npuint64:
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            try:
+                if ( indexbuf.strides == cython.NULL
+                        or indexbuf.ndim < 2
+                        or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
+                    raise ValueError("Invalid buffer state")
+                stride0 = indexbuf.strides[0]
+                stride1 = indexbuf.strides[1]
+                pindex = cython.cast(cython.p_char, indexbuf.buf)
                 for i in range(self.index_elements):
                     yield (
-                        self._unpack(self._buf, index[i,1]),
-                        index[i,2]
+                        self._unpack(buf,
+                            cython.cast(cython.p_ulonglong, pindex + stride1)[0]),
+                        cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
                     )
-            #lint:enable
+                    pindex += stride0
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
+        elif dtype is npuint32:
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            try:
+                if ( indexbuf.strides == cython.NULL
+                        or indexbuf.ndim < 2
+                        or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
+                    raise ValueError("Invalid buffer state")
+                stride0 = indexbuf.strides[0]
+                stride1 = indexbuf.strides[1]
+                pindex = cython.cast(cython.p_char, indexbuf.buf)
+                for i in range(self.index_elements):
+                    yield (
+                        self._unpack(buf,
+                            cython.cast(cython.p_uint, pindex + stride1)[0]),
+                        cython.cast(cython.p_uint, pindex + 2*stride1)[0]
+                    )
+                    pindex += stride0
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
         else:
             for i in range(self.index_elements):
-                yield (self._unpack(buf, index[i,1]), index[i,2])
+                yield (
+                    self._unpack(self._buf, index[i,1]),
+                    index[i,2]
+                )
+        #lint:enable
 
     def items(self):
         # Bad idea, but hey, if they do this, it means the caller expects the collection to fit in RAM
