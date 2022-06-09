@@ -6066,51 +6066,43 @@ class NumericIdMapper(_CZipMapBase):
             return lo
         elif hkey > hikey:
             return hi
-        if cython.compiled:
-            dtype = self._dtype
-            if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
-                #lint:disable
-                PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                try:
-                    if ( indexbuf.strides == cython.NULL
-                            or indexbuf.len < hi * indexbuf.strides[0] ):
-                        raise ValueError("Invalid buffer state")
-                    pindex = cython.cast(cython.p_char, indexbuf.buf)
-                    stride0 = indexbuf.strides[0]
 
-                    if dtype is npuint64:
-                        # Must be careful about overflow
-                        if hikey > cython.cast(cython.ulonglong, 0xFFFFFFFFFFFF):
-                            hint = lo + ((hkey - lokey) >> 32) * (hi - lo) // max(((hikey - lokey) >> 32), 1)
-                        elif hikey > cython.cast(cython.ulonglong, 0xFFFFFFFF):
-                            hint = lo + ((hkey - lokey) >> 16) * (hi - lo) // max(((hikey - lokey) >> 16), 1)
-                        else:
-                            hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
-                        return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint32:
-                        hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
-                        return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint16:
-                        hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
-                        return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint8:
-                        hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
-                        return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
+        dtype = self._dtype
+        if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
+            #lint:disable
+            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            try:
+                if ( indexbuf.strides == cython.NULL
+                        or indexbuf.len < hi * indexbuf.strides[0] ):
+                    raise ValueError("Invalid buffer state")
+                pindex = cython.cast(cython.p_char, indexbuf.buf)
+                stride0 = indexbuf.strides[0]
+
+                if dtype is npuint64:
+                    # Must be careful about overflow
+                    if hikey > cython.cast(cython.ulonglong, 0xFFFFFFFFFFFF):
+                        hint = lo + ((hkey - lokey) >> 32) * (hi - lo) // max(((hikey - lokey) >> 32), 1)
+                    elif hikey > cython.cast(cython.ulonglong, 0xFFFFFFFF):
+                        hint = lo + ((hkey - lokey) >> 16) * (hi - lo) // max(((hikey - lokey) >> 16), 1)
                     else:
-                        raise AssertionError("Internal error")
-                finally:
-                    PyBuffer_Release(cython.address(indexbuf))
-                #lint:enable
-            else:
-                raise AssertionError("Internal error")
+                        hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
+                    return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint32:
+                    hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
+                    return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint16:
+                    hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
+                    return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint8:
+                    hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
+                    return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
+                else:
+                    raise AssertionError("Internal error")
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
+            #lint:enable
         else:
-            dtype = self.dtype
-            struct_dt = numpy.dtype([
-                ('key', dtype),
-                ('value', dtype),
-            ])
-            return self.index.view(struct_dt).reshape(self.index.shape[0]).searchsorted(
-                nparray([(hkey,0)],dtype=struct_dt))[0]
+            raise AssertionError("Internal error")
 
     @cython.ccall
     @cython.locals(
