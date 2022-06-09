@@ -2022,8 +2022,6 @@ class proxied_list(object):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         if dcode in ('t', 'T'):
             proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
-            if not cython.compiled:
-                proxy_into.buf = None
         else:
             proxy_into = None
         for i in range(len(self)):
