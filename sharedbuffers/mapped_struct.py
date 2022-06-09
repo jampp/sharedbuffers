@@ -2580,78 +2580,77 @@ lz4_compress = cython.declare(object, lz4_block.compress)
 
 MIN_COMPRESS_THRESHOLD = cython.declare(cython.size_t, 512)
 
-if cython.compiled:
-    @cython.inline
-    @cython.cfunc
-    @cython.returns(bytes)
-    @cython.locals(
-        offs = cython.longlong, buflen = 'Py_ssize_t', objlen = cython.size_t, rv = bytes,
-        pbuf = 'const char *', obuf = 'const char *', compressed = cython.bint)
-    def _unpack_bytes_from_cbuffer(pbuf, offs, buflen, idmap):
-        if idmap is not None and offs in idmap:
-            return idmap[offs]
+@cython.inline
+@cython.cfunc
+@cython.returns(bytes)
+@cython.locals(
+    offs = cython.longlong, buflen = 'Py_ssize_t', objlen = cython.size_t, rv = bytes,
+    pbuf = 'const char *', obuf = 'const char *', compressed = cython.bint)
+def _unpack_bytes_from_cbuffer(pbuf, offs, buflen, idmap):
+    if idmap is not None and offs in idmap:
+        return idmap[offs]
 
-        assert offs + cython.sizeof(cython.ushort) <= buflen
-        obuf = pbuf
-        pbuf += offs
-        header = cython.cast('const _varstr_header *', pbuf)
-        compressed = (header.shortlen & 0x8000) != 0
-        if (header.shortlen & 0x7FFF) == 0x7FFF:
-            assert offs + cython.sizeof('_varstr_header') <= buflen
-            objlen = header.biglen
-            pbuf += cython.sizeof('_varstr_header')
-        else:
-            objlen = header.shortlen & 0x7FFF
-            pbuf += cython.sizeof(cython.ushort)
-        # unconditional assert, for basic safety even when assertions are off
-        # up to this point, garbage input can only cause segfaults, but here
-        # they could cause huge memory allocations and DoS-type of issues
-        if objlen > buflen:
-            raise AssertionError
-        assert (pbuf - obuf) + objlen <= buflen
+    assert offs + cython.sizeof(cython.ushort) <= buflen
+    obuf = pbuf
+    pbuf += offs
+    header = cython.cast('const _varstr_header *', pbuf)
+    compressed = (header.shortlen & 0x8000) != 0
+    if (header.shortlen & 0x7FFF) == 0x7FFF:
+        assert offs + cython.sizeof('_varstr_header') <= buflen
+        objlen = header.biglen
+        pbuf += cython.sizeof('_varstr_header')
+    else:
+        objlen = header.shortlen & 0x7FFF
+        pbuf += cython.sizeof(cython.ushort)
+    # unconditional assert, for basic safety even when assertions are off
+    # up to this point, garbage input can only cause segfaults, but here
+    # they could cause huge memory allocations and DoS-type of issues
+    if objlen > buflen:
+        raise AssertionError
+    assert (pbuf - obuf) + objlen <= buflen
+    rv = PyBytes_FromStringAndSize(pbuf, objlen)  # lint:ok
+    if compressed:
+        rv = lz4_decompress(rv)
+
+    if idmap is not None:
+        idmap[offs] = rv
+    return rv
+
+@cython.inline
+@cython.cfunc
+@cython.returns(cython.bint)
+@cython.locals(
+    offs = cython.longlong, buflen = 'Py_ssize_t', objlen = cython.size_t, reflen = cython.size_t, rv = bytes,
+    pbuf = 'const char *', obuf = 'const char *', refbuf = 'const char *', compressed = cython.bint)
+def _compare_bytes_from_cbuffer(refbuf, reflen, pbuf, offs, buflen):
+    assert offs + cython.sizeof(cython.ushort) <= buflen
+    obuf = pbuf
+    pbuf += offs
+    header = cython.cast('const _varstr_header *', pbuf)
+    compressed = (header.shortlen & 0x8000) != 0
+    if (header.shortlen & 0x7FFF) == 0x7FFF:
+        assert offs + cython.sizeof('_varstr_header') <= buflen
+        objlen = header.biglen
+        pbuf += cython.sizeof('_varstr_header')
+    else:
+        objlen = header.shortlen & 0x7FFF
+        pbuf += cython.sizeof(cython.ushort)
+    if not compressed and objlen != reflen:
+        return False
+    # unconditional assert, for basic safety even when assertions are off
+    # up to this point, garbage input can only cause segfaults, but here
+    # they could cause huge memory allocations and DoS-type of issues
+    if objlen > buflen:
+        raise AssertionError
+    assert (pbuf - obuf) + objlen <= buflen
+
+    if not compressed:
+        return memcmp(pbuf, refbuf, reflen) == 0 # lint:ok
+    else:
         rv = PyBytes_FromStringAndSize(pbuf, objlen)  # lint:ok
-        if compressed:
-            rv = lz4_decompress(rv)
+        rv = lz4_decompress(rv)
 
-        if idmap is not None:
-            idmap[offs] = rv
-        return rv
-
-    @cython.inline
-    @cython.cfunc
-    @cython.returns(cython.bint)
-    @cython.locals(
-        offs = cython.longlong, buflen = 'Py_ssize_t', objlen = cython.size_t, reflen = cython.size_t, rv = bytes,
-        pbuf = 'const char *', obuf = 'const char *', refbuf = 'const char *', compressed = cython.bint)
-    def _compare_bytes_from_cbuffer(refbuf, reflen, pbuf, offs, buflen):
-        assert offs + cython.sizeof(cython.ushort) <= buflen
-        obuf = pbuf
-        pbuf += offs
-        header = cython.cast('const _varstr_header *', pbuf)
-        compressed = (header.shortlen & 0x8000) != 0
-        if (header.shortlen & 0x7FFF) == 0x7FFF:
-            assert offs + cython.sizeof('_varstr_header') <= buflen
-            objlen = header.biglen
-            pbuf += cython.sizeof('_varstr_header')
-        else:
-            objlen = header.shortlen & 0x7FFF
-            pbuf += cython.sizeof(cython.ushort)
-        if not compressed and objlen != reflen:
-            return False
-        # unconditional assert, for basic safety even when assertions are off
-        # up to this point, garbage input can only cause segfaults, but here
-        # they could cause huge memory allocations and DoS-type of issues
-        if objlen > buflen:
-            raise AssertionError
-        assert (pbuf - obuf) + objlen <= buflen
-
-        if not compressed:
-            return memcmp(pbuf, refbuf, reflen) == 0 # lint:ok
-        else:
-            rv = PyBytes_FromStringAndSize(pbuf, objlen)  # lint:ok
-            rv = lz4_decompress(rv)
-
-            return reflen == len(rv) and memcmp(refbuf, cython.cast('const char *', rv), reflen) == 0 # lint:ok
+        return reflen == len(rv) and memcmp(refbuf, cython.cast('const char *', rv), reflen) == 0 # lint:ok
 
 @cython.cfunc
 @cython.locals(
