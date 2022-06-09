@@ -592,14 +592,10 @@ class mapped_frozenset(frozenset):
                         buf[offs:offs+8] = b'm\x00\x00\x00\x00\x00\x00\x00'
                     else:
                         buf[offs:offs+16] = b'M\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-                    if cython.compiled:
-                        # We'll use implicit casting in Cython
-                        for ix in obj:
-                            buf[offs+1+ix//8] |= 1 << (ix & 7)
-                    else:
-                        for x in obj:
-                            x = int(x)
-                            buf[offs+1+x//8] |= 1 << (x & 7)
+                    # We'll use implicit casting in Cython
+                    for ix in obj:
+                        buf[offs+1+ix//8] |= 1 << (ix & 7)
+
                 if maxval < 56:
                     offs += 8
                 else:
