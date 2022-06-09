@@ -7140,8 +7140,6 @@ class ObjectIdMapper(_CZipMapBase):
                     # Must cast into unsigned, since idmapper dtypes are always unsigned,
                     # but object relative offsets might be negative
                     ukpos = kpos
-                    if not cython.compiled:
-                        ukpos &= dtypemax
 
                     part.append((_stable_hash(k), ukpos, i))
                 else:
