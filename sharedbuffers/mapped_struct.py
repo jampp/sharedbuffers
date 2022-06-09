@@ -6829,23 +6829,13 @@ class ObjectIdMapper(_CZipMapBase):
 
         # Compute absolute offset out of relative index
         pos = self._basepos
-        if not cython.compiled:
-            sindex = int(index)
-            if self._dtype_bits != 64 and (sindex & (1 << (self._dtype_bits-1))):
-                # sign-extend
-                sindex |= (~0) & ~((1 << (64 - self._dtype_bits)) - 1)
-
-            if sindex & (1 << 63):
-                # interpret two-s complement in python long arithmetic
-                sindex = -(-sindex & 0xFFFFFFFFFFFFFFFF)
-        else:
-            # reinterpret-cast
-            uindex = index
-            sindex = uindex
-            if self._dtype_bits != 64:
-                # sign-extend
-                sindex <<= 64 - self._dtype_bits
-                sindex >>= 64 - self._dtype_bits
+        # reinterpret-cast
+        uindex = index
+        sindex = uindex
+        if self._dtype_bits != 64:
+            # sign-extend
+            sindex <<= 64 - self._dtype_bits
+            sindex >>= 64 - self._dtype_bits
         return _mapped_object_unpack_from(buf, pos + sindex)
 
     @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer')
