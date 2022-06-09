@@ -3570,10 +3570,7 @@ class ByteBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject, value = cython.schar)
     def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.schar](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'b', value)
+        _c_buffer_proxy_atomic_add[cython.schar](self, obj, value)
 
 @cython.cclass
 class UShortBufferProxyProperty(BaseBufferProxyProperty):
