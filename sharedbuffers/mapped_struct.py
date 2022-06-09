@@ -1998,12 +1998,9 @@ class proxied_frozenset(object):
         pybuf.buf = cython.NULL
         PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
         try:
-            if cython.compiled:
-                pbuf = cython.cast(cython.p_uchar, pybuf.buf)
-                if offs >= pybuf.len:
-                    raise IndexError("Offset out of range")
-            else:
-                pbuf = buf
+            pbuf = cython.cast(cython.p_uchar, pybuf.buf)
+            if offs >= pybuf.len:
+                raise IndexError("Offset out of range")
 
             d = pbuf[offs]
 
