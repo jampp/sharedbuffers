@@ -2086,9 +2086,8 @@ class proxied_frozenset(object):
         hi = len(self.objlist)
         dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
 
-        if cython.compiled:
-            if dcode not in ('t', 'T'):
-                return self._search_key(elem, dcode, offset, lo, hi, hi // 2, True) < hi
+        if dcode not in ('t', 'T'):
+            return self._search_key(elem, dcode, offset, lo, hi, hi // 2, True) < hi
 
         h2 = _stable_hash(elem)
         while lo < hi:
