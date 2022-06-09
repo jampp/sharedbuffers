@@ -658,9 +658,8 @@ class mapped_frozenset(frozenset):
                 # unpack a list, build a set from it
                 return mapped_list.unpack_from(buf, offs, idmap, klass=frozenset)
         finally:
-            if cython.compiled:
-                if type(buf) is buffer:
-                    PyBuffer_Release(cython.address(pybuf))  # lint:ok
+            if type(buf) is buffer:
+                PyBuffer_Release(cython.address(pybuf))  # lint:ok
 
 _struct_l_Q = cython.declare(object, struct.Struct('<Q'))
 _struct_l_I = cython.declare(object, struct.Struct('<I'))
