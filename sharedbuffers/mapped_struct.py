@@ -6141,15 +6141,15 @@ class NumericIdMapper(_CZipMapBase):
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
-            if cython.compiled:
-                if dtype is npuint64:
-                    return _numeric_id_get_gen[cython.ulonglong](self, 0, startpos, hkey, nitems)
-                elif dtype is npuint32:
-                    return _numeric_id_get_gen[cython.uint](self, 0, startpos, hkey, nitems)
-                elif dtype is npuint16:
-                    return _numeric_id_get_gen[cython.ushort](self, 0, startpos, hkey, nitems)
-                elif dtype is npuint8:
-                    return _numeric_id_get_gen[cython.uchar](self, 0, startpos, hkey, nitems)
+
+            if dtype is npuint64:
+                return _numeric_id_get_gen[cython.ulonglong](self, 0, startpos, hkey, nitems)
+            elif dtype is npuint32:
+                return _numeric_id_get_gen[cython.uint](self, 0, startpos, hkey, nitems)
+            elif dtype is npuint16:
+                return _numeric_id_get_gen[cython.ushort](self, 0, startpos, hkey, nitems)
+            elif dtype is npuint8:
+                return _numeric_id_get_gen[cython.uchar](self, 0, startpos, hkey, nitems)
 
             index = self.index
             if startpos < nitems and index[startpos,0] == hkey:
