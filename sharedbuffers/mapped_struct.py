@@ -3732,10 +3732,7 @@ class DoubleBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject, value = cython.double)
     def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.double](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'd', value)
+        _c_buffer_proxy_atomic_add[cython.double](self, obj, value)
 
 @cython.cclass
 class FloatBufferProxyProperty(BaseBufferProxyProperty):
