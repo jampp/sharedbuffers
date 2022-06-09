@@ -4595,12 +4595,9 @@ class Schema(object):
         """
         baseoffs = offs
 
-        if cython.compiled:
-            # Inlined bitmap unpacking
-            rbuf = _likebuffer(buf)
-            PyObject_GetBuffer(rbuf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
-        else:
-            offs = int(offs)
+        # Inlined bitmap unpacking
+        rbuf = _likebuffer(buf)
+        PyObject_GetBuffer(rbuf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
 
         try:
             if cython.compiled:
