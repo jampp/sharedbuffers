@@ -6749,20 +6749,20 @@ class ObjectIdMapper(_CZipMapBase):
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
-            if cython.compiled:
-                buf = self._likebuf
-                if dtype is npuint64:
-                    return _obj_id_get_gen[cython.ulonglong](
-                        self, 0, startpos, hkey, key, default)
-                elif dtype is npuint32:
-                    return _obj_id_get_gen[cython.uint](
-                        self, 0, startpos, hkey, key, default)
-                elif dtype is npuint16:
-                    return _obj_id_get_gen[cython.ushort](
-                        self, 0, startpos, hkey, key, default)
-                elif dtype is npuint8:
-                    return _obj_id_get_gen[cython.uchar](
-                        self, 0, startpos, hkey, key, default)
+
+            buf = self._likebuf
+            if dtype is npuint64:
+                return _obj_id_get_gen[cython.ulonglong](
+                    self, 0, startpos, hkey, key, default)
+            elif dtype is npuint32:
+                return _obj_id_get_gen[cython.uint](
+                    self, 0, startpos, hkey, key, default)
+            elif dtype is npuint16:
+                return _obj_id_get_gen[cython.ushort](
+                    self, 0, startpos, hkey, key, default)
+            elif dtype is npuint8:
+                return _obj_id_get_gen[cython.uchar](
+                    self, 0, startpos, hkey, key, default)
 
             index = self.index
             while startpos < nitems and index[startpos,0] == hkey:
