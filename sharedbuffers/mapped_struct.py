@@ -3677,10 +3677,7 @@ class ULongBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.ulonglong, new_val = cython.ulonglong)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.ulonglong](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'Q', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.ulonglong](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.ulonglong)
     def add(self, obj, value):
