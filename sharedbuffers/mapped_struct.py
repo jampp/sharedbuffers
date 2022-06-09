@@ -1143,9 +1143,6 @@ def _mix_hash(code1, code2):
 _TUPLE_SEED = cython.declare(cython.ulonglong, 1626619511096549620)
 _FSET_SEED  = cython.declare(cython.ulonglong, 8212431769940327799)
 
-if not cython.compiled:
-    globals()['isinf'] = math.isinf
-    globals()['isnan'] = math.isnan
 
 @cython.locals(hval=cython.ulonglong, trunc_key=cython.longlong,
     truncated=cython.bint, flt=cython.double, mant=cython.double)
