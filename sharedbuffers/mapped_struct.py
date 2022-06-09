@@ -7054,47 +7054,44 @@ class StringIdMapper(_CZipMapBase):
             index = self.index
             stride = 3
             offs = 1
-        if cython.compiled:
-            #lint:disable
-            buf = self._likebuf
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-            try:
-                if dtype is npuint64:
-                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
-                    try:
-                        if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
-                            raise ValueError("Invalid buffer state")
-                        for i in range(self.index_elements):
-                            yield _unpack_bytes_from_cbuffer(
-                                cython.cast(cython.p_char, pybuf.buf),
-                                cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs],
-                                pybuf.len, None)
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
-                elif dtype is npuint32:
-                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
-                    try:
-                        if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
-                            raise ValueError("Invalid buffer state")
-                        for i in range(self.index_elements):
-                            yield _unpack_bytes_from_cbuffer(
-                                cython.cast(cython.p_char, pybuf.buf),
-                                cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs],
-                                pybuf.len, None)
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
-                else:
+
+        #lint:disable
+        buf = self._likebuf
+        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+        try:
+            if dtype is npuint64:
+                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
+                try:
+                    if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
+                        raise ValueError("Invalid buffer state")
                     for i in range(self.index_elements):
                         yield _unpack_bytes_from_cbuffer(
                             cython.cast(cython.p_char, pybuf.buf),
-                            index[i],
+                            cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs],
                             pybuf.len, None)
-            finally:
-                PyBuffer_Release(cython.address(pybuf))
-            #lint:enable
-        else:
-            for i in range(self.index_elements):
-                yield _unpack_bytes_from_pybuffer(buf, index[i], None)
+                finally:
+                    PyBuffer_Release(cython.address(indexbuf))
+            elif dtype is npuint32:
+                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
+                try:
+                    if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
+                        raise ValueError("Invalid buffer state")
+                    for i in range(self.index_elements):
+                        yield _unpack_bytes_from_cbuffer(
+                            cython.cast(cython.p_char, pybuf.buf),
+                            cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs],
+                            pybuf.len, None)
+                finally:
+                    PyBuffer_Release(cython.address(indexbuf))
+            else:
+                for i in range(self.index_elements):
+                    yield _unpack_bytes_from_cbuffer(
+                        cython.cast(cython.p_char, pybuf.buf),
+                        index[i],
+                        pybuf.len, None)
+        finally:
+            PyBuffer_Release(cython.address(pybuf))
+        #lint:enable
 
     def __iter__(self):
         return self.iterkeys()
