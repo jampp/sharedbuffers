@@ -3586,10 +3586,7 @@ class UShortBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.ushort, new_val = cython.ushort)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.ushort](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'H', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.ushort](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.ushort)
     def add(self, obj, value):
