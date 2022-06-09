@@ -1206,10 +1206,6 @@ def _stable_hash(key):
     else:
         raise TypeError("unhashable type: %s" % type(key).__name__)
 
-    if not cython.compiled:
-        # Make sure it fits in a uint64
-        hval = hval & 0xFFFFFFFFFFFFFFFF
-
     return hval if hval != 0 else 1
 
 
