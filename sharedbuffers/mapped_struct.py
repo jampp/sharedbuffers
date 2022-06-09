@@ -3310,10 +3310,9 @@ class BufferProxyObject(object):
     @cython.cfunc
     @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
     def _init_internal(self, buf, offs, none_bitmap, idmap):
-        if cython.compiled:
-            if self.pybuf.buf != cython.NULL:
-                PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
-                self.pybuf.buf = cython.NULL
+        if self.pybuf.buf != cython.NULL:
+            PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+            self.pybuf.buf = cython.NULL
 
         self.buf = buf
         self.idmap = idmap
