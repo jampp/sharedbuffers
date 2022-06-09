@@ -3654,7 +3654,7 @@ class IntBufferProxyProperty(BaseBufferProxyProperty):
 
 @cython.cclass
 class ULongBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.ulonglong) if cython.compiled else struct.Struct('Q').size
+    stride = cython.sizeof(cython.ulonglong)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
