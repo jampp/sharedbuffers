@@ -1396,12 +1396,6 @@ class proxied_dict(object):
         return "{%s}" % ", ".join(["%r: %r" % (k, v) for k, v in self.iteritems()])
 
 
-if not cython.compiled:
-    for orig, new in (('_cmp', '__cmp__'), ('_eq', '__eq__'), ('_ne', '__ne__')):
-        setattr(proxied_dict, new, getattr(proxied_dict, orig))
-    delattr(proxied_dict, '__richcmp__')
-
-
 _BUFFER_HEADER_PACKER = cython.declare(object, struct.Struct('=Q'))
 _BUFFER_HEADER_SIZE = cython.declare(cython.Py_ssize_t, _BUFFER_HEADER_PACKER.size)
 
