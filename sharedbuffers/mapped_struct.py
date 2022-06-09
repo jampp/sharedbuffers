@@ -3558,10 +3558,7 @@ class ByteBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.schar](self, obj, 0)
-        else:
-            return _buffer_proxy_get(self, obj, 'b')
+        return _c_buffer_proxy_get_gen[cython.schar](self, obj, 0)
 
     @cython.locals(obj = BufferProxyObject, elem = cython.schar)
     def __set__(self, obj, elem):
