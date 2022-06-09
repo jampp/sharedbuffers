@@ -7802,71 +7802,66 @@ class StringIdMultiMapper(StringIdMapper):
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
-            if cython.compiled:
-                pbkey = bkey
-                blen = len(bkey)
-                #lint:disable
-                buf = self._likebuf
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-                try:
-                    if dtype is npuint64:
-                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                        try:
-                            if ( indexbuf.strides == cython.NULL
-                                    or indexbuf.ndim < 2
-                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
-                                raise ValueError("Invalid buffer state")
-                            stride0 = indexbuf.strides[0]
-                            stride1 = indexbuf.strides[1]
-                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
-                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
-                            while pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
-                                if _compare_bytes_from_cbuffer(pbkey, blen,
-                                        cython.cast(cython.p_char, pybuf.buf),
-                                        cython.cast(cython.p_ulonglong, pindex + stride1)[0],
-                                        pybuf.len):
-                                    yield cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
-                                pindex += stride0
-                        finally:
-                            PyBuffer_Release(cython.address(indexbuf))
-                    elif dtype is npuint32:
-                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                        try:
-                            if ( indexbuf.strides == cython.NULL
-                                    or indexbuf.ndim < 2
-                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
-                                raise ValueError("Invalid buffer state")
-                            stride0 = indexbuf.strides[0]
-                            stride1 = indexbuf.strides[1]
-                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
-                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
-                            while pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
-                                if _compare_bytes_from_cbuffer(pbkey, blen,
-                                        cython.cast(cython.p_char, pybuf.buf),
-                                        cython.cast(cython.p_uint, pindex + stride1)[0],
-                                        pybuf.len):
-                                    yield cython.cast(cython.p_uint, pindex + 2*stride1)[0]
-                                pindex += stride0
-                        finally:
-                            PyBuffer_Release(cython.address(indexbuf))
-                    else:
-                        index = self.index
-                        while startpos < nitems and index[startpos,0] == hkey:
+
+            pbkey = bkey
+            blen = len(bkey)
+            #lint:disable
+            buf = self._likebuf
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+            try:
+                if dtype is npuint64:
+                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    try:
+                        if ( indexbuf.strides == cython.NULL
+                                or indexbuf.ndim < 2
+                                or indexbuf.len < nitems * indexbuf.strides[0] ):
+                            raise ValueError("Invalid buffer state")
+                        stride0 = indexbuf.strides[0]
+                        stride1 = indexbuf.strides[1]
+                        pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                        pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                        while pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
                             if _compare_bytes_from_cbuffer(pbkey, blen,
                                     cython.cast(cython.p_char, pybuf.buf),
-                                    self.index[startpos,1],
-                                    pybuf.len) == bkey:
-                                yield index[startpos,2]
-                            startpos += 1
-                finally:
-                    PyBuffer_Release(cython.address(pybuf))
-                #lint:enable
-            else:
-                index = self.index
-                while startpos < nitems and index[startpos,0] == hkey:
-                    if _unpack_bytes_from_pybuffer(buf, index[startpos,1], None) == bkey:
-                        yield index[startpos,2]
-                    startpos += 1
+                                    cython.cast(cython.p_ulonglong, pindex + stride1)[0],
+                                    pybuf.len):
+                                yield cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
+                            pindex += stride0
+                    finally:
+                        PyBuffer_Release(cython.address(indexbuf))
+                elif dtype is npuint32:
+                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    try:
+                        if ( indexbuf.strides == cython.NULL
+                                or indexbuf.ndim < 2
+                                or indexbuf.len < nitems * indexbuf.strides[0] ):
+                            raise ValueError("Invalid buffer state")
+                        stride0 = indexbuf.strides[0]
+                        stride1 = indexbuf.strides[1]
+                        pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                        pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                        while pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
+                            if _compare_bytes_from_cbuffer(pbkey, blen,
+                                    cython.cast(cython.p_char, pybuf.buf),
+                                    cython.cast(cython.p_uint, pindex + stride1)[0],
+                                    pybuf.len):
+                                yield cython.cast(cython.p_uint, pindex + 2*stride1)[0]
+                            pindex += stride0
+                    finally:
+                        PyBuffer_Release(cython.address(indexbuf))
+                else:
+                    index = self.index
+                    while startpos < nitems and index[startpos,0] == hkey:
+                        if _compare_bytes_from_cbuffer(pbkey, blen,
+                                cython.cast(cython.p_char, pybuf.buf),
+                                self.index[startpos,1],
+                                pybuf.len) == bkey:
+                            yield index[startpos,2]
+                        startpos += 1
+            finally:
+                PyBuffer_Release(cython.address(pybuf))
+            #lint:enable
+
 
     def __contains__(self, key):
         return self.has_key(key)
