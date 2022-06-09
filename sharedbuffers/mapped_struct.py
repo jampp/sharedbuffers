@@ -626,14 +626,11 @@ class mapped_frozenset(frozenset):
         pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar, fs_type=cython.uchar)
     def unpack_from(cls, buf, offs, idmap = None):
         buf = _likerobuffer(buf)
-        if cython.compiled:
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
-            pbuf = cython.cast(cython.p_uchar, pybuf.buf)  # lint:ok
-            if offs >= pybuf.len:
-                PyBuffer_Release(cython.address(pybuf))  # lint
-                raise IndexError("Offset out of range")
-        else:
-            pbuf = buf
+        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
+        pbuf = cython.cast(cython.p_uchar, pybuf.buf)  # lint:ok
+        if offs >= pybuf.len:
+            PyBuffer_Release(cython.address(pybuf))  # lint
+            raise IndexError("Offset out of range")
         try:
             fs_type = pbuf[offs]
             if fs_type == b'm' or fs_type == b'M':
