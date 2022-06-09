@@ -3419,99 +3419,70 @@ else:
     ))
 
 
-if cython.compiled:
-    @cython.cfunc
-    @cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject,
-        ptr = 'numeric_A *')
-    def _c_buffer_proxy_get_gen(self, obj, elem):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
-        assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
-        ptr = cython.cast('numeric_A *',
-            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)   #lint: ok
-        if not obj.pybuf.readonly:
-            mfence_full()   # acquire
-        return ptr[0]
+@cython.cfunc
+@cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject,
+    ptr = 'numeric_A *')
+def _c_buffer_proxy_get_gen(self, obj, elem):
+    if obj is None:
+        return self
+    elif obj.none_bitmap & self.mask:
+        return None
+    assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
+    ptr = cython.cast('numeric_A *',
+        cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)   #lint: ok
+    if not obj.pybuf.readonly:
+        mfence_full()   # acquire
+    return ptr[0]
 
-    @cython.cfunc
-    @cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject)
-    def _c_buffer_proxy_set_gen(self, obj, elem):
-        if obj is None or (obj.none_bitmap & self.mask):
-            return
-        elif obj.pybuf.readonly:
-            raise TypeError('cannot set attribute in read-only buffer')
-        assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
-        cython.cast('numeric_A *',
-            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0] = elem   #lint:ok
-        mfence_full()   # release
+@cython.cfunc
+@cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject)
+def _c_buffer_proxy_set_gen(self, obj, elem):
+    if obj is None or (obj.none_bitmap & self.mask):
+        return
+    elif obj.pybuf.readonly:
+        raise TypeError('cannot set attribute in read-only buffer')
+    assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
+    cython.cast('numeric_A *',
+        cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0] = elem   #lint:ok
+    mfence_full()   # release
 
-    @cython.cfunc
-    @cython.inline
-    @cython.locals(self = BaseBufferProxyProperty, obj = BufferProxyObject,
-        exp_val = numeric_A, new_val = numeric_A, ptr = 'numeric_A *')
-    def _c_buffer_proxy_atomic_cas(self, obj, exp_val, new_val):
-        if obj is None or (obj.none_bitmap & self.mask):
-            return False
-        elif obj.pybuf.readonly:
-            raise TypeError('cannot set attribute in read-only buffer')
-        assert (obj.offs + self.offs + cython.sizeof(exp_val)) <= obj.pybuf.len   #lint:ok
-        ptr = cython.cast('numeric_A *',
-            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)
-        if numeric_A is cython.float:
-            return _c_atomic_cas_flt(ptr, exp_val, new_val)
-        elif numeric_A is cython.double:
-            return _c_atomic_cas_dbl(ptr, exp_val, new_val)
-        else:
-            return _c_atomic_cas(ptr, exp_val, new_val)
-
-    @cython.cfunc
-    @cython.inline
-    @cython.locals(self = BaseBufferProxyProperty, obj = BufferProxyObject,
-        value = numeric_A, ptr = 'numeric_A *')
-    def _c_buffer_proxy_atomic_add(self, obj, value):
-        if obj is None or (obj.none_bitmap & self.mask):
-            return
-        elif obj.pybuf.readonly:
-            raise TypeError('cannot set attribute in read-only buffer')
-        assert (obj.offs + self.offs + cython.sizeof(value)) <= obj.pybuf.len   #lint:ok
-        ptr = cython.cast('numeric_A *',
-            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)
-        if numeric_A is cython.float:
-            _c_atomic_add_flt(ptr, value)
-        elif numeric_A is cython.double:
-            _c_atomic_add_dbl(ptr, value)
-        else:
-            _c_atomic_add(ptr, value)
-
-else:
-    def _buffer_proxy_get(self, obj, code):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
-        else:
-            return struct.unpack_from(code, obj.buf, obj.offs + self.offs)[0]
-
-    def _buffer_proxy_set(self, obj, code, elem):
-        if obj is not None and not (obj.none_bitmap & self.mask):
-            struct.pack_into(code, obj.buf, obj.offs + self.offs, elem)
-
-    def _buffer_proxy_cas(self, obj, code, exp_val, new_val):
-        # XXX: This is not atomic!
-        if obj is not None and not (obj.none_bitmap & self.mask):
-            tmp = struct.unpack_from(code, obj.buf, obj.offs + self.offs)[0]
-            if tmp == exp_val:
-                struct.pack_into(code, obj.buf, obj.offs + self.offs, new_val)
-                return True
+@cython.cfunc
+@cython.inline
+@cython.locals(self = BaseBufferProxyProperty, obj = BufferProxyObject,
+    exp_val = numeric_A, new_val = numeric_A, ptr = 'numeric_A *')
+def _c_buffer_proxy_atomic_cas(self, obj, exp_val, new_val):
+    if obj is None or (obj.none_bitmap & self.mask):
         return False
+    elif obj.pybuf.readonly:
+        raise TypeError('cannot set attribute in read-only buffer')
+    assert (obj.offs + self.offs + cython.sizeof(exp_val)) <= obj.pybuf.len   #lint:ok
+    ptr = cython.cast('numeric_A *',
+        cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)
+    if numeric_A is cython.float:
+        return _c_atomic_cas_flt(ptr, exp_val, new_val)
+    elif numeric_A is cython.double:
+        return _c_atomic_cas_dbl(ptr, exp_val, new_val)
+    else:
+        return _c_atomic_cas(ptr, exp_val, new_val)
 
-    def _buffer_proxy_add(self, obj, code, value):
-        if obj is not None and not (obj.none_bitmap & self.mask):
-            tmp = struct.unpack_from(code, obj.buf, obj.offs + self.offs)[0]
-            struct.pack_into(code, obj.buf, obj.offs + self.offs, tmp + value)
-
+@cython.cfunc
+@cython.inline
+@cython.locals(self = BaseBufferProxyProperty, obj = BufferProxyObject,
+    value = numeric_A, ptr = 'numeric_A *')
+def _c_buffer_proxy_atomic_add(self, obj, value):
+    if obj is None or (obj.none_bitmap & self.mask):
+        return
+    elif obj.pybuf.readonly:
+        raise TypeError('cannot set attribute in read-only buffer')
+    assert (obj.offs + self.offs + cython.sizeof(value)) <= obj.pybuf.len   #lint:ok
+    ptr = cython.cast('numeric_A *',
+        cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)
+    if numeric_A is cython.float:
+        _c_atomic_add_flt(ptr, value)
+    elif numeric_A is cython.double:
+        _c_atomic_add_dbl(ptr, value)
+    else:
+        _c_atomic_add(ptr, value)
 
 @cython.cclass
 class BoolBufferProxyProperty(BaseBufferProxyProperty):
