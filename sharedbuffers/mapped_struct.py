@@ -6577,44 +6577,37 @@ class ObjectIdMapper(_CZipMapBase):
             index = self.index
             stride = 3
             offs = 1
-        if cython.compiled:
-            #lint:disable
-            buf = self._likebuf
-            if dtype is npuint64:
-                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
-                try:
-                    if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
-                        raise ValueError("Invalid buffer state")
-                    for i in range(self.index_elements):
-                        yield self._unpack(self._buf,
-                            cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs])
-                finally:
-                    PyBuffer_Release(cython.address(indexbuf))
-            elif dtype is npuint32:
-                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
-                try:
-                    if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
-                        raise ValueError("Invalid buffer state")
-                    for i in range(self.index_elements):
-                        yield self._unpack(self._buf,
-                            cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs])
-                finally:
-                    PyBuffer_Release(cython.address(indexbuf))
-            else:
+
+        #lint:disable
+        buf = self._likebuf
+        if dtype is npuint64:
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
+            try:
+                if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
+                    raise ValueError("Invalid buffer state")
                 for i in range(self.index_elements):
-                    if not make_sequential:
-                        pos = index[i, offs]
-                    else:
-                        pos = index[i]
-                    yield self._unpack(self._buf, pos)
-            #lint:enable
+                    yield self._unpack(self._buf,
+                        cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs])
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
+        elif dtype is npuint32:
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
+            try:
+                if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
+                    raise ValueError("Invalid buffer state")
+                for i in range(self.index_elements):
+                    yield self._unpack(self._buf,
+                        cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs])
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
         else:
             for i in range(self.index_elements):
                 if not make_sequential:
                     pos = index[i, offs]
                 else:
                     pos = index[i]
-                yield self._unpack(buf, pos)
+                yield self._unpack(self._buf, pos)
+        #lint:enable
 
     def __iter__(self):
         return self.iterkeys()
