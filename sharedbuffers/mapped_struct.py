@@ -3788,7 +3788,7 @@ class BytesBufferProxyProperty(BaseBufferProxyProperty):
 
 @cython.cclass
 class UnicodeBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
+    stride = cython.sizeof(cython.longlong)
 
     @cython.locals(obj = BufferProxyObject, offs = cython.Py_ssize_t, buflen = cython.ulonglong, pybuf = 'Py_buffer*',
         poffs = object)
