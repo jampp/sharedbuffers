@@ -1995,9 +1995,8 @@ class proxied_frozenset(object):
         bitrep_lo=cython.ulonglong, bitrep_hi=cython.ulonglong, d=cython.uchar)
     def unpack_from(cls, buf, offs, idmap = None):
         buf = _likerobuffer(buf)
-        if cython.compiled:
-            pybuf.buf = cython.NULL
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+        pybuf.buf = cython.NULL
+        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
         try:
             if cython.compiled:
                 pbuf = cython.cast(cython.p_uchar, pybuf.buf)
