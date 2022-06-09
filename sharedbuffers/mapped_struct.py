@@ -3797,30 +3797,23 @@ class UnicodeBufferProxyProperty(BaseBufferProxyProperty):
             return self
         elif obj.none_bitmap & self.mask:
             return None
-        if cython.compiled:
-            pybuf = cython.address(obj.pybuf)
-            buflen = pybuf.len
-            assert (obj.offs + self.offs + cython.sizeof(cython.longlong)) <= buflen
-            offs = obj.offs + cython.cast(cython.p_longlong,
-                cython.cast(cython.p_uchar, pybuf.buf) + obj.offs + self.offs)[0]
-            assert offs + cython.sizeof(cython.ushort) <= buflen
-            if obj.idmap is not None:
-                poffs = offs # python version of offs
-                if type(obj.idmap) is dict:
-                    rv = cython.cast(dict, obj.idmap).get(poffs)
-                else:
-                    rv = obj.idmap.get(poffs)
-                if rv is not None:
-                    return rv
-            rv = _unpack_bytes_from_cbuffer(cython.cast(cython.p_char, pybuf.buf), offs, buflen, None).decode("utf8")
-        else:
-            offs = obj.offs + struct.unpack_from('q', obj.buf, obj.offs + self.offs)[0]
-            if obj.idmap is not None:
-                poffs = offs # python version of offs
+
+        pybuf = cython.address(obj.pybuf)
+        buflen = pybuf.len
+        assert (obj.offs + self.offs + cython.sizeof(cython.longlong)) <= buflen
+        offs = obj.offs + cython.cast(cython.p_longlong,
+            cython.cast(cython.p_uchar, pybuf.buf) + obj.offs + self.offs)[0]
+        assert offs + cython.sizeof(cython.ushort) <= buflen
+        if obj.idmap is not None:
+            poffs = offs # python version of offs
+            if type(obj.idmap) is dict:
+                rv = cython.cast(dict, obj.idmap).get(poffs)
+            else:
                 rv = obj.idmap.get(poffs)
-                if rv is not None:
-                    return rv
-            rv = mapped_unicode.unpack_from(obj.buf, offs)
+            if rv is not None:
+                return rv
+        rv = _unpack_bytes_from_cbuffer(cython.cast(cython.p_char, pybuf.buf), offs, buflen, None).decode("utf8")
+
         if obj.idmap is not None:
             obj.idmap[poffs] = rv
         return rv
