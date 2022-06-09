@@ -1389,16 +1389,6 @@ class proxied_dict(object):
         rv = self._is_eq(other)
         return rv if op == 2 else not rv
 
-    if not cython.compiled:
-        def _cmp(self, other):
-            return cmp(id(self), id(other))
-
-        def _eq(self, other):
-            return self._is_eq(other)
-
-        def _ne(self, other):
-            return not self._is_eq(other)
-
     def __repr__(self):
         return "proxied_dict(%s)" % self
 
