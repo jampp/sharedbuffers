@@ -1877,11 +1877,6 @@ class proxied_list(object):
             return True
         return proxied_list_cmp(self, other) != 0
 
-    def _eq(self, other):
-        if not islist(other):
-            return False
-        return proxied_list_cmp(self, other) == 0
-
     def __len__(self):
         if self.elem_step == 0:
             return self._metadata()[1]
