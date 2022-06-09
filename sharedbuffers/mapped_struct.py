@@ -2530,7 +2530,7 @@ class proxied_tuple(proxied_list):
     )
     def __hash__(self):
         if self._hash == -1:
-            if cython.compiled and is_cpython:
+            if is_cpython:
                 if python38:
                     # From Python 3.8 source code
                     len_ = len(self)
@@ -2559,8 +2559,6 @@ class proxied_tuple(proxied_list):
                     if x == -1:
                         x = -2
                     self._hash = x
-            else:
-                self._hash = hash(tuple(iter(self)))
         return self._hash
 
     @cython.locals(op = cython.char)
