@@ -1667,8 +1667,7 @@ class proxied_list(object):
             raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
 
     def __cinit__(self, buf, offs, idmap = None, elem_start = 0, elem_end = 0, elem_step = 0):
-        if cython.compiled:
-            self.pybuf.buf = cython.NULL
+        self.pybuf.buf = cython.NULL
 
     @cython.locals(offs = cython.Py_ssize_t, idmap = dict, elem_start = cython.longlong,
         elem_end = cython.longlong, elem_step = cython.longlong)
