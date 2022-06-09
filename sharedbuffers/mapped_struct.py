@@ -3850,24 +3850,23 @@ class GenericBufferProxyProperty(BaseBufferProxyProperty):
             return self
         elif obj.none_bitmap & self.mask:
             return None
-        if cython.compiled:
-            pybuf = cython.address(obj.pybuf)
-            buflen = pybuf.len
-            assert (obj.offs + self.offs + cython.sizeof(cython.longlong)) <= buflen
-            offs = obj.offs + cython.cast(cython.p_longlong,
-                cython.cast(cython.p_uchar, pybuf.buf) + obj.offs + self.offs)[0]
-            if obj.idmap is not None:
-                poffs = offs # python version of offs
-                if type(obj.idmap) is dict:
-                    rv = cython.cast(dict, obj.idmap).get(poffs, poffs)
-                else:
-                    rv = obj.idmap.get(poffs, poffs)
-                # idmap cannot possibly hold "poffs" for that offset
-                if rv is not poffs:
-                    return rv
-            assert offs + cython.sizeof(cython.ushort) <= buflen
-        else:
-            poffs = offs = obj.offs + struct.unpack_from('q', obj.buf, obj.offs + self.offs)[0]
+
+        pybuf = cython.address(obj.pybuf)
+        buflen = pybuf.len
+        assert (obj.offs + self.offs + cython.sizeof(cython.longlong)) <= buflen
+        offs = obj.offs + cython.cast(cython.p_longlong,
+            cython.cast(cython.p_uchar, pybuf.buf) + obj.offs + self.offs)[0]
+        if obj.idmap is not None:
+            poffs = offs # python version of offs
+            if type(obj.idmap) is dict:
+                rv = cython.cast(dict, obj.idmap).get(poffs, poffs)
+            else:
+                rv = obj.idmap.get(poffs, poffs)
+            # idmap cannot possibly hold "poffs" for that offset
+            if rv is not poffs:
+                return rv
+        assert offs + cython.sizeof(cython.ushort) <= buflen
+
         rv = self._unpack_from(obj.buf, offs)
         if obj.idmap is not None:
             obj.idmap[poffs] = rv
