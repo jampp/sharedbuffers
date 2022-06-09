@@ -3566,10 +3566,7 @@ class ByteBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.schar, new_val = cython.schar)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.schar](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'b', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.schar](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.schar)
     def add(self, obj, value):
