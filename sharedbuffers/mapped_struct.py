@@ -1769,23 +1769,16 @@ class proxied_list(object):
             raise IndexError(orig_index)
 
         if dcode in (b't', b'T'):
-            if cython.compiled:
-                if dcode == b't':
-                    lpindex = cython.cast('const long *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
-                    if lpindex[index] == 1:
-                        return None
-                    obj_offs = self.offs + lpindex[index]
-                elif dcode == b'T':
-                    ipindex = cython.cast('const int *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
-                    if ipindex[index] == 1:
-                        return None
-                    obj_offs = self.offs + ipindex[index]
-            else:
-                index_offs = dataoffs + itemsize * int(index)
-                rel_offs = _struct.unpack_from(self.buf, index_offs)[0]
-                if rel_offs == 1:
+            if dcode == b't':
+                lpindex = cython.cast('const long *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
+                if lpindex[index] == 1:
                     return None
-                obj_offs = self.offs + rel_offs
+                obj_offs = self.offs + lpindex[index]
+            elif dcode == b'T':
+                ipindex = cython.cast('const int *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
+                if ipindex[index] == 1:
+                    return None
+                obj_offs = self.offs + ipindex[index]
         else:
             obj_offs = dataoffs + itemsize * cython.cast(cython.size_t, int(index))
 
