@@ -641,7 +641,7 @@ class mapped_frozenset(frozenset):
                     fs_size = 15
                 else:
                     raise ValueError("Unknown set type %r" % fs_type)
-                if cython.compiled and offs+fs_size >= pybuf.len:
+                if offs+fs_size >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
                 rv = []
                 for i in range(fs_size):
