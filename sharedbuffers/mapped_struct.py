@@ -3378,45 +3378,39 @@ class BaseBufferProxyProperty(object):
         raise TypeError("Proxy objects are read-only")
 
 
-if cython.compiled:
-    # We need as many of these definitions as different parameters are
-    # used per-function; otherwise, cython will deduce that they are of
-    # the same type. Sigh ...
+# We need as many of these definitions as different parameters are
+# used per-function; otherwise, cython will deduce that they are of
+# the same type. Sigh ...
 
-    numeric_A = cython.fused_type(
-        cython.schar,
-        cython.uchar,
-        cython.sshort,
-        cython.ushort,
-        cython.sint,
-        cython.uint,
-        cython.slong,
-        cython.ulong,
-        cython.slonglong,
-        cython.ulonglong,
-        cython.float,
-        cython.double,
-    )
+numeric_A = cython.fused_type(
+    cython.schar,
+    cython.uchar,
+    cython.sshort,
+    cython.ushort,
+    cython.sint,
+    cython.uint,
+    cython.slong,
+    cython.ulong,
+    cython.slonglong,
+    cython.ulonglong,
+    cython.float,
+    cython.double,
+)
 
-    numeric_B = cython.fused_type(
-        cython.schar,
-        cython.uchar,
-        cython.sshort,
-        cython.ushort,
-        cython.sint,
-        cython.uint,
-        cython.slong,
-        cython.ulong,
-        cython.slonglong,
-        cython.ulonglong,
-        cython.float,
-        cython.double,
-    )
-else:
-    globals().update(dict(
-        numeric_A = object,
-        numeric_B = object,
-    ))
+numeric_B = cython.fused_type(
+    cython.schar,
+    cython.uchar,
+    cython.sshort,
+    cython.ushort,
+    cython.sint,
+    cython.uint,
+    cython.slong,
+    cython.ulong,
+    cython.slonglong,
+    cython.ulonglong,
+    cython.float,
+    cython.double,
+)
 
 
 @cython.cfunc
