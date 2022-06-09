@@ -3319,15 +3319,14 @@ class BufferProxyObject(object):
         self.offs = offs
         self.none_bitmap = none_bitmap
 
-        if cython.compiled:
+        try:
+            PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_WRITABLE)  # lint:ok
+        except BufferError:
             try:
-                PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_WRITABLE)  # lint:ok
+                PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
             except BufferError:
-                try:
-                    PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
-                except BufferError:
-                    self.pybuf.buf = cython.NULL
-                    raise
+                self.pybuf.buf = cython.NULL
+                raise
 
     @cython.ccall
     @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
