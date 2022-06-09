@@ -1784,38 +1784,35 @@ class proxied_list(object):
 
         if dcode in (b't', b'T'):
             res = _mapped_object_unpack_from(self.buf, obj_offs, None, proxy_into)
-        elif cython.compiled:
-            if dcode == 'B':
-                res = cython.cast(cython.p_uchar,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'b':
-                res = cython.cast(cython.p_schar,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'H':
-                res = cython.cast(cython.p_ushort,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'h':
-                res = cython.cast(cython.p_short,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'I':
-                res = cython.cast(cython.p_uint,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'i':
-                res = cython.cast(cython.p_int,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'q':
-                res = cython.cast(cython.p_longlong,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'Q':
-                res = cython.cast(cython.p_ulonglong,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'd':
-                res = cython.cast(cython.p_double,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            else:
-                raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+        elif dcode == 'B':
+            res = cython.cast(cython.p_uchar,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'b':
+            res = cython.cast(cython.p_schar,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'H':
+            res = cython.cast(cython.p_ushort,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'h':
+            res = cython.cast(cython.p_short,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'I':
+            res = cython.cast(cython.p_uint,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'i':
+            res = cython.cast(cython.p_int,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'q':
+            res = cython.cast(cython.p_longlong,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'Q':
+            res = cython.cast(cython.p_ulonglong,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'd':
+            res = cython.cast(cython.p_double,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
         else:
-            res = _struct.unpack_from(self.buf, obj_offs)[0]
+            raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
 
         return res
 
