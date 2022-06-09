@@ -1615,10 +1615,9 @@ class proxied_list(object):
         return self.offs
 
     def __dealloc__(self):
-        if cython.compiled:
-            if self.pybuf.buf != cython.NULL:
-                PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
-                self.pybuf.buf = cython.NULL
+        if self.pybuf.buf != cython.NULL:
+            PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+            self.pybuf.buf = cython.NULL
 
     def __del__(self):
         # For python 3.4+, in earlier versions it will not be called and we'll depend on dealloc
