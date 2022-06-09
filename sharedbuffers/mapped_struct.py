@@ -3602,10 +3602,7 @@ class ShortBufferProxyProperty(BaseBufferProxyProperty):
 
     @cython.locals(obj = BufferProxyObject, elem = cython.sshort)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.sshort](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'h', elem)
+        _c_buffer_proxy_set_gen[cython.sshort](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.sshort, new_val = cython.sshort)
     def cas(self, obj, exp_val, new_val):
