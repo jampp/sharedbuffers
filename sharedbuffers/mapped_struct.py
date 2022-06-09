@@ -144,20 +144,19 @@ def make_memoryview(a):
     else:
         return buffer(a)
 
-if cython.compiled:
-    # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
-    buffer = cython.declare(object, buffer)  # lint:ok
-    if python2:
-        from types import BufferType as buffer
-    else:
-        buffer = _memoryview
+# Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
+buffer = cython.declare(object, buffer)  # lint:ok
+if python2:
+    from types import BufferType as buffer
+else:
+    buffer = _memoryview
 
-    assert Py_LT == 0
-    assert Py_LE == 1
-    assert Py_EQ == 2
-    assert Py_NE == 3
-    assert Py_GT == 4
-    assert Py_GE == 5
+assert Py_LT == 0
+assert Py_LE == 1
+assert Py_EQ == 2
+assert Py_NE == 3
+assert Py_GT == 4
+assert Py_GE == 5
 
 @cython.cfunc
 @cython.inline
