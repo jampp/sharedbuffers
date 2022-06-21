@@ -2520,6 +2520,8 @@ class proxied_tuple(proxied_list):
                     if x == -1:
                         x = -2
                     self._hash = x
+            else:
+                self._hash = hash(tuple(iter(self)))
         return self._hash
 
     @cython.locals(op = cython.char)
