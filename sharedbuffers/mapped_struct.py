@@ -1842,35 +1842,9 @@ class proxied_list(object):
         return self._getitem(index)
 
 
-    def __cmp__(self, other):
-        if not islist(other):
-            raise NotImplementedError
-        return proxied_list_cmp(self, other)
-
-    def __lt__(self, other):
-        if not islist(other):
-            raise NotImplementedError
-        return proxied_list_cmp(self, other) < 0
-
-    def __gt__(self, other):
-        if not islist(other):
-            raise NotImplementedError
-        return proxied_list_cmp(self, other) > 0
-
-    def __eq__(self, other):
-        if not islist(other):
-            return False
-        return proxied_list_eq(self, other)
-
-    def __le__(self, other):
-        if not islist(other):
-            raise NotImplementedError
-        return proxied_list_cmp(self, other) <= 0
-
-    def __ge__(self, other):
-        if not islist(other):
-            raise NotImplementedError
-        return proxied_list_cmp(self, other) >= 0
+    @cython.locals(op = cython.char)
+    def __richcmp__(self, other, op):
+        return proxied_list_richcmp(self, other, op)
 
     def __len__(self):
         if self.elem_step == 0:
