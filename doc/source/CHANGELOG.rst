@@ -12,6 +12,7 @@ Changed
 -------
 
 - BTS-90_: Migrate sharedbuffers to Python 3
+- BTS-619_: Remove pure python stuff
 
 v0.9.2 - Unreleased
 ===================
@@ -447,3 +448,4 @@ Added
 .. _keepachangelog: http://keepachangelog.com/
 
 .. _BTS-90: https://jampphq.atlassian.net/browse/BTS-90
+.. _BTS-619: https://jampphq.atlassian.net/browse/BTS-619

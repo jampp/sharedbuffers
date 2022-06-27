@@ -144,20 +144,19 @@ def make_memoryview(a):
     else:
         return buffer(a)
 
-if cython.compiled:
-    # Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
-    buffer = cython.declare(object, buffer)  # lint:ok
-    if python2:
-        from types import BufferType as buffer
-    else:
-        buffer = _memoryview
+# Compatibility fix for cython >= 0.23, which no longer supports "buffer" as a built-in type
+buffer = cython.declare(object, buffer)  # lint:ok
+if python2:
+    from types import BufferType as buffer
+else:
+    buffer = _memoryview
 
-    assert Py_LT == 0
-    assert Py_LE == 1
-    assert Py_EQ == 2
-    assert Py_NE == 3
-    assert Py_GT == 4
-    assert Py_GE == 5
+assert Py_LT == 0
+assert Py_LE == 1
+assert Py_EQ == 2
+assert Py_NE == 3
+assert Py_GT == 4
+assert Py_GE == 5
 
 @cython.cfunc
 @cython.inline
@@ -577,7 +576,7 @@ class mapped_frozenset(frozenset):
                     isbuffer = True
                 except:
                     isbuffer = False
-                if cython.compiled and isbuffer:
+                if isbuffer:
                     if maxval < 56:
                         cbuf[offs] = 'm'
                         for i in range(1, 8):
@@ -593,14 +592,10 @@ class mapped_frozenset(frozenset):
                         buf[offs:offs+8] = b'm\x00\x00\x00\x00\x00\x00\x00'
                     else:
                         buf[offs:offs+16] = b'M\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-                    if cython.compiled:
-                        # We'll use implicit casting in Cython
-                        for ix in obj:
-                            buf[offs+1+ix//8] |= 1 << (ix & 7)
-                    else:
-                        for x in obj:
-                            x = int(x)
-                            buf[offs+1+x//8] |= 1 << (x & 7)
+                    # We'll use implicit casting in Cython
+                    for ix in obj:
+                        buf[offs+1+ix//8] |= 1 << (ix & 7)
+
                 if maxval < 56:
                     offs += 8
                 else:
@@ -631,14 +626,11 @@ class mapped_frozenset(frozenset):
         pybuf='Py_buffer', pbuf='const unsigned char *', b=cython.uchar, fs_type=cython.uchar)
     def unpack_from(cls, buf, offs, idmap = None):
         buf = _likerobuffer(buf)
-        if cython.compiled:
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
-            pbuf = cython.cast(cython.p_uchar, pybuf.buf)  # lint:ok
-            if offs >= pybuf.len:
-                PyBuffer_Release(cython.address(pybuf))  # lint
-                raise IndexError("Offset out of range")
-        else:
-            pbuf = buf
+        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
+        pbuf = cython.cast(cython.p_uchar, pybuf.buf)  # lint:ok
+        if offs >= pybuf.len:
+            PyBuffer_Release(cython.address(pybuf))  # lint
+            raise IndexError("Offset out of range")
         try:
             fs_type = pbuf[offs]
             if fs_type == b'm' or fs_type == b'M':
@@ -649,7 +641,7 @@ class mapped_frozenset(frozenset):
                     fs_size = 15
                 else:
                     raise ValueError("Unknown set type %r" % fs_type)
-                if cython.compiled and offs+fs_size >= pybuf.len:
+                if offs+fs_size >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
                 rv = []
                 for i in range(fs_size):
@@ -666,9 +658,8 @@ class mapped_frozenset(frozenset):
                 # unpack a list, build a set from it
                 return mapped_list.unpack_from(buf, offs, idmap, klass=frozenset)
         finally:
-            if cython.compiled:
-                if type(buf) is buffer:
-                    PyBuffer_Release(cython.address(pybuf))  # lint:ok
+            if type(buf) is buffer:
+                PyBuffer_Release(cython.address(pybuf))  # lint:ok
 
 _struct_l_Q = cython.declare(object, struct.Struct('<Q'))
 _struct_l_I = cython.declare(object, struct.Struct('<I'))
@@ -1143,9 +1134,6 @@ def _mix_hash(code1, code2):
 _TUPLE_SEED = cython.declare(cython.ulonglong, 1626619511096549620)
 _FSET_SEED  = cython.declare(cython.ulonglong, 8212431769940327799)
 
-if not cython.compiled:
-    globals()['isinf'] = math.isinf
-    globals()['isnan'] = math.isnan
 
 @cython.locals(hval=cython.ulonglong, trunc_key=cython.longlong,
     truncated=cython.bint, flt=cython.double, mant=cython.double)
@@ -1208,10 +1196,6 @@ def _stable_hash(key):
             hval = _mix_hash(hval, _stable_hash(value))
     else:
         raise TypeError("unhashable type: %s" % type(key).__name__)
-
-    if not cython.compiled:
-        # Make sure it fits in a uint64
-        hval = hval & 0xFFFFFFFFFFFFFFFF
 
     return hval if hval != 0 else 1
 
@@ -1396,27 +1380,11 @@ class proxied_dict(object):
         rv = self._is_eq(other)
         return rv if op == 2 else not rv
 
-    if not cython.compiled:
-        def _cmp(self, other):
-            return cmp(id(self), id(other))
-
-        def _eq(self, other):
-            return self._is_eq(other)
-
-        def _ne(self, other):
-            return not self._is_eq(other)
-
     def __repr__(self):
         return "proxied_dict(%s)" % self
 
     def __str__(self):
         return "{%s}" % ", ".join(["%r: %r" % (k, v) for k, v in self.iteritems()])
-
-
-if not cython.compiled:
-    for orig, new in (('_cmp', '__cmp__'), ('_eq', '__eq__'), ('_ne', '__ne__')):
-        setattr(proxied_dict, new, getattr(proxied_dict, orig))
-    delattr(proxied_dict, '__richcmp__')
 
 
 _BUFFER_HEADER_PACKER = cython.declare(object, struct.Struct('=Q'))
@@ -1647,17 +1615,15 @@ class proxied_list(object):
         return self.offs
 
     def __dealloc__(self):
-        if cython.compiled:
-            if self.pybuf.buf != cython.NULL:
-                PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
-                self.pybuf.buf = cython.NULL
+        if self.pybuf.buf != cython.NULL:
+            PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+            self.pybuf.buf = cython.NULL
 
     def __del__(self):
         # For python 3.4+, in earlier versions it will not be called and we'll depend on dealloc
-        if cython.compiled:
-            if self.pybuf.buf != cython.NULL:
-                PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
-                self.pybuf.buf = cython.NULL
+        if self.pybuf.buf != cython.NULL:
+            PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+            self.pybuf.buf = cython.NULL
 
     @cython.ccall
     @cython.locals(dataoffs = cython.Py_ssize_t, dcode = cython.char, pbuf = 'const char *',
@@ -1665,88 +1631,43 @@ class proxied_list(object):
     def _metadata(self,
         itemsizes = dict([(dtype, array(dtype.decode(), []).itemsize) for dtype in (b'B',b'b',b'H',b'h',b'I',b'i',b'l',b'L',b'd')])):
 
-        if cython.compiled:
-            # Cython version
-            dataoffs = self.offs
-            pbuf = cython.cast(cython.p_char, self.pybuf.buf)
-            dcode = pbuf[dataoffs]
+        # Cython version
+        dataoffs = self.offs
+        pbuf = cython.cast(cython.p_char, self.pybuf.buf)
+        dcode = pbuf[dataoffs]
 
-            if dcode in ('B','b','H','h','I','i'):
+        if dcode in ('B','b','H','h','I','i'):
 
-                objlen = cython.cast(cython.p_uint, pbuf + dataoffs)[0] >> 8
-                dataoffs += 4
+            objlen = cython.cast(cython.p_uint, pbuf + dataoffs)[0] >> 8
+            dataoffs += 4
 
-                if objlen == 0xFFFFFF:
-                    objlen = cython.cast(cython.p_longlong, pbuf + dataoffs)[0]
-                    dataoffs += 8
-
-                if dcode in ('B', 'b'):
-                    itemsize = 1
-                elif dcode in ('H', 'h'):
-                    itemsize = 2
-                else:
-                    itemsize = 4
-
-                return dcode, objlen, itemsize, dataoffs, None
-
-            elif dcode in ('q', 'Q', 'd', 't', 'T'):
-                objlen = cython.cast(cython.p_longlong, pbuf + dataoffs)[0] >> 8
+            if objlen == 0xFFFFFF:
+                objlen = cython.cast(cython.p_longlong, pbuf + dataoffs)[0]
                 dataoffs += 8
-                if dcode == 'T':
-                    itemsize = 4
-                else:
-                    itemsize = 8
-                return dcode, objlen, itemsize, dataoffs, None
 
+            if dcode in ('B', 'b'):
+                itemsize = 1
+            elif dcode in ('H', 'h'):
+                itemsize = 2
             else:
-                raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+                itemsize = 4
+
+            return dcode, objlen, itemsize, dataoffs, None
+
+        elif dcode in ('q', 'Q', 'd', 't', 'T'):
+            objlen = cython.cast(cython.p_longlong, pbuf + dataoffs)[0] >> 8
+            dataoffs += 8
+            if dcode == 'T':
+                itemsize = 4
+            else:
+                itemsize = 8
+            return dcode, objlen, itemsize, dataoffs, None
 
         else:
-            # Python version
-            dataoffs = self.offs
-            buf = self.buf
-
-            dcode = buf[dataoffs]
-
-            if dcode in (b'B',b'b',b'H',b'h',b'I',b'i'):
-                objlen, = struct.unpack('<I', bytes(buf[dataoffs+1:dataoffs+4]) + b'\x00')
-                dataoffs += 4
-                if objlen == 0xFFFFFF:
-                    objlen = struct.unpack_from('<Q', buf, dataoffs)
-                    dataoffs += 8
-                return dcode, objlen, itemsizes[dcode], dataoffs, struct.Struct(dcode)
-
-            elif dcode == b'q':
-                objlen, = struct.unpack('<Q', bytes(buf[dataoffs+1:dataoffs+8]) + b'\x00')
-                dataoffs += 8
-                return dcode, objlen, itemsizes[b'l'], dataoffs, struct.Struct('q')
-
-            elif dcode == b'Q':
-                objlen, = struct.unpack('<Q', bytes(buf[dataoffs+1:dataoffs+8]) + b'\x00')
-                dataoffs += 8
-                return dcode, objlen, itemsizes[b'L'], dataoffs, struct.Struct('Q')
-
-            elif dcode == b'd':
-                objlen, = struct.unpack('<Q', bytes(buf[dataoffs+1:dataoffs+8]) + b'\x00')
-                dataoffs += 8
-                return dcode, objlen, itemsizes[b'd'], dataoffs, struct.Struct('d')
-
-            elif dcode == b't':
-                objlen, = struct.unpack('<Q', buf[dataoffs+1:dataoffs+8] + b'\x00')
-                dataoffs += 8
-                return dcode, objlen, itemsizes['l'], dataoffs, struct.Struct('l')
-
-            elif dcode == b'T':
-                objlen, = struct.unpack('<Q', bytes(buf[dataoffs+1:dataoffs+8]) + b'\x00')
-                dataoffs += 8
-                return dcode, objlen, itemsizes[b'i'], dataoffs, struct.Struct('i')
-
-            else:
-                raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+            raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
 
     def __cinit__(self, buf, offs, idmap = None, elem_start = 0, elem_end = 0, elem_step = 0):
-        if cython.compiled:
-            self.pybuf.buf = cython.NULL
+        self.pybuf.buf = cython.NULL
 
     @cython.locals(offs = cython.Py_ssize_t, idmap = dict, elem_start = cython.longlong,
         elem_end = cython.longlong, elem_step = cython.longlong)
@@ -1766,15 +1687,14 @@ class proxied_list(object):
 
     @cython.ccall
     def _init(self):
-        if cython.compiled:
-            if self.pybuf.buf != cython.NULL:
-                PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
-                self.pybuf.buf = cython.NULL
-            try:
-                PyObject_GetBuffer(self.buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
-            except BufferError:
-                self.pybuf.buf = cython.NULL
-                raise
+        if self.pybuf.buf != cython.NULL:
+            PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+            self.pybuf.buf = cython.NULL
+        try:
+            PyObject_GetBuffer(self.buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
+        except BufferError:
+            self.pybuf.buf = cython.NULL
+            raise
 
         # Call metadata to check the object
         self._metadata()
@@ -1802,8 +1722,6 @@ class proxied_list(object):
 
         if proxy_into is None and fast and dcode in (b't', b'T'):
             proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
-            if not cython.compiled:
-                proxy_into.buf = None
 
         @cython.locals(index = cython.longlong)
         def getter(index):
@@ -1851,60 +1769,50 @@ class proxied_list(object):
             raise IndexError(orig_index)
 
         if dcode in (b't', b'T'):
-            if cython.compiled:
-                if dcode == b't':
-                    lpindex = cython.cast('const long *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
-                    if lpindex[index] == 1:
-                        return None
-                    obj_offs = self.offs + lpindex[index]
-                elif dcode == b'T':
-                    ipindex = cython.cast('const int *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
-                    if ipindex[index] == 1:
-                        return None
-                    obj_offs = self.offs + ipindex[index]
-            else:
-                index_offs = dataoffs + itemsize * int(index)
-                rel_offs = _struct.unpack_from(self.buf, index_offs)[0]
-                if rel_offs == 1:
+            if dcode == b't':
+                lpindex = cython.cast('const long *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
+                if lpindex[index] == 1:
                     return None
-                obj_offs = self.offs + rel_offs
+                obj_offs = self.offs + lpindex[index]
+            elif dcode == b'T':
+                ipindex = cython.cast('const int *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
+                if ipindex[index] == 1:
+                    return None
+                obj_offs = self.offs + ipindex[index]
         else:
             obj_offs = dataoffs + itemsize * cython.cast(cython.size_t, int(index))
 
         if dcode in (b't', b'T'):
             res = _mapped_object_unpack_from(self.buf, obj_offs, None, proxy_into)
-        elif cython.compiled:
-            if dcode == 'B':
-                res = cython.cast(cython.p_uchar,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'b':
-                res = cython.cast(cython.p_schar,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'H':
-                res = cython.cast(cython.p_ushort,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'h':
-                res = cython.cast(cython.p_short,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'I':
-                res = cython.cast(cython.p_uint,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'i':
-                res = cython.cast(cython.p_int,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'q':
-                res = cython.cast(cython.p_longlong,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'Q':
-                res = cython.cast(cython.p_ulonglong,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            elif dcode == 'd':
-                res = cython.cast(cython.p_double,
-                    cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
-            else:
-                raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
+        elif dcode == 'B':
+            res = cython.cast(cython.p_uchar,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'b':
+            res = cython.cast(cython.p_schar,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'H':
+            res = cython.cast(cython.p_ushort,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'h':
+            res = cython.cast(cython.p_short,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'I':
+            res = cython.cast(cython.p_uint,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'i':
+            res = cython.cast(cython.p_int,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'q':
+            res = cython.cast(cython.p_longlong,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'Q':
+            res = cython.cast(cython.p_ulonglong,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'd':
+            res = cython.cast(cython.p_double,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
         else:
-            res = _struct.unpack_from(self.buf, obj_offs)[0]
+            raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
 
         return res
 
@@ -1934,46 +1842,9 @@ class proxied_list(object):
         return self._getitem(index)
 
 
-    if not cython.compiled:
-        def __cmp__(self, other):
-            if not islist(other):
-                raise NotImplementedError
-            return proxied_list_cmp(self, other)
-
-        def __lt__(self, other):
-            if not islist(other):
-                raise NotImplementedError
-            return proxied_list_cmp(self, other) < 0
-
-        def __gt__(self, other):
-            if not islist(other):
-                raise NotImplementedError
-            return proxied_list_cmp(self, other) > 0
-
-        def __eq__(self, other):
-            if not islist(other):
-                return False
-            return proxied_list_eq(self, other)
-
-        def __le__(self, other):
-            if not islist(other):
-                raise NotImplementedError
-            return proxied_list_cmp(self, other) <= 0
-
-        def __ge__(self, other):
-            if not islist(other):
-                raise NotImplementedError
-            return proxied_list_cmp(self, other) >= 0
-
-        def _ne(self, other):
-            if not islist(other):
-                return True
-            return proxied_list_cmp(self, other) != 0
-
-        def _eq(self, other):
-            if not islist(other):
-                return False
-            return proxied_list_cmp(self, other) == 0
+    @cython.locals(op = cython.char)
+    def __richcmp__(self, other, op):
+        return proxied_list_richcmp(self, other, op)
 
     def __len__(self):
         if self.elem_step == 0:
@@ -2023,8 +1894,6 @@ class proxied_list(object):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         if dcode in (b't', b'T'):
             proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
-            if not cython.compiled:
-                proxy_into.buf = None
         else:
             proxy_into = None
         if mask is not None:
@@ -2049,8 +1918,6 @@ class proxied_list(object):
         dcode, objlen, itemsize, dataoffs, _struct = self._metadata()
         if dcode in ('t', 'T'):
             proxy_into = _GenericProxy_new(_GenericProxy, None, 0, 0)
-            if not cython.compiled:
-                proxy_into.buf = None
         else:
             proxy_into = None
         for i in range(len(self)):
@@ -2064,20 +1931,6 @@ class proxied_list(object):
     def __str__(self):
         return "[%s]" % ",".join([str(x) for x in self])
 
-if not cython.compiled:
-    setattr(proxied_list, '__eq__', getattr(proxied_list, '_eq'))
-    setattr(proxied_list, '__ne__', getattr(proxied_list, '_ne'))
-
-if not cython.compiled:
-    def _popcountll(x):
-        i = 0
-        while x != 0:
-            if (x & 1) != 0:
-                i += 1
-            x >>= 1
-        return i
-
-    globals()['popcount'] = _popcountll
 
 @cython.cclass
 class proxied_frozenset(object):
@@ -2105,28 +1958,24 @@ class proxied_frozenset(object):
         bitrep_lo=cython.ulonglong, bitrep_hi=cython.ulonglong, d=cython.uchar)
     def unpack_from(cls, buf, offs, idmap = None):
         buf = _likerobuffer(buf)
-        if cython.compiled:
-            pybuf.buf = cython.NULL
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+        pybuf.buf = cython.NULL
+        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
         try:
-            if cython.compiled:
-                pbuf = cython.cast(cython.p_uchar, pybuf.buf)
-                if offs >= pybuf.len:
-                    raise IndexError("Offset out of range")
-            else:
-                pbuf = buf
+            pbuf = cython.cast(cython.p_uchar, pybuf.buf)
+            if offs >= pybuf.len:
+                raise IndexError("Offset out of range")
 
             d = pbuf[offs]
 
             if d == b'm':
                 # inline bitmap (64 bits)
-                if cython.compiled and offs+7 >= pybuf.len:
+                if offs+7 >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
                 bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs)[0] >> 8
                 return proxied_frozenset(None, bitrep_lo, 0)
             elif d == b'M':
                 # inline bitmap (128 bits)
-                if cython.compiled and offs+15 >= pybuf.len:
+                if offs+15 >= pybuf.len:
                     raise IndexError("Object spans beyond buffer end")
                 bitrep_lo = cython.cast(cython.p_ulonglong, pbuf + offs)[0] >> 8
                 bitrep_hi = cython.cast(cython.p_ulonglong, pbuf + offs)[1]
@@ -2136,9 +1985,8 @@ class proxied_frozenset(object):
             else:
                 return proxied_frozenset(proxied_list.unpack_from(buf, offs, idmap))
         finally:
-            if cython.compiled:
-                if type(buf) is buffer and pybuf.buf != cython.NULL:
-                    PyBuffer_Release(cython.address(pybuf))
+            if type(buf) is buffer and pybuf.buf != cython.NULL:
+                PyBuffer_Release(cython.address(pybuf))
 
     def copy(self):
         return self
@@ -2201,9 +2049,8 @@ class proxied_frozenset(object):
         hi = len(self.objlist)
         dcode, objlen, itemsize, offset, _struct = self.objlist._metadata()
 
-        if cython.compiled:
-            if dcode not in ('t', 'T'):
-                return self._search_key(elem, dcode, offset, lo, hi, hi // 2, True) < hi
+        if dcode not in ('t', 'T'):
+            return self._search_key(elem, dcode, offset, lo, hi, hi // 2, True) < hi
 
         h2 = _stable_hash(elem)
         while lo < hi:
@@ -2429,7 +2276,6 @@ class proxied_frozenset(object):
 
     def __eq__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._frozenset_eq(seq)
             return cython.cast(proxied_frozenset, self)._frozenset_eq(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._frozenset_eq(self)
@@ -2567,7 +2413,6 @@ class proxied_frozenset(object):
 
     def __le__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._subset(seq, False)
             return cython.cast(proxied_frozenset, self)._subset(seq, False)
         else:
             return cython.cast(proxied_frozenset, seq)._subset(self, False)
@@ -2646,7 +2491,7 @@ class proxied_tuple(proxied_list):
     )
     def __hash__(self):
         if self._hash == -1:
-            if cython.compiled and is_cpython:
+            if is_cpython:
                 if python38:
                     # From Python 3.8 source code
                     len_ = len(self)
@@ -2698,78 +2543,77 @@ lz4_compress = cython.declare(object, lz4_block.compress)
 
 MIN_COMPRESS_THRESHOLD = cython.declare(cython.size_t, 512)
 
-if cython.compiled:
-    @cython.inline
-    @cython.cfunc
-    @cython.returns(bytes)
-    @cython.locals(
-        offs = cython.longlong, buflen = 'Py_ssize_t', objlen = cython.size_t, rv = bytes,
-        pbuf = 'const char *', obuf = 'const char *', compressed = cython.bint)
-    def _unpack_bytes_from_cbuffer(pbuf, offs, buflen, idmap):
-        if idmap is not None and offs in idmap:
-            return idmap[offs]
+@cython.inline
+@cython.cfunc
+@cython.returns(bytes)
+@cython.locals(
+    offs = cython.longlong, buflen = 'Py_ssize_t', objlen = cython.size_t, rv = bytes,
+    pbuf = 'const char *', obuf = 'const char *', compressed = cython.bint)
+def _unpack_bytes_from_cbuffer(pbuf, offs, buflen, idmap):
+    if idmap is not None and offs in idmap:
+        return idmap[offs]
 
-        assert offs + cython.sizeof(cython.ushort) <= buflen
-        obuf = pbuf
-        pbuf += offs
-        header = cython.cast('const _varstr_header *', pbuf)
-        compressed = (header.shortlen & 0x8000) != 0
-        if (header.shortlen & 0x7FFF) == 0x7FFF:
-            assert offs + cython.sizeof('_varstr_header') <= buflen
-            objlen = header.biglen
-            pbuf += cython.sizeof('_varstr_header')
-        else:
-            objlen = header.shortlen & 0x7FFF
-            pbuf += cython.sizeof(cython.ushort)
-        # unconditional assert, for basic safety even when assertions are off
-        # up to this point, garbage input can only cause segfaults, but here
-        # they could cause huge memory allocations and DoS-type of issues
-        if objlen > buflen:
-            raise AssertionError
-        assert (pbuf - obuf) + objlen <= buflen
+    assert offs + cython.sizeof(cython.ushort) <= buflen
+    obuf = pbuf
+    pbuf += offs
+    header = cython.cast('const _varstr_header *', pbuf)
+    compressed = (header.shortlen & 0x8000) != 0
+    if (header.shortlen & 0x7FFF) == 0x7FFF:
+        assert offs + cython.sizeof('_varstr_header') <= buflen
+        objlen = header.biglen
+        pbuf += cython.sizeof('_varstr_header')
+    else:
+        objlen = header.shortlen & 0x7FFF
+        pbuf += cython.sizeof(cython.ushort)
+    # unconditional assert, for basic safety even when assertions are off
+    # up to this point, garbage input can only cause segfaults, but here
+    # they could cause huge memory allocations and DoS-type of issues
+    if objlen > buflen:
+        raise AssertionError
+    assert (pbuf - obuf) + objlen <= buflen
+    rv = PyBytes_FromStringAndSize(pbuf, objlen)  # lint:ok
+    if compressed:
+        rv = lz4_decompress(rv)
+
+    if idmap is not None:
+        idmap[offs] = rv
+    return rv
+
+@cython.inline
+@cython.cfunc
+@cython.returns(cython.bint)
+@cython.locals(
+    offs = cython.longlong, buflen = 'Py_ssize_t', objlen = cython.size_t, reflen = cython.size_t, rv = bytes,
+    pbuf = 'const char *', obuf = 'const char *', refbuf = 'const char *', compressed = cython.bint)
+def _compare_bytes_from_cbuffer(refbuf, reflen, pbuf, offs, buflen):
+    assert offs + cython.sizeof(cython.ushort) <= buflen
+    obuf = pbuf
+    pbuf += offs
+    header = cython.cast('const _varstr_header *', pbuf)
+    compressed = (header.shortlen & 0x8000) != 0
+    if (header.shortlen & 0x7FFF) == 0x7FFF:
+        assert offs + cython.sizeof('_varstr_header') <= buflen
+        objlen = header.biglen
+        pbuf += cython.sizeof('_varstr_header')
+    else:
+        objlen = header.shortlen & 0x7FFF
+        pbuf += cython.sizeof(cython.ushort)
+    if not compressed and objlen != reflen:
+        return False
+    # unconditional assert, for basic safety even when assertions are off
+    # up to this point, garbage input can only cause segfaults, but here
+    # they could cause huge memory allocations and DoS-type of issues
+    if objlen > buflen:
+        raise AssertionError
+    assert (pbuf - obuf) + objlen <= buflen
+
+    if not compressed:
+        return memcmp(pbuf, refbuf, reflen) == 0 # lint:ok
+    else:
         rv = PyBytes_FromStringAndSize(pbuf, objlen)  # lint:ok
-        if compressed:
-            rv = lz4_decompress(rv)
+        rv = lz4_decompress(rv)
 
-        if idmap is not None:
-            idmap[offs] = rv
-        return rv
-
-    @cython.inline
-    @cython.cfunc
-    @cython.returns(cython.bint)
-    @cython.locals(
-        offs = cython.longlong, buflen = 'Py_ssize_t', objlen = cython.size_t, reflen = cython.size_t, rv = bytes,
-        pbuf = 'const char *', obuf = 'const char *', refbuf = 'const char *', compressed = cython.bint)
-    def _compare_bytes_from_cbuffer(refbuf, reflen, pbuf, offs, buflen):
-        assert offs + cython.sizeof(cython.ushort) <= buflen
-        obuf = pbuf
-        pbuf += offs
-        header = cython.cast('const _varstr_header *', pbuf)
-        compressed = (header.shortlen & 0x8000) != 0
-        if (header.shortlen & 0x7FFF) == 0x7FFF:
-            assert offs + cython.sizeof('_varstr_header') <= buflen
-            objlen = header.biglen
-            pbuf += cython.sizeof('_varstr_header')
-        else:
-            objlen = header.shortlen & 0x7FFF
-            pbuf += cython.sizeof(cython.ushort)
-        if not compressed and objlen != reflen:
-            return False
-        # unconditional assert, for basic safety even when assertions are off
-        # up to this point, garbage input can only cause segfaults, but here
-        # they could cause huge memory allocations and DoS-type of issues
-        if objlen > buflen:
-            raise AssertionError
-        assert (pbuf - obuf) + objlen <= buflen
-
-        if not compressed:
-            return memcmp(pbuf, refbuf, reflen) == 0 # lint:ok
-        else:
-            rv = PyBytes_FromStringAndSize(pbuf, objlen)  # lint:ok
-            rv = lz4_decompress(rv)
-
-            return reflen == len(rv) and memcmp(refbuf, cython.cast('const char *', rv), reflen) == 0 # lint:ok
+        return reflen == len(rv) and memcmp(refbuf, cython.cast('const char *', rv), reflen) == 0 # lint:ok
 
 @cython.cfunc
 @cython.locals(
@@ -2779,30 +2623,12 @@ def _unpack_bytes_from_pybuffer(buf, offs, idmap):
     if idmap is not None and offs in idmap:
         return idmap[offs]
 
-    if cython.compiled:
-        buf = _likebuffer(buf)
-        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
-        try:
-            rv = _unpack_bytes_from_cbuffer(cython.cast(cython.p_char, pybuf.buf), offs, pybuf.len, None)  # lint:ok
-        finally:
-            PyBuffer_Release(cython.address(pybuf))  # lint:ok
-    else:
-        hpacker = struct.Struct('=H')
-        objlen = hpacker.unpack_from(buf, offs)[0]
-        offs = int(offs)
-        dataoffs = offs + hpacker.size
-        compressed = (objlen & 0x8000) != 0
-        if (objlen & 0x7FFF) == 0x7FFF:
-            qpacker = struct.Struct('=HQ')
-            objlen = qpacker.unpack_from(buf, offs)[1]
-            dataoffs = offs + qpacker.size
-        else:
-            objlen = objlen & 0x7FFF
-        rv = buffer_with_offset(buf, dataoffs, objlen)
-        if compressed:
-            rv = lz4_decompress(rv)
-        else:
-            rv = bytes(rv)
+    buf = _likebuffer(buf)
+    PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
+    try:
+        rv = _unpack_bytes_from_cbuffer(cython.cast(cython.p_char, pybuf.buf), offs, pybuf.len, None)  # lint:ok
+    finally:
+        PyBuffer_Release(cython.address(pybuf))  # lint:ok
 
     if idmap is not None:
         idmap[offs] = rv
@@ -2849,34 +2675,24 @@ class mapped_bytes(bytes):
 
         if (offs + 16 + len(obj)) > len(buf):
             raise struct.error('buffer too small')
-        if cython.compiled:
-            buf = _likebuffer(buf)
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_WRITABLE)  # lint:ok
-            try:
-                pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
 
-                if objlen < 0x7FFF:
-                    cython.cast('_varstr_header *', pbuf).shortlen = objlen | compressed
-                    offs += cython.sizeof(cython.ushort)
-                    pbuf += cython.sizeof(cython.ushort)
-                else:
-                    cython.cast('_varstr_header *', pbuf).shortlen = 0x7FFF | compressed
-                    cython.cast('_varstr_header *', pbuf).biglen = objlen
-                    offs += cython.sizeof('_varstr_header')
-                    pbuf += cython.sizeof('_varstr_header')
-                memcpy(pbuf, cython.cast(cython.p_char, obj), objlen)  # lint:ok
-            finally:
-                PyBuffer_Release(cython.address(pybuf))  # lint:ok
-        else:
+        buf = _likebuffer(buf)
+        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_WRITABLE)  # lint:ok
+        try:
+            pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
+
             if objlen < 0x7FFF:
-                hpacker = struct.Struct('=H')
-                hpacker.pack_into(buf, offs, objlen | compressed)
-                offs += hpacker.size
+                cython.cast('_varstr_header *', pbuf).shortlen = objlen | compressed
+                offs += cython.sizeof(cython.ushort)
+                pbuf += cython.sizeof(cython.ushort)
             else:
-                qpacker = struct.Struct('=HQ')
-                qpacker.pack_into(buf, offs, 0x7FFF | compressed, objlen)
-                offs += qpacker.size
-            buf[offs:offs+objlen] = obj
+                cython.cast('_varstr_header *', pbuf).shortlen = 0x7FFF | compressed
+                cython.cast('_varstr_header *', pbuf).biglen = objlen
+                offs += cython.sizeof('_varstr_header')
+                pbuf += cython.sizeof('_varstr_header')
+            memcpy(pbuf, cython.cast(cython.p_char, obj), objlen)  # lint:ok
+        finally:
+            PyBuffer_Release(cython.address(pybuf))  # lint:ok
         offs += objlen
         return offs
 
@@ -3447,8 +3263,7 @@ class BufferProxyObject(object):
         return self.offs
 
     def __cinit__(self, buf, offs, none_bitmap, idmap = None):
-        if cython.compiled:
-            self.pybuf.buf = cython.NULL
+        self.pybuf.buf = cython.NULL
 
     @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
     def __init__(self, buf, offs, none_bitmap, idmap = None):
@@ -3457,25 +3272,23 @@ class BufferProxyObject(object):
     @cython.cfunc
     @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
     def _init_internal(self, buf, offs, none_bitmap, idmap):
-        if cython.compiled:
-            if self.pybuf.buf != cython.NULL:
-                PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
-                self.pybuf.buf = cython.NULL
+        if self.pybuf.buf != cython.NULL:
+            PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+            self.pybuf.buf = cython.NULL
 
         self.buf = buf
         self.idmap = idmap
         self.offs = offs
         self.none_bitmap = none_bitmap
 
-        if cython.compiled:
+        try:
+            PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_WRITABLE)  # lint:ok
+        except BufferError:
             try:
-                PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_WRITABLE)  # lint:ok
+                PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
             except BufferError:
-                try:
-                    PyObject_GetBuffer(buf, cython.address(self.pybuf), PyBUF_SIMPLE)  # lint:ok
-                except BufferError:
-                    self.pybuf.buf = cython.NULL
-                    raise
+                self.pybuf.buf = cython.NULL
+                raise
 
     @cython.ccall
     @cython.locals(offs = cython.Py_ssize_t, none_bitmap = cython.ulonglong)
@@ -3495,17 +3308,15 @@ class BufferProxyObject(object):
         self._reset_internal(offs, none_bitmap, idmap)
 
     def __dealloc__(self):
-        if cython.compiled:
-            if self.pybuf.buf != cython.NULL:
-                PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
-                self.pybuf.buf = cython.NULL
+        if self.pybuf.buf != cython.NULL:
+            PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+            self.pybuf.buf = cython.NULL
 
     def __del__(self):
         # For python 3.4+, in earlier versions it will not be called and we'll depend on dealloc
-        if cython.compiled:
-            if self.pybuf.buf != cython.NULL:
-                PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
-                self.pybuf.buf = cython.NULL
+        if self.pybuf.buf != cython.NULL:
+            PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+            self.pybuf.buf = cython.NULL
 
 @cython.cclass
 class BaseBufferProxyProperty(object):
@@ -3530,363 +3341,247 @@ class BaseBufferProxyProperty(object):
         raise TypeError("Proxy objects are read-only")
 
 
-if cython.compiled:
-    # We need as many of these definitions as different parameters are
-    # used per-function; otherwise, cython will deduce that they are of
-    # the same type. Sigh ...
+# We need as many of these definitions as different parameters are
+# used per-function; otherwise, cython will deduce that they are of
+# the same type. Sigh ...
 
-    numeric_A = cython.fused_type(
-        cython.schar,
-        cython.uchar,
-        cython.sshort,
-        cython.ushort,
-        cython.sint,
-        cython.uint,
-        cython.slong,
-        cython.ulong,
-        cython.slonglong,
-        cython.ulonglong,
-        cython.float,
-        cython.double,
-    )
+numeric_A = cython.fused_type(
+    cython.schar,
+    cython.uchar,
+    cython.sshort,
+    cython.ushort,
+    cython.sint,
+    cython.uint,
+    cython.slong,
+    cython.ulong,
+    cython.slonglong,
+    cython.ulonglong,
+    cython.float,
+    cython.double,
+)
 
-    numeric_B = cython.fused_type(
-        cython.schar,
-        cython.uchar,
-        cython.sshort,
-        cython.ushort,
-        cython.sint,
-        cython.uint,
-        cython.slong,
-        cython.ulong,
-        cython.slonglong,
-        cython.ulonglong,
-        cython.float,
-        cython.double,
-    )
-else:
-    globals().update(dict(
-        numeric_A = object,
-        numeric_B = object,
-    ))
+numeric_B = cython.fused_type(
+    cython.schar,
+    cython.uchar,
+    cython.sshort,
+    cython.ushort,
+    cython.sint,
+    cython.uint,
+    cython.slong,
+    cython.ulong,
+    cython.slonglong,
+    cython.ulonglong,
+    cython.float,
+    cython.double,
+)
 
 
-if cython.compiled:
-    @cython.cfunc
-    @cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject,
-        ptr = 'numeric_A *')
-    def _c_buffer_proxy_get_gen(self, obj, elem):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
-        assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
-        ptr = cython.cast('numeric_A *',
-            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)   #lint: ok
-        if not obj.pybuf.readonly:
-            mfence_full()   # acquire
-        return ptr[0]
+@cython.cfunc
+@cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject,
+    ptr = 'numeric_A *')
+def _c_buffer_proxy_get_gen(self, obj, elem):
+    if obj is None:
+        return self
+    elif obj.none_bitmap & self.mask:
+        return None
+    assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
+    ptr = cython.cast('numeric_A *',
+        cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)   #lint: ok
+    if not obj.pybuf.readonly:
+        mfence_full()   # acquire
+    return ptr[0]
 
-    @cython.cfunc
-    @cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject)
-    def _c_buffer_proxy_set_gen(self, obj, elem):
-        if obj is None or (obj.none_bitmap & self.mask):
-            return
-        elif obj.pybuf.readonly:
-            raise TypeError('cannot set attribute in read-only buffer')
-        assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
-        cython.cast('numeric_A *',
-            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0] = elem   #lint:ok
-        mfence_full()   # release
+@cython.cfunc
+@cython.locals(self = BaseBufferProxyProperty, elem = numeric_A, obj = BufferProxyObject)
+def _c_buffer_proxy_set_gen(self, obj, elem):
+    if obj is None or (obj.none_bitmap & self.mask):
+        return
+    elif obj.pybuf.readonly:
+        raise TypeError('cannot set attribute in read-only buffer')
+    assert (obj.offs + self.offs + cython.sizeof(elem)) <= obj.pybuf.len   #lint:ok
+    cython.cast('numeric_A *',
+        cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0] = elem   #lint:ok
+    mfence_full()   # release
 
-    @cython.cfunc
-    @cython.inline
-    @cython.locals(self = BaseBufferProxyProperty, obj = BufferProxyObject,
-        exp_val = numeric_A, new_val = numeric_A, ptr = 'numeric_A *')
-    def _c_buffer_proxy_atomic_cas(self, obj, exp_val, new_val):
-        if obj is None or (obj.none_bitmap & self.mask):
-            return False
-        elif obj.pybuf.readonly:
-            raise TypeError('cannot set attribute in read-only buffer')
-        assert (obj.offs + self.offs + cython.sizeof(exp_val)) <= obj.pybuf.len   #lint:ok
-        ptr = cython.cast('numeric_A *',
-            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)
-        if numeric_A is cython.float:
-            return _c_atomic_cas_flt(ptr, exp_val, new_val)
-        elif numeric_A is cython.double:
-            return _c_atomic_cas_dbl(ptr, exp_val, new_val)
-        else:
-            return _c_atomic_cas(ptr, exp_val, new_val)
-
-    @cython.cfunc
-    @cython.inline
-    @cython.locals(self = BaseBufferProxyProperty, obj = BufferProxyObject,
-        value = numeric_A, ptr = 'numeric_A *')
-    def _c_buffer_proxy_atomic_add(self, obj, value):
-        if obj is None or (obj.none_bitmap & self.mask):
-            return
-        elif obj.pybuf.readonly:
-            raise TypeError('cannot set attribute in read-only buffer')
-        assert (obj.offs + self.offs + cython.sizeof(value)) <= obj.pybuf.len   #lint:ok
-        ptr = cython.cast('numeric_A *',
-            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)
-        if numeric_A is cython.float:
-            _c_atomic_add_flt(ptr, value)
-        elif numeric_A is cython.double:
-            _c_atomic_add_dbl(ptr, value)
-        else:
-            _c_atomic_add(ptr, value)
-
-else:
-    def _buffer_proxy_get(self, obj, code):
-        if obj is None:
-            return self
-        elif obj.none_bitmap & self.mask:
-            return None
-        else:
-            return struct.unpack_from(code, obj.buf, obj.offs + self.offs)[0]
-
-    def _buffer_proxy_set(self, obj, code, elem):
-        if obj is not None and not (obj.none_bitmap & self.mask):
-            struct.pack_into(code, obj.buf, obj.offs + self.offs, elem)
-
-    def _buffer_proxy_cas(self, obj, code, exp_val, new_val):
-        # XXX: This is not atomic!
-        if obj is not None and not (obj.none_bitmap & self.mask):
-            tmp = struct.unpack_from(code, obj.buf, obj.offs + self.offs)[0]
-            if tmp == exp_val:
-                struct.pack_into(code, obj.buf, obj.offs + self.offs, new_val)
-                return True
+@cython.cfunc
+@cython.inline
+@cython.locals(self = BaseBufferProxyProperty, obj = BufferProxyObject,
+    exp_val = numeric_A, new_val = numeric_A, ptr = 'numeric_A *')
+def _c_buffer_proxy_atomic_cas(self, obj, exp_val, new_val):
+    if obj is None or (obj.none_bitmap & self.mask):
         return False
+    elif obj.pybuf.readonly:
+        raise TypeError('cannot set attribute in read-only buffer')
+    assert (obj.offs + self.offs + cython.sizeof(exp_val)) <= obj.pybuf.len   #lint:ok
+    ptr = cython.cast('numeric_A *',
+        cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)
+    if numeric_A is cython.float:
+        return _c_atomic_cas_flt(ptr, exp_val, new_val)
+    elif numeric_A is cython.double:
+        return _c_atomic_cas_dbl(ptr, exp_val, new_val)
+    else:
+        return _c_atomic_cas(ptr, exp_val, new_val)
 
-    def _buffer_proxy_add(self, obj, code, value):
-        if obj is not None and not (obj.none_bitmap & self.mask):
-            tmp = struct.unpack_from(code, obj.buf, obj.offs + self.offs)[0]
-            struct.pack_into(code, obj.buf, obj.offs + self.offs, tmp + value)
-
+@cython.cfunc
+@cython.inline
+@cython.locals(self = BaseBufferProxyProperty, obj = BufferProxyObject,
+    value = numeric_A, ptr = 'numeric_A *')
+def _c_buffer_proxy_atomic_add(self, obj, value):
+    if obj is None or (obj.none_bitmap & self.mask):
+        return
+    elif obj.pybuf.readonly:
+        raise TypeError('cannot set attribute in read-only buffer')
+    assert (obj.offs + self.offs + cython.sizeof(value)) <= obj.pybuf.len   #lint:ok
+    ptr = cython.cast('numeric_A *',
+        cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)
+    if numeric_A is cython.float:
+        _c_atomic_add_flt(ptr, value)
+    elif numeric_A is cython.double:
+        _c_atomic_add_dbl(ptr, value)
+    else:
+        _c_atomic_add(ptr, value)
 
 @cython.cclass
 class BoolBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.uchar) if cython.compiled else struct.Struct('B').size
+    stride = cython.sizeof(cython.uchar)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.uchar](self, obj, 0)
-        else:
-            return _buffer_proxy_get(self, obj, 'B')
+        return _c_buffer_proxy_get_gen[cython.uchar](self, obj, 0)
 
     @cython.locals(obj = BufferProxyObject, elem = cython.uchar)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.uchar](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'B', elem)
+        _c_buffer_proxy_set_gen[cython.uchar](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.uchar, new_val = cython.uchar)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.uchar](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'B', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.uchar](self, obj, exp_val, new_val)
 
 
 @cython.cclass
 class UByteBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.uchar) if cython.compiled else struct.Struct('B').size
+    stride = cython.sizeof(cython.uchar)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.uchar](self, obj, 0)
-        else:
-            return _buffer_proxy_get(self, obj, 'B')
+        return _c_buffer_proxy_get_gen[cython.uchar](self, obj, 0)
 
     @cython.locals(obj = BufferProxyObject, elem = cython.uchar)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.uchar](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'B', elem)
+        _c_buffer_proxy_set_gen[cython.uchar](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.uchar, new_val = cython.uchar)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.uchar](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'B', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.uchar](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.uchar)
     def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.uchar](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'B', value)
+        _c_buffer_proxy_atomic_add[cython.uchar](self, obj, value)
 
 
 @cython.cclass
 class ByteBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.schar) if cython.compiled else struct.Struct('b').size
+    stride = cython.sizeof(cython.schar)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.schar](self, obj, 0)
-        else:
-            return _buffer_proxy_get(self, obj, 'b')
+        return _c_buffer_proxy_get_gen[cython.schar](self, obj, 0)
 
     @cython.locals(obj = BufferProxyObject, elem = cython.schar)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.schar](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'b', elem)
+        _c_buffer_proxy_set_gen[cython.schar](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.schar, new_val = cython.schar)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.schar](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'b', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.schar](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.schar)
     def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.schar](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'b', value)
+        _c_buffer_proxy_atomic_add[cython.schar](self, obj, value)
 
 @cython.cclass
 class UShortBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.ushort) if cython.compiled else struct.Struct('H').size
+    stride = cython.sizeof(cython.ushort)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.ushort](self, obj, 0)
-        else:
-            return _buffer_proxy_get(self, obj, 'H')
+        return _c_buffer_proxy_get_gen[cython.ushort](self, obj, 0)
 
     @cython.locals(obj = BufferProxyObject, elem = cython.ushort)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.ushort](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'H', elem)
+        _c_buffer_proxy_set_gen[cython.ushort](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.ushort, new_val = cython.ushort)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.ushort](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'H', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.ushort](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.ushort)
     def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.ushort](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'H', value)
+        _c_buffer_proxy_atomic_add[cython.ushort](self, obj, value)
 
 @cython.cclass
 class ShortBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.sshort) if cython.compiled else struct.Struct('h').size
+    stride = cython.sizeof(cython.sshort)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.sshort](self, obj, 0)
-        else:
-            return _buffer_proxy_get(self, obj, 'h')
+        return _c_buffer_proxy_get_gen[cython.sshort](self, obj, 0)
 
     @cython.locals(obj = BufferProxyObject, elem = cython.sshort)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.sshort](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'h', elem)
+        _c_buffer_proxy_set_gen[cython.sshort](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.sshort, new_val = cython.sshort)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.sshort](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'h', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.sshort](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.sshort)
     def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.sshort](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'h', value)
+        _c_buffer_proxy_atomic_add[cython.sshort](self, obj, value)
 
 @cython.cclass
 class UIntBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.uint) if cython.compiled else struct.Struct('I').size
+    stride = cython.sizeof(cython.uint)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.uint](self, obj, 0)
-        else:
-            return _buffer_proxy_get(self, obj, 'I')
+        return _c_buffer_proxy_get_gen[cython.uint](self, obj, 0)
 
     @cython.locals(obj = BufferProxyObject, elem = cython.uint)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.uint](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'I', elem)
+        _c_buffer_proxy_set_gen[cython.uint](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.uint, new_val = cython.uint)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.uint](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'I', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.uint](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.uint)
     def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.uint](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'I', value)
+        _c_buffer_proxy_atomic_add[cython.uint](self, obj, value)
 
 @cython.cclass
 class IntBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.int) if cython.compiled else struct.Struct('i').size
+    stride = cython.sizeof(cython.int)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.sint](self, obj, 0)
-        else:
-            return _buffer_proxy_get(self, obj, 'i')
+        return _c_buffer_proxy_get_gen[cython.sint](self, obj, 0)
 
     @cython.locals(obj = BufferProxyObject, elem = cython.int)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.sint](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'i', elem)
+        _c_buffer_proxy_set_gen[cython.sint](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.sint, new_val = cython.sint)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.sint](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'i', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.sint](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.sint)
     def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.sint](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'i', value)
+        _c_buffer_proxy_atomic_add[cython.sint](self, obj, value)
 
 @cython.cclass
 class ULongBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.ulonglong) if cython.compiled else struct.Struct('Q').size
+    stride = cython.sizeof(cython.ulonglong)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
@@ -3894,137 +3589,90 @@ class ULongBufferProxyProperty(BaseBufferProxyProperty):
             return self
         elif obj.none_bitmap & self.mask:
             return None
-        if cython.compiled:
-            assert (obj.offs + self.offs + cython.sizeof(cython.ulong)) <= obj.pybuf.len  # lint:ok
-            rv = cython.cast(cython.p_ulonglong,
-                cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
-            if rv <= cython.cast(cython.ulonglong, 0x7FFFFFFFFFFFFFFF):
-                return cython.cast(cython.longlong, rv)
-            else:
-                return rv
+
+        assert (obj.offs + self.offs + cython.sizeof(cython.ulong)) <= obj.pybuf.len  # lint:ok
+        rv = cython.cast(cython.p_ulonglong,
+            cython.cast(cython.p_uchar, obj.pybuf.buf) + obj.offs + self.offs)[0]  # lint:ok
+        if rv <= cython.cast(cython.ulonglong, 0x7FFFFFFFFFFFFFFF):
+            return cython.cast(cython.longlong, rv)
         else:
-            return struct.unpack_from('Q', obj.buf, obj.offs + self.offs)[0]
+            return rv
 
     @cython.locals(obj = BufferProxyObject, elem = cython.ulonglong)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.ulonglong](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'Q', elem)
+        _c_buffer_proxy_set_gen[cython.ulonglong](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.ulonglong, new_val = cython.ulonglong)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.ulonglong](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'Q', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.ulonglong](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.ulonglong)
     def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.ulonglong](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'Q', value)
+        _c_buffer_proxy_atomic_add[cython.ulonglong](self, obj, value)
 
 @cython.cclass
 class LongBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
+    stride = cython.sizeof(cython.longlong)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.slonglong](self, obj, 0)
-        else:
-            return _buffer_proxy_get(self, obj, 'q')
+        return _c_buffer_proxy_get_gen[cython.slonglong](self, obj, 0)
 
     @cython.locals(obj = BufferProxyObject, elem = cython.slonglong)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.slonglong](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'q', elem)
+        _c_buffer_proxy_set_gen[cython.slonglong](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.longlong, new_val = cython.longlong)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.slonglong](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'q', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.slonglong](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.slonglong)
     def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.slonglong](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'q', value)
+        _c_buffer_proxy_atomic_add[cython.slonglong](self, obj, value)
 
 @cython.cclass
 class DoubleBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.double) if cython.compiled else struct.Struct('d').size
+    stride = cython.sizeof(cython.double)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.double](self, obj, 0)
-        else:
-            return _buffer_proxy_get(self, obj, 'd')
+        return _c_buffer_proxy_get_gen[cython.double](self, obj, 0)
 
     @cython.locals(obj = BufferProxyObject, elem = cython.double)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.double](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'd', elem)
+        _c_buffer_proxy_set_gen[cython.double](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.double, new_val = cython.double)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.double](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'd', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.double](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.double)
     def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.double](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'd', value)
+        _c_buffer_proxy_atomic_add[cython.double](self, obj, value)
 
 @cython.cclass
 class FloatBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.float) if cython.compiled else struct.Struct('f').size
+    stride = cython.sizeof(cython.float)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
-        if cython.compiled:
-            return _c_buffer_proxy_get_gen[cython.float](self, obj, 0)
-        else:
-            return _buffer_proxy_get(self, obj, 'f')
+        return _c_buffer_proxy_get_gen[cython.float](self, obj, 0)
 
     @cython.locals(obj = BufferProxyObject, elem = cython.float)
     def __set__(self, obj, elem):
-        if cython.compiled:
-            _c_buffer_proxy_set_gen[cython.float](self, obj, elem)
-        else:
-            _buffer_proxy_set(self, obj, 'f', elem)
+        _c_buffer_proxy_set_gen[cython.float](self, obj, elem)
 
     @cython.locals(obj = BufferProxyObject, exp_val = cython.float, new_val = cython.float)
     def cas(self, obj, exp_val, new_val):
-        if cython.compiled:
-            return _c_buffer_proxy_atomic_cas[cython.float](self, obj, exp_val, new_val)
-        else:
-            return _buffer_proxy_cas(self, obj, 'f', exp_val, new_val)
+        return _c_buffer_proxy_atomic_cas[cython.float](self, obj, exp_val, new_val)
 
     @cython.locals(obj = BufferProxyObject, value = cython.float)
     def add(self, obj, value):
-        if cython.compiled:
-            _c_buffer_proxy_atomic_add[cython.float](self, obj, value)
-        else:
-            _buffer_proxy_add(self, obj, 'f', value)
+        _c_buffer_proxy_atomic_add[cython.float](self, obj, value)
 
 @cython.cclass
 class BytesBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
+    stride = cython.sizeof(cython.longlong)
 
     @cython.locals(obj = BufferProxyObject, offs = cython.Py_ssize_t, buflen = cython.ulonglong, pybuf = 'Py_buffer*',
         poffs = object)
@@ -4033,36 +3681,30 @@ class BytesBufferProxyProperty(BaseBufferProxyProperty):
             return self
         elif obj.none_bitmap & self.mask:
             return None
-        if cython.compiled:
-            pybuf = cython.address(obj.pybuf)
-            buflen = pybuf.len
-            assert (obj.offs + self.offs + cython.sizeof(cython.longlong)) <= buflen
-            offs = obj.offs + cython.cast(cython.p_longlong,
-                cython.cast(cython.p_uchar, pybuf.buf) + obj.offs + self.offs)[0]
-            assert offs + cython.sizeof(cython.ushort) <= buflen
-            if obj.idmap is not None:
-                poffs = offs # python version of offs
-                if type(obj.idmap) is dict:
-                    rv = cython.cast(dict, obj.idmap).get(poffs)
-                else:
-                    rv = obj.idmap.get(poffs)
-                if rv is not None:
-                    return rv
-            rv = _unpack_bytes_from_cbuffer(cython.cast(cython.p_char, pybuf.buf), offs, buflen, None)
-        else:
-            offs = obj.offs + struct.unpack_from('q', obj.buf, obj.offs + self.offs)[0]
-            if obj.idmap is not None:
-                poffs = offs
-                if poffs in obj.idmap:
-                    return obj.idmap[poffs]
-            rv = mapped_bytes.unpack_from(obj.buf, offs)
+
+        pybuf = cython.address(obj.pybuf)
+        buflen = pybuf.len
+        assert (obj.offs + self.offs + cython.sizeof(cython.longlong)) <= buflen
+        offs = obj.offs + cython.cast(cython.p_longlong,
+            cython.cast(cython.p_uchar, pybuf.buf) + obj.offs + self.offs)[0]
+        assert offs + cython.sizeof(cython.ushort) <= buflen
+        if obj.idmap is not None:
+            poffs = offs # python version of offs
+            if type(obj.idmap) is dict:
+                rv = cython.cast(dict, obj.idmap).get(poffs)
+            else:
+                rv = obj.idmap.get(poffs)
+            if rv is not None:
+                return rv
+        rv = _unpack_bytes_from_cbuffer(cython.cast(cython.p_char, pybuf.buf), offs, buflen, None)
+
         if obj.idmap is not None:
             obj.idmap[poffs] = rv
         return rv
 
 @cython.cclass
 class UnicodeBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
+    stride = cython.sizeof(cython.longlong)
 
     @cython.locals(obj = BufferProxyObject, offs = cython.Py_ssize_t, buflen = cython.ulonglong, pybuf = 'Py_buffer*',
         poffs = object)
@@ -4071,37 +3713,30 @@ class UnicodeBufferProxyProperty(BaseBufferProxyProperty):
             return self
         elif obj.none_bitmap & self.mask:
             return None
-        if cython.compiled:
-            pybuf = cython.address(obj.pybuf)
-            buflen = pybuf.len
-            assert (obj.offs + self.offs + cython.sizeof(cython.longlong)) <= buflen
-            offs = obj.offs + cython.cast(cython.p_longlong,
-                cython.cast(cython.p_uchar, pybuf.buf) + obj.offs + self.offs)[0]
-            assert offs + cython.sizeof(cython.ushort) <= buflen
-            if obj.idmap is not None:
-                poffs = offs # python version of offs
-                if type(obj.idmap) is dict:
-                    rv = cython.cast(dict, obj.idmap).get(poffs)
-                else:
-                    rv = obj.idmap.get(poffs)
-                if rv is not None:
-                    return rv
-            rv = _unpack_bytes_from_cbuffer(cython.cast(cython.p_char, pybuf.buf), offs, buflen, None).decode("utf8")
-        else:
-            offs = obj.offs + struct.unpack_from('q', obj.buf, obj.offs + self.offs)[0]
-            if obj.idmap is not None:
-                poffs = offs # python version of offs
+
+        pybuf = cython.address(obj.pybuf)
+        buflen = pybuf.len
+        assert (obj.offs + self.offs + cython.sizeof(cython.longlong)) <= buflen
+        offs = obj.offs + cython.cast(cython.p_longlong,
+            cython.cast(cython.p_uchar, pybuf.buf) + obj.offs + self.offs)[0]
+        assert offs + cython.sizeof(cython.ushort) <= buflen
+        if obj.idmap is not None:
+            poffs = offs # python version of offs
+            if type(obj.idmap) is dict:
+                rv = cython.cast(dict, obj.idmap).get(poffs)
+            else:
                 rv = obj.idmap.get(poffs)
-                if rv is not None:
-                    return rv
-            rv = mapped_unicode.unpack_from(obj.buf, offs)
+            if rv is not None:
+                return rv
+        rv = _unpack_bytes_from_cbuffer(cython.cast(cython.p_char, pybuf.buf), offs, buflen, None).decode("utf8")
+
         if obj.idmap is not None:
             obj.idmap[poffs] = rv
         return rv
 
 @cython.cclass
 class MissingBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
+    stride = cython.sizeof(cython.longlong)
 
     @cython.locals(obj = BufferProxyObject)
     def __get__(self, obj, klass):
@@ -4114,7 +3749,7 @@ class MissingBufferProxyProperty(BaseBufferProxyProperty):
 
 @cython.cclass
 class GenericBufferProxyProperty(BaseBufferProxyProperty):
-    stride = cython.sizeof(cython.longlong) if cython.compiled else struct.Struct('q').size
+    stride = cython.sizeof(cython.longlong)
 
     cython.declare(
         _unpack_from = object,
@@ -4131,24 +3766,23 @@ class GenericBufferProxyProperty(BaseBufferProxyProperty):
             return self
         elif obj.none_bitmap & self.mask:
             return None
-        if cython.compiled:
-            pybuf = cython.address(obj.pybuf)
-            buflen = pybuf.len
-            assert (obj.offs + self.offs + cython.sizeof(cython.longlong)) <= buflen
-            offs = obj.offs + cython.cast(cython.p_longlong,
-                cython.cast(cython.p_uchar, pybuf.buf) + obj.offs + self.offs)[0]
-            if obj.idmap is not None:
-                poffs = offs # python version of offs
-                if type(obj.idmap) is dict:
-                    rv = cython.cast(dict, obj.idmap).get(poffs, poffs)
-                else:
-                    rv = obj.idmap.get(poffs, poffs)
-                # idmap cannot possibly hold "poffs" for that offset
-                if rv is not poffs:
-                    return rv
-            assert offs + cython.sizeof(cython.ushort) <= buflen
-        else:
-            poffs = offs = obj.offs + struct.unpack_from('q', obj.buf, obj.offs + self.offs)[0]
+
+        pybuf = cython.address(obj.pybuf)
+        buflen = pybuf.len
+        assert (obj.offs + self.offs + cython.sizeof(cython.longlong)) <= buflen
+        offs = obj.offs + cython.cast(cython.p_longlong,
+            cython.cast(cython.p_uchar, pybuf.buf) + obj.offs + self.offs)[0]
+        if obj.idmap is not None:
+            poffs = offs # python version of offs
+            if type(obj.idmap) is dict:
+                rv = cython.cast(dict, obj.idmap).get(poffs, poffs)
+            else:
+                rv = obj.idmap.get(poffs, poffs)
+            # idmap cannot possibly hold "poffs" for that offset
+            if rv is not poffs:
+                return rv
+        assert offs + cython.sizeof(cython.ushort) <= buflen
+
         rv = self._unpack_from(obj.buf, offs)
         if obj.idmap is not None:
             obj.idmap[poffs] = rv
@@ -4877,31 +4511,25 @@ class Schema(object):
         """
         baseoffs = offs
 
-        if cython.compiled:
-            # Inlined bitmap unpacking
-            rbuf = _likebuffer(buf)
-            PyObject_GetBuffer(rbuf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
-        else:
-            offs = int(offs)
+        # Inlined bitmap unpacking
+        rbuf = _likebuffer(buf)
+        PyObject_GetBuffer(rbuf, cython.address(pybuf), PyBUF_SIMPLE)  # lint:ok
 
         try:
-            if cython.compiled:
-                assert (offs + self.bitmap_size) <= pybuf.len  # lint:ok
-                pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
-                if self.bitmap_size == 2:
-                    has_bitmap = cython.cast(cython.p_uchar, pbuf)[0]
-                    none_bitmap = cython.cast(cython.p_uchar, pbuf)[1]
-                elif self.bitmap_size == 4:
-                    has_bitmap = cython.cast(cython.p_ushort, pbuf)[0]
-                    none_bitmap = cython.cast(cython.p_ushort, pbuf)[1]
-                elif self.bitmap_size == 8:
-                    has_bitmap = cython.cast(cython.p_uint, pbuf)[0]
-                    none_bitmap = cython.cast(cython.p_uint, pbuf)[1]
-                elif self.bitmap_size == 16:
-                    has_bitmap = cython.cast(cython.p_ulonglong, pbuf)[0]
-                    none_bitmap = cython.cast(cython.p_ulonglong, pbuf)[1]
-                else:
-                    has_bitmap, none_bitmap = self.bitmap_packer.unpack_from(buf, offs)
+            assert (offs + self.bitmap_size) <= pybuf.len  # lint:ok
+            pbuf = cython.cast(cython.p_char, pybuf.buf) + offs  # lint:ok
+            if self.bitmap_size == 2:
+                has_bitmap = cython.cast(cython.p_uchar, pbuf)[0]
+                none_bitmap = cython.cast(cython.p_uchar, pbuf)[1]
+            elif self.bitmap_size == 4:
+                has_bitmap = cython.cast(cython.p_ushort, pbuf)[0]
+                none_bitmap = cython.cast(cython.p_ushort, pbuf)[1]
+            elif self.bitmap_size == 8:
+                has_bitmap = cython.cast(cython.p_uint, pbuf)[0]
+                none_bitmap = cython.cast(cython.p_uint, pbuf)[1]
+            elif self.bitmap_size == 16:
+                has_bitmap = cython.cast(cython.p_ulonglong, pbuf)[0]
+                none_bitmap = cython.cast(cython.p_ulonglong, pbuf)[1]
             else:
                 has_bitmap, none_bitmap = self.bitmap_packer.unpack_from(buf, offs)
 
@@ -4933,112 +4561,85 @@ class Schema(object):
                 fixed_bitmap = self._fixed_bitmap
                 var_bitmap = self._var_bitmap
 
-                if cython.compiled:
-                    pformat = opformat
-                    value_ix = 0
-                    pbuf2 = pbuf
-                    for i in range(self.slot_count):
-                        mask = cython.cast(cython.ulonglong, 1) << i
-                        if has_bitmap & mask:
-                            slot = self.slot_keys[i]
+                pformat = opformat
+                value_ix = 0
+                pbuf2 = pbuf
+                for i in range(self.slot_count):
+                    mask = cython.cast(cython.ulonglong, 1) << i
+                    if has_bitmap & mask:
+                        slot = self.slot_keys[i]
 
-                            if none_bitmap & mask:
-                                setattr(rv, slot, None)
-                            elif fixed_bitmap & mask:
-                                formatchar = pformat[value_ix]
-                                if formatchar == 'B':
-                                    value = cython.cast(cython.p_uchar, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.uchar)
-                                elif formatchar == 'b':
-                                    value = cython.cast(cython.p_schar, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.schar)
-                                elif formatchar == '?':
-                                    value = cython.cast(cython.bint, cython.cast(cython.p_char, pbuf)[0])
-                                    pbuf += cython.sizeof(cython.char)
-                                elif formatchar == 'H':
-                                    value = cython.cast(cython.p_ushort, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.ushort)
-                                elif formatchar == 'h':
-                                    value = cython.cast(cython.p_short, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.sshort)
-                                elif formatchar == 'I':
-                                    value = cython.cast(cython.p_uint, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.uint)
-                                elif formatchar == 'i':
-                                    value = cython.cast(cython.p_int, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.int)
-                                elif formatchar == 'Q':
-                                    value = cython.cast(cython.p_ulonglong, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.ulonglong)
-                                elif formatchar == 'q':
-                                    value = cython.cast(cython.p_longlong, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.longlong)
-                                elif formatchar == 'd':
-                                    value = cython.cast(cython.p_double, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.double)
-                                elif formatchar == 'f':
-                                    value = cython.cast(cython.p_float, pbuf)[0]
-                                    pbuf += cython.sizeof(cython.float)
-                                else:
-                                    raise ValueError("Inconsistent data (unknown format code %r)" % (
-                                        chr(formatchar),))
-                                setattr(rv, slot, value)
-                                value_ix += 1
-                            elif var_bitmap & mask:
-                                formatchar = pformat[value_ix]
-                                if formatchar == 'q':
-                                    value_offs = cython.cast(cython.p_longlong, pbuf)[0] + baseoffs
-                                    pbuf += cython.sizeof(cython.longlong)
-                                else:
-                                    raise ValueError("Inconsistent data (unexpected format code %r)" % (
-                                        chr(formatchar),))
-                                value_ix += 1
-                                if value_offs not in idmap:
-                                    slot_type = self.slot_types.get(slot)
-                                    if slot_type is _mapped_bytes:
-                                        value = _unpack_bytes_from_cbuffer(
-                                            cython.cast(cython.p_char, pybuf.buf),   # lint:ok
-                                            value_offs, pybuf.len, idmap)  # lint:ok
-                                    else:
-                                        value = slot_type.unpack_from(buf, value_offs, idmap)
-                                    idmap[value_offs] = value
-                                else:
-                                    value = idmap[value_offs]
-                                setattr(rv, slot, value)
+                        if none_bitmap & mask:
+                            setattr(rv, slot, None)
+                        elif fixed_bitmap & mask:
+                            formatchar = pformat[value_ix]
+                            if formatchar == 'B':
+                                value = cython.cast(cython.p_uchar, pbuf)[0]
+                                pbuf += cython.sizeof(cython.uchar)
+                            elif formatchar == 'b':
+                                value = cython.cast(cython.p_schar, pbuf)[0]
+                                pbuf += cython.sizeof(cython.schar)
+                            elif formatchar == '?':
+                                value = cython.cast(cython.bint, cython.cast(cython.p_char, pbuf)[0])
+                                pbuf += cython.sizeof(cython.char)
+                            elif formatchar == 'H':
+                                value = cython.cast(cython.p_ushort, pbuf)[0]
+                                pbuf += cython.sizeof(cython.ushort)
+                            elif formatchar == 'h':
+                                value = cython.cast(cython.p_short, pbuf)[0]
+                                pbuf += cython.sizeof(cython.sshort)
+                            elif formatchar == 'I':
+                                value = cython.cast(cython.p_uint, pbuf)[0]
+                                pbuf += cython.sizeof(cython.uint)
+                            elif formatchar == 'i':
+                                value = cython.cast(cython.p_int, pbuf)[0]
+                                pbuf += cython.sizeof(cython.int)
+                            elif formatchar == 'Q':
+                                value = cython.cast(cython.p_ulonglong, pbuf)[0]
+                                pbuf += cython.sizeof(cython.ulonglong)
+                            elif formatchar == 'q':
+                                value = cython.cast(cython.p_longlong, pbuf)[0]
+                                pbuf += cython.sizeof(cython.longlong)
+                            elif formatchar == 'd':
+                                value = cython.cast(cython.p_double, pbuf)[0]
+                                pbuf += cython.sizeof(cython.double)
+                            elif formatchar == 'f':
+                                value = cython.cast(cython.p_float, pbuf)[0]
+                                pbuf += cython.sizeof(cython.float)
                             else:
-                                raise ValueError("Inconsistent data")
-                    pbuf = pbuf2
-                    offs += stride
-                    pbuf += stride
-                else:
-                    values = unpacker.unpack_from(buf, offs)
-                    offs += stride
-
-                    value_ix = 0
-                    for i in range(self.slot_count):
-                        mask = 1 << i
-                        if has_bitmap & mask:
-                            slot = self.slot_keys[i]
-                            if none_bitmap & mask:
-                                setattr(rv, slot, None)
-                            elif fixed_bitmap & mask:
-                                setattr(rv, slot, values[value_ix])
-                                value_ix += 1
-                            elif var_bitmap & mask:
-                                value_offs = cython.cast(cython.longlong, values[value_ix]) + baseoffs
-                                value_ix += 1
-                                if value_offs not in idmap:
-                                    slot_type = self.slot_types.get(slot)
-                                    idmap[value_offs] = value = slot_type.unpack_from(buf, value_offs, idmap)
-                                else:
-                                    value = idmap[value_offs]
-                                setattr(rv, slot, value)
+                                raise ValueError("Inconsistent data (unknown format code %r)" % (
+                                    chr(formatchar),))
+                            setattr(rv, slot, value)
+                            value_ix += 1
+                        elif var_bitmap & mask:
+                            formatchar = pformat[value_ix]
+                            if formatchar == 'q':
+                                value_offs = cython.cast(cython.p_longlong, pbuf)[0] + baseoffs
+                                pbuf += cython.sizeof(cython.longlong)
                             else:
-                                raise ValueError("Inconsistent data")
+                                raise ValueError("Inconsistent data (unexpected format code %r)" % (
+                                    chr(formatchar),))
+                            value_ix += 1
+                            if value_offs not in idmap:
+                                slot_type = self.slot_types.get(slot)
+                                if slot_type is _mapped_bytes:
+                                    value = _unpack_bytes_from_cbuffer(
+                                        cython.cast(cython.p_char, pybuf.buf),   # lint:ok
+                                        value_offs, pybuf.len, idmap)  # lint:ok
+                                else:
+                                    value = slot_type.unpack_from(buf, value_offs, idmap)
+                                idmap[value_offs] = value
+                            else:
+                                value = idmap[value_offs]
+                            setattr(rv, slot, value)
+                        else:
+                            raise ValueError("Inconsistent data")
+                pbuf = pbuf2
+                offs += stride
+                pbuf += stride
             return rv
         finally:
-            if cython.compiled:
-                PyBuffer_Release(cython.address(pybuf))  # lint:ok
+            PyBuffer_Release(cython.address(pybuf))  # lint:ok
 
     def unpack(self, buf, idmap = None, factory_class_new = None, proxy_into = None):
         """
@@ -5468,277 +5069,244 @@ class MappedArrayProxyBase(_ZipMapBase):
         return rv
 
 
-if cython.compiled:
+@cython.cfunc
+@cython.locals(
+    hkey = numeric_A, elem = numeric_B,
+    lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
+    mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
+    pindex = cython.p_char, skip = cython.size_t, check_equal = cython.bint)
+@cython.returns(cython.size_t)
+def _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem):
+    hi = length
+    lo = 0
 
-    @cython.cfunc
-    @cython.locals(
-        hkey = numeric_A, elem = numeric_B,
-        lo = cython.size_t, hi = cython.size_t, length = cython.size_t,
-        mid = cython.size_t, mid2 = cython.size_t, stride0 = cython.size_t, hint = cython.size_t,
-        pindex = cython.p_char, skip = cython.size_t, check_equal = cython.bint)
-    @cython.returns(cython.size_t)
-    def _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem):
-        hi = length
-        lo = 0
-
-        if hkey < cython.cast('numeric_B *', pindex)[0]:
-            if check_equal:
-                return hi
-            else:
-                return lo
-        elif hkey > cython.cast('numeric_B *', pindex + stride0 * (hi-1))[0]:
+    if hkey < cython.cast('numeric_B *', pindex)[0]:
+        if check_equal:
             return hi
+        else:
+            return lo
+    elif hkey > cython.cast('numeric_B *', pindex + stride0 * (hi-1))[0]:
+        return hi
 
-        elem = cython.cast(cython.typeof(elem), hkey)
-        if lo < hi:
-            # First iteration a quick guess assuming uniform distribution of keys
-            mid = min(hint, hi-1)
-            mkey = cython.cast('numeric_B *', pindex + stride0 * mid)[0]
-            if mkey < elem:
-                # Got a lo guess, now skip-search forward for a hi
-                lo = mid = mid+1
-                skip = 32
-                while skip > 0 and mid + skip < hi:
-                    if cython.cast('numeric_B *', pindex + stride0 * (mid+skip))[0] < elem:
-                        lo = mid+1
-                        mid += skip
-                        skip *= 2
-                    else:
-                        hi = mid + skip
-                        break
-            elif mkey > elem:
-                # Got a hi guess, now skip-search backwards for a lo
-                hi = mid
-                skip = 32
-                while skip > 0 and mid > lo + skip:
-                    if cython.cast('numeric_B *', pindex + stride0 * (mid-skip))[0] > elem:
-                        hi = mid
-                        mid -= skip
-                        skip *= 2
-                    else:
-                        mid -= skip
-                        while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
-                            mid -= 1
-                        lo = mid
-                        break
-            else:
-                # hit, but must find the first
-                # good idea to go sequential because we assume collisions are unlikely
-                while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
-                    mid -= 1
-                return mid
-        # Final stretch: search the remaining range with a regular binary search
-        while lo < hi:
-            mid = (lo+hi)//2
-            mkey = cython.cast('numeric_B *', pindex + stride0 * mid)[0]
-            if mkey < elem:
-                lo = mid+1
-            elif mkey > elem:
-                hi = mid
-            else:
-                while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
-                    mid -= 1
-                return mid
-        # Check equality if requested
-        if check_equal and lo < length and cython.cast('numeric_B *', pindex + stride0 * lo)[0] != elem:
-            lo = length
+    elem = cython.cast(cython.typeof(elem), hkey)
+    if lo < hi:
+        # First iteration a quick guess assuming uniform distribution of keys
+        mid = min(hint, hi-1)
+        mkey = cython.cast('numeric_B *', pindex + stride0 * mid)[0]
+        if mkey < elem:
+            # Got a lo guess, now skip-search forward for a hi
+            lo = mid = mid+1
+            skip = 32
+            while skip > 0 and mid + skip < hi:
+                if cython.cast('numeric_B *', pindex + stride0 * (mid+skip))[0] < elem:
+                    lo = mid+1
+                    mid += skip
+                    skip *= 2
+                else:
+                    hi = mid + skip
+                    break
+        elif mkey > elem:
+            # Got a hi guess, now skip-search backwards for a lo
+            hi = mid
+            skip = 32
+            while skip > 0 and mid > lo + skip:
+                if cython.cast('numeric_B *', pindex + stride0 * (mid-skip))[0] > elem:
+                    hi = mid
+                    mid -= skip
+                    skip *= 2
+                else:
+                    mid -= skip
+                    while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
+                        mid -= 1
+                    lo = mid
+                    break
+        else:
+            # hit, but must find the first
+            # good idea to go sequential because we assume collisions are unlikely
+            while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
+                mid -= 1
+            return mid
+    # Final stretch: search the remaining range with a regular binary search
+    while lo < hi:
+        mid = (lo+hi)//2
+        mkey = cython.cast('numeric_B *', pindex + stride0 * mid)[0]
+        if mkey < elem:
+            lo = mid+1
+        elif mkey > elem:
+            hi = mid
+        else:
+            while mid > lo and cython.cast('numeric_B *', pindex + stride0 * (mid-1))[0] == elem:
+                mid -= 1
+            return mid
+    # Check equality if requested
+    if check_equal and lo < length and cython.cast('numeric_B *', pindex + stride0 * lo)[0] != elem:
+        lo = length
+    return lo
+
+@cython.cfunc
+@cython.locals(hkey = cython.ulonglong, elem = cython.ulonglong,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_ui64(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+@cython.cfunc
+@cython.locals(hkey = cython.slonglong, elem = cython.slonglong,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_i64(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+@cython.cfunc
+@cython.locals(hkey = cython.ulonglong, elem = cython.uint,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_ui32(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+@cython.cfunc
+@cython.locals(hkey = cython.slonglong, elem = cython.sint,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_i32(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+@cython.cfunc
+@cython.locals(hkey = cython.ulonglong, elem = cython.ushort,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_ui16(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+@cython.cfunc
+@cython.locals(hkey = cython.slonglong, elem = cython.sshort,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_i16(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+@cython.cfunc
+@cython.locals(hkey = cython.ulonglong, elem = cython.uchar,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_ui8(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+@cython.cfunc
+@cython.locals(hkey = cython.slonglong, elem = cython.schar,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_i8(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+@cython.cfunc
+@cython.locals(hkey = cython.double, elem = cython.double,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_f64(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+@cython.cfunc
+@cython.locals(hkey = cython.float, elem = cython.float,
+    pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
+    hint = cython.size_t, check_equal = cython.bint)
+def _c_search_hkey_f32(hkey, pindex, stride0, length, hint, check_equal):
+    elem = 0
+    return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
+
+# Commented cython directives in pxd
+#@cython.ccall
+@cython.locals(
+    lo = cython.size_t, hi = cython.size_t, hint = cython.size_t, stride0 = cython.size_t,
+    indexbuf = 'Py_buffer', pindex = cython.p_char, check_equal = cython.bint, ix = cython.size_t)
+#@cython.returns(cython.size_t)
+def _hinted_bsearch(a, hkey, hint, lo, hi, check_equal):
+    """
+    Does a binary search in "a" for "hkey", assuming the key is expected
+    to be found around position "hint" or at most between "lo" and "hi".
+    If check_equal is given and True, it will make sure to return exactly
+    "hi" iff "hkey" is not found in "a". Otherwise, the position where it
+    would be if it is there will be returned.
+    """
+    if hi <= lo:
         return lo
 
-    @cython.cfunc
-    @cython.locals(hkey = cython.ulonglong, elem = cython.ulonglong,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_ui64(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
-
-    @cython.cfunc
-    @cython.locals(hkey = cython.slonglong, elem = cython.slonglong,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_i64(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
-
-    @cython.cfunc
-    @cython.locals(hkey = cython.ulonglong, elem = cython.uint,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_ui32(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
-
-    @cython.cfunc
-    @cython.locals(hkey = cython.slonglong, elem = cython.sint,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_i32(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
-
-    @cython.cfunc
-    @cython.locals(hkey = cython.ulonglong, elem = cython.ushort,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_ui16(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
-
-    @cython.cfunc
-    @cython.locals(hkey = cython.slonglong, elem = cython.sshort,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_i16(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
-
-    @cython.cfunc
-    @cython.locals(hkey = cython.ulonglong, elem = cython.uchar,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_ui8(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
-
-    @cython.cfunc
-    @cython.locals(hkey = cython.slonglong, elem = cython.schar,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_i8(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
-
-    @cython.cfunc
-    @cython.locals(hkey = cython.double, elem = cython.double,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_f64(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
-
-    @cython.cfunc
-    @cython.locals(hkey = cython.float, elem = cython.float,
-        pindex = cython.p_char, stride0 = cython.size_t, length = cython.size_t,
-        hint = cython.size_t, check_equal = cython.bint)
-    def _c_search_hkey_f32(hkey, pindex, stride0, length, hint, check_equal):
-        elem = 0
-        return _c_search_hkey_gen(hkey, pindex, stride0, length, hint, check_equal, elem)
-
-if cython.compiled:
-    # Commented cython directives in pxd
-    #@cython.ccall
-    @cython.locals(
-        lo = cython.size_t, hi = cython.size_t, hint = cython.size_t, stride0 = cython.size_t,
-        indexbuf = 'Py_buffer', pindex = cython.p_char, check_equal = cython.bint, ix = cython.size_t)
-    #@cython.returns(cython.size_t)
-    def _hinted_bsearch(a, hkey, hint, lo, hi, check_equal):
-        """
-        Does a binary search in "a" for "hkey", assuming the key is expected
-        to be found around position "hint" or at most between "lo" and "hi".
-        If check_equal is given and True, it will make sure to return exactly
-        "hi" iff "hkey" is not found in "a". Otherwise, the position where it
-        would be if it is there will be returned.
-        """
-        if hi <= lo:
-            return lo
-
-        #lint:disable
-        PyObject_GetBuffer(a, cython.address(indexbuf), PyBUF_STRIDED_RO)
-        try:
-            if ( indexbuf.strides == cython.NULL
-                    or indexbuf.len < hi * indexbuf.strides[0] ):
-                raise ValueError("Invalid buffer state")
-            pindex = cython.cast(cython.p_char, indexbuf.buf)
-            stride0 = indexbuf.strides[0]
-            #lint:enable
-            c = a.dtype.char.encode()
-            dtype = cython.cast('char*', c)[0]
-            if dtype == b'L' or dtype == b'Q':
-                ix = _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'I':
-                ix = _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'l' or dtype == b'q':
-                ix = _c_search_hkey_i64(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'i':
-                ix = _c_search_hkey_i32(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'H':
-                ix = _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'h':
-                ix = _c_search_hkey_i16(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'B':
-                ix = _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'b':
-                ix = _c_search_hkey_i8(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'd':
-                ix = _c_search_hkey_f64(hkey, pindex, stride0, hi, hint, check_equal)
-            elif dtype == b'f':
-                ix = _c_search_hkey_f32(hkey, pindex, stride0, hi, hint, check_equal)
-            else:
-                raise NotImplementedError("Unsupported array type %s" % (chr(dtype),))
-        except OverflowError:
-            # The conversion of hkey to either longlong or ulonglong failed
-            # The key most certainly is not in the array, that can't hold the value at all,
-            # but we must check (in python fashion to support the extended range numbers)
-            # whether it lies on the left or right side
-            if hkey < a[0]:
-                ix = lo
-            elif hkey > a[hi-1]:
-                ix = hi
-            else:
-                raise
-        finally:
-            PyBuffer_Release(cython.address(indexbuf)) #lint:ok
-
-        return ix
-
-    def hinted_bsearch(a, hkey, hint):
-        """
-        Search into the sorted array ``a`` the value ``hkey``, assuming it should
-        be close to ``hint``.
-
-        :param ndarray a: Sorted array of one of the supported types (see :func:`bsearch`).
-
-        :param hkey: Value to search for
-
-        :param int hint: Expected location of ``hkey``
-
-        :rtype: int
-        :returns: Location where ``hkey`` should be, if it is there. See :func:`bsearch`.
-        """
-        hi = len(a)
-        lo = 0
-        return _hinted_bsearch(a, hkey, hint, lo, hi, False)
-else:
-    import bisect
-
-    def _py__hinted_bsearch(a, hkey, hint, lo, hi, check_equal):
-        dtype = a.dtype.char.encode()
-        if dtype not in (b'L', b'Q', b'I', b'l', b'i', b'H', b'h', b'B', b'b', b'd', b'f'):
-            raise NotImplementedError("Unsupported array type %s" % dtype)
-
-        ix = bisect.bisect_left(a, hkey)
-        if check_equal and ix < hi and a[ix] != hkey:
+    #lint:disable
+    PyObject_GetBuffer(a, cython.address(indexbuf), PyBUF_STRIDED_RO)
+    try:
+        if ( indexbuf.strides == cython.NULL
+                or indexbuf.len < hi * indexbuf.strides[0] ):
+            raise ValueError("Invalid buffer state")
+        pindex = cython.cast(cython.p_char, indexbuf.buf)
+        stride0 = indexbuf.strides[0]
+        #lint:enable
+        c = a.dtype.char.encode()
+        dtype = cython.cast('char*', c)[0]
+        if dtype == b'L' or dtype == b'Q':
+            ix = _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'I':
+            ix = _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'l' or dtype == b'q':
+            ix = _c_search_hkey_i64(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'i':
+            ix = _c_search_hkey_i32(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'H':
+            ix = _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'h':
+            ix = _c_search_hkey_i16(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'B':
+            ix = _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'b':
+            ix = _c_search_hkey_i8(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'd':
+            ix = _c_search_hkey_f64(hkey, pindex, stride0, hi, hint, check_equal)
+        elif dtype == b'f':
+            ix = _c_search_hkey_f32(hkey, pindex, stride0, hi, hint, check_equal)
+        else:
+            raise NotImplementedError("Unsupported array type %s" % (chr(dtype),))
+    except OverflowError:
+        # The conversion of hkey to either longlong or ulonglong failed
+        # The key most certainly is not in the array, that can't hold the value at all,
+        # but we must check (in python fashion to support the extended range numbers)
+        # whether it lies on the left or right side
+        if hkey < a[0]:
+            ix = lo
+        elif hkey > a[hi-1]:
             ix = hi
-        return ix
-    globals()['_hinted_bsearch'] = _py__hinted_bsearch
+        else:
+            raise
+    finally:
+        PyBuffer_Release(cython.address(indexbuf)) #lint:ok
 
-    def _py_hinted_bsearch(a, hkey, hint):
-        """
-        Search into the sorted array ``a`` the value ``hkey``, assuming it should
-        be close to ``hint``.
+    return ix
 
-        :param ndarray a: Sorted array of one of the supported types (see :func:`bsearch`).
+def hinted_bsearch(a, hkey, hint):
+    """
+    Search into the sorted array ``a`` the value ``hkey``, assuming it should
+    be close to ``hint``.
 
-        :param hkey: Value to search for
+    :param ndarray a: Sorted array of one of the supported types (see :func:`bsearch`).
 
-        :param int hint: Expected location of ``hkey``
+    :param hkey: Value to search for
 
-        :rtype: int
-        :returns: Location where ``hkey`` should be, if it is there. See :func:`bsearch`.
-        """
-        return bisect.bisect_left(a, hkey)
-    _py_hinted_bsearch.__name__ = 'hinted_bsearch'
-    globals()['hinted_bsearch'] = _py_hinted_bsearch
+    :param int hint: Expected location of ``hkey``
+
+    :rtype: int
+    :returns: Location where ``hkey`` should be, if it is there. See :func:`bsearch`.
+    """
+    hi = len(a)
+    lo = 0
+    return _hinted_bsearch(a, hkey, hint, lo, hi, False)
+
 
 #@cython.ccall
 @cython.locals(lo = cython.size_t, hi = cython.size_t)
@@ -5796,315 +5364,265 @@ def sorted_contains(a, hkey):
     ix = _hinted_bsearch(a, hkey, hi//2, 0, hi, True)
     return ix < hi
 
-if cython.compiled:
-
-    @cython.nogil
-    @cython.cfunc
-    @cython.returns(cython.size_t)
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
-        pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char,
-        ref = numeric_A)
-    def _c_merge_gen(pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref):
-        # Main merge
-        pend1 = pindex1 + stride0 * length1
-        pend2 = pindex2 + stride0 * length2
-        pdestend = pdest + stride0 * destlength
-        pdeststart = pdest
-        while pindex1 < pend1 and pindex2 < pend2 and pdest < pdestend:
-            ref = cython.cast('numeric_A *', pindex2)[0]
-            while pindex1 < pend1 and cython.cast('numeric_A *', pindex1)[0] <= ref and pdest < pdestend:
-                cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex1)[0]
-                cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex1)[1]
-                pdest += stride0
-                pindex1 += stride0
-            if pindex1 < pend1:
-                ref = cython.cast('numeric_A *', pindex1)[0]
-                while pindex2 < pend2 and cython.cast('numeric_A *', pindex2)[0] <= ref and pdest < pdestend:
-                    cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex2)[0]
-                    cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex2)[1]
-                    pdest += stride0
-                    pindex2 += stride0
-
-        # Copy leftover tails
-        while pindex1 < pend1 and pdest < pdestend:
+@cython.nogil
+@cython.cfunc
+@cython.returns(cython.size_t)
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char,
+    pend1 = cython.p_char, pend2 = cython.p_char, pdestend = cython.p_char, pdeststart = cython.p_char,
+    ref = numeric_A)
+def _c_merge_gen(pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref):
+    # Main merge
+    pend1 = pindex1 + stride0 * length1
+    pend2 = pindex2 + stride0 * length2
+    pdestend = pdest + stride0 * destlength
+    pdeststart = pdest
+    while pindex1 < pend1 and pindex2 < pend2 and pdest < pdestend:
+        ref = cython.cast('numeric_A *', pindex2)[0]
+        while pindex1 < pend1 and cython.cast('numeric_A *', pindex1)[0] <= ref and pdest < pdestend:
             cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex1)[0]
             cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex1)[1]
             pdest += stride0
             pindex1 += stride0
-        while pindex2 < pend2 and pdest < pdestend:
-            cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex2)[0]
-            cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex2)[1]
-            pdest += stride0
-            pindex2 += stride0
-        return (pdest - pdeststart) // stride0
+        if pindex1 < pend1:
+            ref = cython.cast('numeric_A *', pindex1)[0]
+            while pindex2 < pend2 and cython.cast('numeric_A *', pindex2)[0] <= ref and pdest < pdestend:
+                cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex2)[0]
+                cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex2)[1]
+                pdest += stride0
+                pindex2 += stride0
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.ulonglong,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.ulonglong](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+    # Copy leftover tails
+    while pindex1 < pend1 and pdest < pdestend:
+        cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex1)[0]
+        cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex1)[1]
+        pdest += stride0
+        pindex1 += stride0
+    while pindex2 < pend2 and pdest < pdestend:
+        cython.cast('numeric_A *', pdest)[0] = cython.cast('numeric_A *', pindex2)[0]
+        cython.cast('numeric_A *', pdest)[1] = cython.cast('numeric_A *', pindex2)[1]
+        pdest += stride0
+        pindex2 += stride0
+    return (pdest - pdeststart) // stride0
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.longlong,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.slonglong](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.ulonglong,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.ulonglong](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.uint,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.uint](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.longlong,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.slonglong](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.int,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.sint](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.uint,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.uint](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.int,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_ui16(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.ushort](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.int,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.sint](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.int,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_i16(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.sshort](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.int,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_ui16(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.ushort](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.int,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_ui8(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.uchar](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.int,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_i16(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.sshort](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.int,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_i8(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.schar](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.int,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_ui8(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.uchar](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.double,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.double](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.int,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_i8(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.schar](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    #@cython.cfunc
-    @cython.locals(
-        length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
-        stride0 = cython.size_t, ref = cython.float,
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
-        ref = 0
-        return _c_merge_gen[cython.float](
-            pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.double,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.double](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-    # Commented cython directives in pxd
-    #@cython.ccall
-    @cython.locals(
-        stride0 = cython.size_t, length1 = cython.size_t, length2 = cython.size_t,
-        destlength = cython.size_t, rdestlength = cython.size_t,
-        index1buf = 'Py_buffer', index2buf = 'Py_buffer', destbuf = 'Py_buffer',
-        pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
-    #@cython.returns(cython.size_t)
-    def index_merge(index1, index2, dest):
-        length1 = len(index1)
-        length2 = len(index2)
-        destlength = len(dest)
-        rdestlength = min(destlength, length1+length2)
+#@cython.cfunc
+@cython.locals(
+    length1 = cython.size_t, length2 = cython.size_t, destlength = cython.size_t,
+    stride0 = cython.size_t, ref = cython.float,
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0):
+    ref = 0
+    return _c_merge_gen[cython.float](
+        pindex1, length1, pindex2, length2, pdest, destlength, stride0, ref)
 
-        if len(index1.shape) != 2 or len(index2.shape) != 2:
-            raise ValueError("Indices must be two-dimensional")
-        if len(dest.shape) != 2:
-            raise ValueError("Destination must be two-dimensional")
-        if index1.shape[1] != 2 or index2.shape[1] != 2:
-            raise ValueError("Indices must be N x 2 matrices")
-        if dest.shape[1] != 2:
-            raise ValueError("Destination must be an N x 2 matrix")
+# Commented cython directives in pxd
+#@cython.ccall
+@cython.locals(
+    stride0 = cython.size_t, length1 = cython.size_t, length2 = cython.size_t,
+    destlength = cython.size_t, rdestlength = cython.size_t,
+    index1buf = 'Py_buffer', index2buf = 'Py_buffer', destbuf = 'Py_buffer',
+    pindex1 = cython.p_char, pindex2 = cython.p_char, pdest = cython.p_char)
+#@cython.returns(cython.size_t)
+def index_merge(index1, index2, dest):
+    length1 = len(index1)
+    length2 = len(index2)
+    destlength = len(dest)
+    rdestlength = min(destlength, length1+length2)
 
-        #lint:disable
-        PyObject_GetBuffer(index1, cython.address(index1buf), PyBUF_STRIDED_RO)
+    if len(index1.shape) != 2 or len(index2.shape) != 2:
+        raise ValueError("Indices must be two-dimensional")
+    if len(dest.shape) != 2:
+        raise ValueError("Destination must be two-dimensional")
+    if index1.shape[1] != 2 or index2.shape[1] != 2:
+        raise ValueError("Indices must be N x 2 matrices")
+    if dest.shape[1] != 2:
+        raise ValueError("Destination must be an N x 2 matrix")
+
+    #lint:disable
+    PyObject_GetBuffer(index1, cython.address(index1buf), PyBUF_STRIDED_RO)
+    try:
+        PyObject_GetBuffer(index2, cython.address(index2buf), PyBUF_STRIDED_RO)
         try:
-            PyObject_GetBuffer(index2, cython.address(index2buf), PyBUF_STRIDED_RO)
+            PyObject_GetBuffer(dest, cython.address(destbuf), PyBUF_STRIDED_RO)
             try:
-                PyObject_GetBuffer(dest, cython.address(destbuf), PyBUF_STRIDED_RO)
-                try:
-                    if ( index1buf.strides == cython.NULL
-                            or index1buf.len < length1 * index1buf.strides[0] ):
-                        raise ValueError("Invalid buffer state on index1")
-                    if ( index2buf.strides == cython.NULL
-                            or index2buf.len < length2 * index2buf.strides[0] ):
-                        raise ValueError("Invalid buffer state on index2")
-                    if ( destbuf.strides == cython.NULL
-                            or destbuf.len < destlength * destbuf.strides[0] ):
-                        raise ValueError("Invalid buffer state on dest")
+                if ( index1buf.strides == cython.NULL
+                        or index1buf.len < length1 * index1buf.strides[0] ):
+                    raise ValueError("Invalid buffer state on index1")
+                if ( index2buf.strides == cython.NULL
+                        or index2buf.len < length2 * index2buf.strides[0] ):
+                    raise ValueError("Invalid buffer state on index2")
+                if ( destbuf.strides == cython.NULL
+                        or destbuf.len < destlength * destbuf.strides[0] ):
+                    raise ValueError("Invalid buffer state on dest")
 
-                    pindex1 = cython.cast(cython.p_char, index1buf.buf)
-                    pindex2 = cython.cast(cython.p_char, index2buf.buf)
-                    pdest = cython.cast(cython.p_char, destbuf.buf)
-                    stride0 = index1buf.strides[0]
-                    if stride0 == 0:
-                        raise ValueError("Invalid buffer stride")
-                    if index2buf.strides[0] != stride0:
-                        raise ValueError("Incompatible indexes")
-                    if destbuf.strides[0] != stride0:
-                        raise ValueError("Incompatible destination")
-                    c = index1.dtype.char.encode()
-                    dtype = cython.cast('char*', c)[0]
-                    c2 = index2.dtype.char.encode()
-                    if cython.cast('char*', c2)[0] != dtype:
-                        raise ValueError("Incompatible indexes")
-                    c3 = dest.dtype.char.encode()
-                    if cython.cast('char*', c3)[0] != dtype:
-                        raise ValueError("Incompatible destination")
+                pindex1 = cython.cast(cython.p_char, index1buf.buf)
+                pindex2 = cython.cast(cython.p_char, index2buf.buf)
+                pdest = cython.cast(cython.p_char, destbuf.buf)
+                stride0 = index1buf.strides[0]
+                if stride0 == 0:
+                    raise ValueError("Invalid buffer stride")
+                if index2buf.strides[0] != stride0:
+                    raise ValueError("Incompatible indexes")
+                if destbuf.strides[0] != stride0:
+                    raise ValueError("Incompatible destination")
+                c = index1.dtype.char.encode()
+                dtype = cython.cast('char*', c)[0]
+                c2 = index2.dtype.char.encode()
+                if cython.cast('char*', c2)[0] != dtype:
+                    raise ValueError("Incompatible indexes")
+                c3 = dest.dtype.char.encode()
+                if cython.cast('char*', c3)[0] != dtype:
+                    raise ValueError("Incompatible destination")
 
-                    if ( pdest == pindex1 or pdest == pindex2
-                            or (pdest < pindex1 + length1 * stride0 and pdest >= pindex1)
-                            or (pdest < pindex2 + length2 * stride0 and pdest >= pindex2)
-                            or (pindex1 < pdest + rdestlength * stride0 and pindex1 >= pdest)
-                            or (pindex2 < pdest + rdestlength * stride0 and pindex2 >= pdest) ):
-                        raise NotImplementedError("In-place merge not implemented, destination must not overlap")
+                if ( pdest == pindex1 or pdest == pindex2
+                        or (pdest < pindex1 + length1 * stride0 and pdest >= pindex1)
+                        or (pdest < pindex2 + length2 * stride0 and pdest >= pindex2)
+                        or (pindex1 < pdest + rdestlength * stride0 and pindex1 >= pdest)
+                        or (pindex2 < pdest + rdestlength * stride0 and pindex2 >= pdest) ):
+                    raise NotImplementedError("In-place merge not implemented, destination must not overlap")
 
-                    #lint:enable
-                    if dtype == 'L' or dtype == 'Q':
-                        with cython.nogil:
-                            return _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'I':
-                        with cython.nogil:
-                            return _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'l' or dtype == 'q':
-                        with cython.nogil:
-                            return _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'i':
-                        with cython.nogil:
-                            return _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'H':
-                        with cython.nogil:
-                            return _c_merge_ui16(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'h':
-                        with cython.nogil:
-                            return _c_merge_i16(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'B':
-                        with cython.nogil:
-                            return _c_merge_ui8(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'b':
-                        with cython.nogil:
-                            return _c_merge_i8(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'd':
-                        with cython.nogil:
-                            return _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    elif dtype == 'f':
-                        with cython.nogil:
-                            return _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
-                    else:
-                        raise NotImplementedError("Unsupported array type %s" % (chr(dtype),))
-                finally:
-                    PyBuffer_Release(cython.address(destbuf)) #lint:ok
+                #lint:enable
+                if dtype == 'L' or dtype == 'Q':
+                    with cython.nogil:
+                        return _c_merge_ui64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'I':
+                    with cython.nogil:
+                        return _c_merge_ui32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'l' or dtype == 'q':
+                    with cython.nogil:
+                        return _c_merge_i64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'i':
+                    with cython.nogil:
+                        return _c_merge_i32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'H':
+                    with cython.nogil:
+                        return _c_merge_ui16(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'h':
+                    with cython.nogil:
+                        return _c_merge_i16(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'B':
+                    with cython.nogil:
+                        return _c_merge_ui8(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'b':
+                    with cython.nogil:
+                        return _c_merge_i8(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'd':
+                    with cython.nogil:
+                        return _c_merge_f64(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                elif dtype == 'f':
+                    with cython.nogil:
+                        return _c_merge_f32(pindex1, length1, pindex2, length2, pdest, destlength, stride0)
+                else:
+                    raise NotImplementedError("Unsupported array type %s" % (chr(dtype),))
             finally:
-                PyBuffer_Release(cython.address(index2buf)) #lint:ok
+                PyBuffer_Release(cython.address(destbuf)) #lint:ok
         finally:
-            PyBuffer_Release(cython.address(index1buf)) #lint:ok
-else:
-    # Not so efficient pure-python fallback
-    def _index_merge(index1, index2, dest):
-        # Main merge
-        pdest = 0
-        pindex1 = 0
-        pindex2 = 0
-        pend1 = len(index1)
-        pend2 = len(index2)
-        pdestend = len(dest)
+            PyBuffer_Release(cython.address(index2buf)) #lint:ok
+    finally:
+        PyBuffer_Release(cython.address(index1buf)) #lint:ok
 
-        if len(index1.shape) != 2 or len(index2.shape) != 2:
-            raise ValueError("Indices must be two-dimensional")
-        if len(dest.shape) != 2:
-            raise ValueError("Destination must be two-dimensional")
-        if index1.shape[1] != 2 or index2.shape[1] != 2:
-            raise ValueError("Indices must be N x 2 matrices")
-        if dest.shape[1] != 2:
-            raise ValueError("Destination must be an N x 2 matrix")
-        if (    (dest.base if dest.base is not None else dest) is (
-                    index1.base if index1.base is not None else index1)
-                or (dest.base if dest.base is not None else dest) is (
-                    index2.base if index2.base is not None else index2) ):
-            raise NotImplementedError("In-place merge not implemented, destination must not overlap")
-
-        while pindex1 < pend1 and pindex2 < pend2 and pdest < pdestend:
-            ref = index2[pindex2][0]
-            while pindex1 < pend1 and index1[pindex1][0] <= ref and pdest < pdestend:
-                dest[pdest] = index1[pindex1]
-                pdest += 1
-                pindex1 += 1
-            if pindex1 < pend1:
-                ref = index1[pindex1][0]
-                while pindex2 < pend2 and index2[pindex2][0] <= ref and pdest < pdestend:
-                    dest[pdest] = index2[pindex2]
-                    pdest += 1
-                    pindex2 += 1
-
-        # Copy leftover tails
-        while pindex1 < pend1 and pdest < pdestend:
-            dest[pdest] = index1[pindex1]
-            pdest += 1
-            pindex1 += 1
-        while pindex2 < pend2 and pdest < pdestend:
-            dest[pdest] = index2[pindex2]
-            pdest += 1
-            pindex2 += 1
-        return pdest
-    globals()['index_merge'] = _index_merge
 
 @cython.ccall
 @cython.locals(i = int, clobber = cython.bint)
@@ -6320,59 +5838,56 @@ class NumericIdMapper(_CZipMapBase):
         buf = self._buf
         dtype = self.dtype
         index = self.index
-        if cython.compiled:
-            #lint:disable
-            buf = self._likebuf
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-            try:
-                if dtype is npuint64:
-                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                    try:
-                        if ( indexbuf.strides == cython.NULL
-                                or indexbuf.ndim < 2
-                                or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
-                            raise ValueError("Invalid buffer state")
-                        stride0 = indexbuf.strides[0]
-                        stride1 = indexbuf.strides[1]
-                        pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in range(self.index_elements):
-                            yield (
-                                cython.cast(cython.p_ulonglong, pindex)[0],
-                                cython.cast(cython.p_ulonglong, pindex + stride1)[0]
-                            )
-                            pindex += stride0
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
-                elif dtype is npuint32:
-                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                    try:
-                        if ( indexbuf.strides == cython.NULL
-                                or indexbuf.ndim < 2
-                                or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
-                            raise ValueError("Invalid buffer state")
-                        stride0 = indexbuf.strides[0]
-                        stride1 = indexbuf.strides[1]
-                        pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in range(self.index_elements):
-                            yield (
-                                cython.cast(cython.p_uint, pindex)[0],
-                                cython.cast(cython.p_uint, pindex + stride1)[0]
-                            )
-                            pindex += stride0
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
-                else:
+
+        #lint:disable
+        buf = self._likebuf
+        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+        try:
+            if dtype is npuint64:
+                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                try:
+                    if ( indexbuf.strides == cython.NULL
+                            or indexbuf.ndim < 2
+                            or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
+                        raise ValueError("Invalid buffer state")
+                    stride0 = indexbuf.strides[0]
+                    stride1 = indexbuf.strides[1]
+                    pindex = cython.cast(cython.p_char, indexbuf.buf)
                     for i in range(self.index_elements):
                         yield (
-                            index[i,0],
-                            index[i,1]
+                            cython.cast(cython.p_ulonglong, pindex)[0],
+                            cython.cast(cython.p_ulonglong, pindex + stride1)[0]
                         )
-            finally:
-                PyBuffer_Release(cython.address(pybuf))
-            #lint:enable
-        else:
-            for i in range(self.index_elements):
-                yield (index[i,0], index[i,1])
+                        pindex += stride0
+                finally:
+                    PyBuffer_Release(cython.address(indexbuf))
+            elif dtype is npuint32:
+                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                try:
+                    if ( indexbuf.strides == cython.NULL
+                            or indexbuf.ndim < 2
+                            or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
+                        raise ValueError("Invalid buffer state")
+                    stride0 = indexbuf.strides[0]
+                    stride1 = indexbuf.strides[1]
+                    pindex = cython.cast(cython.p_char, indexbuf.buf)
+                    for i in range(self.index_elements):
+                        yield (
+                            cython.cast(cython.p_uint, pindex)[0],
+                            cython.cast(cython.p_uint, pindex + stride1)[0]
+                        )
+                        pindex += stride0
+                finally:
+                    PyBuffer_Release(cython.address(indexbuf))
+            else:
+                for i in range(self.index_elements):
+                    yield (
+                        index[i,0],
+                        index[i,1]
+                    )
+        finally:
+            PyBuffer_Release(cython.address(pybuf))
+        #lint:enable
 
     def items(self):
         # Bad idea, but hey, if they do this, it means the caller expects the collection to fit in RAM
@@ -6395,51 +5910,43 @@ class NumericIdMapper(_CZipMapBase):
             return lo
         elif hkey > hikey:
             return hi
-        if cython.compiled:
-            dtype = self._dtype
-            if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
-                #lint:disable
-                PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                try:
-                    if ( indexbuf.strides == cython.NULL
-                            or indexbuf.len < hi * indexbuf.strides[0] ):
-                        raise ValueError("Invalid buffer state")
-                    pindex = cython.cast(cython.p_char, indexbuf.buf)
-                    stride0 = indexbuf.strides[0]
 
-                    if dtype is npuint64:
-                        # Must be careful about overflow
-                        if hikey > cython.cast(cython.ulonglong, 0xFFFFFFFFFFFF):
-                            hint = lo + ((hkey - lokey) >> 32) * (hi - lo) // max(((hikey - lokey) >> 32), 1)
-                        elif hikey > cython.cast(cython.ulonglong, 0xFFFFFFFF):
-                            hint = lo + ((hkey - lokey) >> 16) * (hi - lo) // max(((hikey - lokey) >> 16), 1)
-                        else:
-                            hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
-                        return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint32:
-                        hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
-                        return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint16:
-                        hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
-                        return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint8:
-                        hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
-                        return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
+        dtype = self._dtype
+        if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
+            #lint:disable
+            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            try:
+                if ( indexbuf.strides == cython.NULL
+                        or indexbuf.len < hi * indexbuf.strides[0] ):
+                    raise ValueError("Invalid buffer state")
+                pindex = cython.cast(cython.p_char, indexbuf.buf)
+                stride0 = indexbuf.strides[0]
+
+                if dtype is npuint64:
+                    # Must be careful about overflow
+                    if hikey > cython.cast(cython.ulonglong, 0xFFFFFFFFFFFF):
+                        hint = lo + ((hkey - lokey) >> 32) * (hi - lo) // max(((hikey - lokey) >> 32), 1)
+                    elif hikey > cython.cast(cython.ulonglong, 0xFFFFFFFF):
+                        hint = lo + ((hkey - lokey) >> 16) * (hi - lo) // max(((hikey - lokey) >> 16), 1)
                     else:
-                        raise AssertionError("Internal error")
-                finally:
-                    PyBuffer_Release(cython.address(indexbuf))
-                #lint:enable
-            else:
-                raise AssertionError("Internal error")
+                        hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
+                    return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint32:
+                    hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
+                    return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint16:
+                    hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
+                    return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint8:
+                    hint = lo + (hkey - lokey) * (hi - lo) // max((hikey - lokey), 1)
+                    return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
+                else:
+                    raise AssertionError("Internal error")
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
+            #lint:enable
         else:
-            dtype = self.dtype
-            struct_dt = numpy.dtype([
-                ('key', dtype),
-                ('value', dtype),
-            ])
-            return self.index.view(struct_dt).reshape(self.index.shape[0]).searchsorted(
-                nparray([(hkey,0)],dtype=struct_dt))[0]
+            raise AssertionError("Internal error")
 
     @cython.ccall
     @cython.locals(
@@ -6459,15 +5966,15 @@ class NumericIdMapper(_CZipMapBase):
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
-            if cython.compiled:
-                if dtype is npuint64:
-                    return _numeric_id_get_gen[cython.ulonglong](self, 0, startpos, hkey, nitems)
-                elif dtype is npuint32:
-                    return _numeric_id_get_gen[cython.uint](self, 0, startpos, hkey, nitems)
-                elif dtype is npuint16:
-                    return _numeric_id_get_gen[cython.ushort](self, 0, startpos, hkey, nitems)
-                elif dtype is npuint8:
-                    return _numeric_id_get_gen[cython.uchar](self, 0, startpos, hkey, nitems)
+
+            if dtype is npuint64:
+                return _numeric_id_get_gen[cython.ulonglong](self, 0, startpos, hkey, nitems)
+            elif dtype is npuint32:
+                return _numeric_id_get_gen[cython.uint](self, 0, startpos, hkey, nitems)
+            elif dtype is npuint16:
+                return _numeric_id_get_gen[cython.ushort](self, 0, startpos, hkey, nitems)
+            elif dtype is npuint8:
+                return _numeric_id_get_gen[cython.uchar](self, 0, startpos, hkey, nitems)
 
             index = self.index
             if startpos < nitems and index[startpos,0] == hkey:
@@ -6872,23 +6379,13 @@ class ObjectIdMapper(_CZipMapBase):
 
         # Compute absolute offset out of relative index
         pos = self._basepos
-        if not cython.compiled:
-            sindex = int(index)
-            if self._dtype_bits != 64 and (sindex & (1 << (self._dtype_bits-1))):
-                # sign-extend
-                sindex |= (~0) & ~((1 << (64 - self._dtype_bits)) - 1)
-
-            if sindex & (1 << 63):
-                # interpret two-s complement in python long arithmetic
-                sindex = -(-sindex & 0xFFFFFFFFFFFFFFFF)
-        else:
-            # reinterpret-cast
-            uindex = index
-            sindex = uindex
-            if self._dtype_bits != 64:
-                # sign-extend
-                sindex <<= 64 - self._dtype_bits
-                sindex >>= 64 - self._dtype_bits
+        # reinterpret-cast
+        uindex = index
+        sindex = uindex
+        if self._dtype_bits != 64:
+            # sign-extend
+            sindex <<= 64 - self._dtype_bits
+            sindex >>= 64 - self._dtype_bits
         return _mapped_object_unpack_from(buf, pos + sindex)
 
     @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer')
@@ -6905,44 +6402,37 @@ class ObjectIdMapper(_CZipMapBase):
             index = self.index
             stride = 3
             offs = 1
-        if cython.compiled:
-            #lint:disable
-            buf = self._likebuf
-            if dtype is npuint64:
-                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
-                try:
-                    if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
-                        raise ValueError("Invalid buffer state")
-                    for i in range(self.index_elements):
-                        yield self._unpack(self._buf,
-                            cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs])
-                finally:
-                    PyBuffer_Release(cython.address(indexbuf))
-            elif dtype is npuint32:
-                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
-                try:
-                    if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
-                        raise ValueError("Invalid buffer state")
-                    for i in range(self.index_elements):
-                        yield self._unpack(self._buf,
-                            cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs])
-                finally:
-                    PyBuffer_Release(cython.address(indexbuf))
-            else:
+
+        #lint:disable
+        buf = self._likebuf
+        if dtype is npuint64:
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
+            try:
+                if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
+                    raise ValueError("Invalid buffer state")
                 for i in range(self.index_elements):
-                    if not make_sequential:
-                        pos = index[i, offs]
-                    else:
-                        pos = index[i]
-                    yield self._unpack(self._buf, pos)
-            #lint:enable
+                    yield self._unpack(self._buf,
+                        cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs])
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
+        elif dtype is npuint32:
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
+            try:
+                if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
+                    raise ValueError("Invalid buffer state")
+                for i in range(self.index_elements):
+                    yield self._unpack(self._buf,
+                        cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs])
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
         else:
             for i in range(self.index_elements):
                 if not make_sequential:
                     pos = index[i, offs]
                 else:
                     pos = index[i]
-                yield self._unpack(buf, pos)
+                yield self._unpack(self._buf, pos)
+        #lint:enable
 
     def __iter__(self):
         return self.iterkeys()
@@ -6968,57 +6458,54 @@ class ObjectIdMapper(_CZipMapBase):
             index = self.index[numpy.argsort(self.index[:,1])]
         else:
             index = self.index
-        if cython.compiled:
-            #lint:disable
-            buf = self._likebuf
-            if dtype is npuint64:
-                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                try:
-                    if ( indexbuf.strides == cython.NULL
-                            or indexbuf.ndim < 2
-                            or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
-                        raise ValueError("Invalid buffer state")
-                    stride0 = indexbuf.strides[0]
-                    stride1 = indexbuf.strides[1]
-                    pindex = cython.cast(cython.p_char, indexbuf.buf)
-                    for i in range(self.index_elements):
-                        yield (
-                            self._unpack(buf,
-                                cython.cast(cython.p_ulonglong, pindex + stride1)[0]),
-                            cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
-                        )
-                        pindex += stride0
-                finally:
-                    PyBuffer_Release(cython.address(indexbuf))
-            elif dtype is npuint32:
-                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                try:
-                    if ( indexbuf.strides == cython.NULL
-                            or indexbuf.ndim < 2
-                            or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
-                        raise ValueError("Invalid buffer state")
-                    stride0 = indexbuf.strides[0]
-                    stride1 = indexbuf.strides[1]
-                    pindex = cython.cast(cython.p_char, indexbuf.buf)
-                    for i in range(self.index_elements):
-                        yield (
-                            self._unpack(buf,
-                                cython.cast(cython.p_uint, pindex + stride1)[0]),
-                            cython.cast(cython.p_uint, pindex + 2*stride1)[0]
-                        )
-                        pindex += stride0
-                finally:
-                    PyBuffer_Release(cython.address(indexbuf))
-            else:
+
+        #lint:disable
+        buf = self._likebuf
+        if dtype is npuint64:
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            try:
+                if ( indexbuf.strides == cython.NULL
+                        or indexbuf.ndim < 2
+                        or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
+                    raise ValueError("Invalid buffer state")
+                stride0 = indexbuf.strides[0]
+                stride1 = indexbuf.strides[1]
+                pindex = cython.cast(cython.p_char, indexbuf.buf)
                 for i in range(self.index_elements):
                     yield (
-                        self._unpack(self._buf, index[i,1]),
-                        index[i,2]
+                        self._unpack(buf,
+                            cython.cast(cython.p_ulonglong, pindex + stride1)[0]),
+                        cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
                     )
-            #lint:enable
+                    pindex += stride0
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
+        elif dtype is npuint32:
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            try:
+                if ( indexbuf.strides == cython.NULL
+                        or indexbuf.ndim < 2
+                        or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
+                    raise ValueError("Invalid buffer state")
+                stride0 = indexbuf.strides[0]
+                stride1 = indexbuf.strides[1]
+                pindex = cython.cast(cython.p_char, indexbuf.buf)
+                for i in range(self.index_elements):
+                    yield (
+                        self._unpack(buf,
+                            cython.cast(cython.p_uint, pindex + stride1)[0]),
+                        cython.cast(cython.p_uint, pindex + 2*stride1)[0]
+                    )
+                    pindex += stride0
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
         else:
             for i in range(self.index_elements):
-                yield (self._unpack(buf, index[i,1]), index[i,2])
+                yield (
+                    self._unpack(self._buf, index[i,1]),
+                    index[i,2]
+                )
+        #lint:enable
 
     def items(self):
         # Bad idea, but hey, if they do this, it means the caller expects the collection to fit in RAM
@@ -7035,46 +6522,37 @@ class ObjectIdMapper(_CZipMapBase):
         lo = 0
         if hi <= lo:
             return hi
-        if cython.compiled:
-            dtype = self._dtype
-            if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
-                #lint:disable
-                PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                try:
-                    if ( indexbuf.strides == cython.NULL
-                            or indexbuf.len < hi * indexbuf.strides[0] ):
-                        raise ValueError("Invalid buffer state")
-                    pindex = cython.cast(cython.p_char, indexbuf.buf)
-                    stride0 = indexbuf.strides[0]
 
-                    if dtype is npuint64:
-                        # A quick guess assuming uniform distribution of keys over the 64-bit value range
-                        hint = (((hkey >> 32) * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint32:
-                        # A quick guess assuming uniform distribution of keys over the 64-bit value range
-                        hint = ((hkey * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint16:
-                        hint = ((hkey * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint8:
-                        hint = ((hkey * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
-                    else:
-                        raise AssertionError("Internal error")
-                finally:
-                    PyBuffer_Release(cython.address(indexbuf))
-                #lint:enable
-        else:
-            dtype = self.dtype
-            struct_dt = numpy.dtype([
-                ('key_hash', dtype),
-                ('key_offset', dtype),
-                ('value', dtype),
-            ])
-            return self.index.view(struct_dt).reshape(self.index.shape[0]).searchsorted(
-                nparray([(hkey,0,0)],dtype=struct_dt))[0]
+        dtype = self._dtype
+        if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
+            #lint:disable
+            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            try:
+                if ( indexbuf.strides == cython.NULL
+                        or indexbuf.len < hi * indexbuf.strides[0] ):
+                    raise ValueError("Invalid buffer state")
+                pindex = cython.cast(cython.p_char, indexbuf.buf)
+                stride0 = indexbuf.strides[0]
+
+                if dtype is npuint64:
+                    # A quick guess assuming uniform distribution of keys over the 64-bit value range
+                    hint = (((hkey >> 32) * (hi-lo)) >> 32) + lo
+                    return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint32:
+                    # A quick guess assuming uniform distribution of keys over the 64-bit value range
+                    hint = ((hkey * (hi-lo)) >> 32) + lo
+                    return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint16:
+                    hint = ((hkey * (hi-lo)) >> 32) + lo
+                    return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint8:
+                    hint = ((hkey * (hi-lo)) >> 32) + lo
+                    return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
+                else:
+                    raise AssertionError("Internal error")
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
+            #lint:enable
 
     @cython.ccall
     def _compare_keys(self, buf, offs, key):
@@ -7093,20 +6571,20 @@ class ObjectIdMapper(_CZipMapBase):
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
-            if cython.compiled:
-                buf = self._likebuf
-                if dtype is npuint64:
-                    return _obj_id_get_gen[cython.ulonglong](
-                        self, 0, startpos, hkey, key, default)
-                elif dtype is npuint32:
-                    return _obj_id_get_gen[cython.uint](
-                        self, 0, startpos, hkey, key, default)
-                elif dtype is npuint16:
-                    return _obj_id_get_gen[cython.ushort](
-                        self, 0, startpos, hkey, key, default)
-                elif dtype is npuint8:
-                    return _obj_id_get_gen[cython.uchar](
-                        self, 0, startpos, hkey, key, default)
+
+            buf = self._likebuf
+            if dtype is npuint64:
+                return _obj_id_get_gen[cython.ulonglong](
+                    self, 0, startpos, hkey, key, default)
+            elif dtype is npuint32:
+                return _obj_id_get_gen[cython.uint](
+                    self, 0, startpos, hkey, key, default)
+            elif dtype is npuint16:
+                return _obj_id_get_gen[cython.ushort](
+                    self, 0, startpos, hkey, key, default)
+            elif dtype is npuint8:
+                return _obj_id_get_gen[cython.uchar](
+                    self, 0, startpos, hkey, key, default)
 
             index = self.index
             while startpos < nitems and index[startpos,0] == hkey:
@@ -7193,8 +6671,6 @@ class ObjectIdMapper(_CZipMapBase):
                     # Must cast into unsigned, since idmapper dtypes are always unsigned,
                     # but object relative offsets might be negative
                     ukpos = kpos
-                    if not cython.compiled:
-                        ukpos &= dtypemax
 
                     part.append((_stable_hash(k), ukpos, i))
                 else:
@@ -7422,47 +6898,44 @@ class StringIdMapper(_CZipMapBase):
             index = self.index
             stride = 3
             offs = 1
-        if cython.compiled:
-            #lint:disable
-            buf = self._likebuf
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-            try:
-                if dtype is npuint64:
-                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
-                    try:
-                        if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
-                            raise ValueError("Invalid buffer state")
-                        for i in range(self.index_elements):
-                            yield _unpack_bytes_from_cbuffer(
-                                cython.cast(cython.p_char, pybuf.buf),
-                                cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs],
-                                pybuf.len, None)
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
-                elif dtype is npuint32:
-                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
-                    try:
-                        if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
-                            raise ValueError("Invalid buffer state")
-                        for i in range(self.index_elements):
-                            yield _unpack_bytes_from_cbuffer(
-                                cython.cast(cython.p_char, pybuf.buf),
-                                cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs],
-                                pybuf.len, None)
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
-                else:
+
+        #lint:disable
+        buf = self._likebuf
+        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+        try:
+            if dtype is npuint64:
+                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
+                try:
+                    if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.ulonglong)):
+                        raise ValueError("Invalid buffer state")
                     for i in range(self.index_elements):
                         yield _unpack_bytes_from_cbuffer(
                             cython.cast(cython.p_char, pybuf.buf),
-                            index[i],
+                            cython.cast(cython.p_ulonglong, indexbuf.buf)[i*stride+offs],
                             pybuf.len, None)
-            finally:
-                PyBuffer_Release(cython.address(pybuf))
-            #lint:enable
-        else:
-            for i in range(self.index_elements):
-                yield _unpack_bytes_from_pybuffer(buf, index[i], None)
+                finally:
+                    PyBuffer_Release(cython.address(indexbuf))
+            elif dtype is npuint32:
+                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_SIMPLE)
+                try:
+                    if indexbuf.len < (self.index_elements * stride * cython.sizeof(cython.uint)):
+                        raise ValueError("Invalid buffer state")
+                    for i in range(self.index_elements):
+                        yield _unpack_bytes_from_cbuffer(
+                            cython.cast(cython.p_char, pybuf.buf),
+                            cython.cast(cython.p_uint, indexbuf.buf)[i*stride+offs],
+                            pybuf.len, None)
+                finally:
+                    PyBuffer_Release(cython.address(indexbuf))
+            else:
+                for i in range(self.index_elements):
+                    yield _unpack_bytes_from_cbuffer(
+                        cython.cast(cython.p_char, pybuf.buf),
+                        index[i],
+                        pybuf.len, None)
+        finally:
+            PyBuffer_Release(cython.address(pybuf))
+        #lint:enable
 
     def __iter__(self):
         return self.iterkeys()
@@ -7488,68 +6961,65 @@ class StringIdMapper(_CZipMapBase):
             index = self.index[numpy.argsort(self.index[:,1])]
         else:
             index = self.index
-        if cython.compiled:
-            #lint:disable
-            buf = self._likebuf
-            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-            try:
-                if dtype is npuint64:
-                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                    try:
-                        if ( indexbuf.strides == cython.NULL
-                                or indexbuf.ndim < 2
-                                or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
-                            raise ValueError("Invalid buffer state")
-                        stride0 = indexbuf.strides[0]
-                        stride1 = indexbuf.strides[1]
-                        pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in range(self.index_elements):
-                            yield (
-                                _unpack_bytes_from_cbuffer(
-                                    cython.cast(cython.p_char, pybuf.buf),
-                                    cython.cast(cython.p_ulonglong, pindex + stride1)[0],
-                                    pybuf.len, None),
-                                cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
-                            )
-                            pindex += stride0
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
-                elif dtype is npuint32:
-                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                    try:
-                        if ( indexbuf.strides == cython.NULL
-                                or indexbuf.ndim < 2
-                                or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
-                            raise ValueError("Invalid buffer state")
-                        stride0 = indexbuf.strides[0]
-                        stride1 = indexbuf.strides[1]
-                        pindex = cython.cast(cython.p_char, indexbuf.buf)
-                        for i in range(self.index_elements):
-                            yield (
-                                _unpack_bytes_from_cbuffer(
-                                    cython.cast(cython.p_char, pybuf.buf),
-                                    cython.cast(cython.p_uint, pindex + stride1)[0],
-                                    pybuf.len, None),
-                                cython.cast(cython.p_uint, pindex + 2*stride1)[0]
-                            )
-                            pindex += stride0
-                    finally:
-                        PyBuffer_Release(cython.address(indexbuf))
-                else:
+
+        #lint:disable
+        buf = self._likebuf
+        PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+        try:
+            if dtype is npuint64:
+                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                try:
+                    if ( indexbuf.strides == cython.NULL
+                            or indexbuf.ndim < 2
+                            or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
+                        raise ValueError("Invalid buffer state")
+                    stride0 = indexbuf.strides[0]
+                    stride1 = indexbuf.strides[1]
+                    pindex = cython.cast(cython.p_char, indexbuf.buf)
                     for i in range(self.index_elements):
                         yield (
                             _unpack_bytes_from_cbuffer(
                                 cython.cast(cython.p_char, pybuf.buf),
-                                index[i,1],
+                                cython.cast(cython.p_ulonglong, pindex + stride1)[0],
                                 pybuf.len, None),
-                            index[i,2]
+                            cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
                         )
-            finally:
-                PyBuffer_Release(cython.address(pybuf))
-            #lint:enable
-        else:
-            for i in range(self.index_elements):
-                yield (_unpack_bytes_from_pybuffer(buf, index[i,1], None), index[i,2])
+                        pindex += stride0
+                finally:
+                    PyBuffer_Release(cython.address(indexbuf))
+            elif dtype is npuint32:
+                PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                try:
+                    if ( indexbuf.strides == cython.NULL
+                            or indexbuf.ndim < 2
+                            or indexbuf.len < self.index_elements * indexbuf.strides[0] ):
+                        raise ValueError("Invalid buffer state")
+                    stride0 = indexbuf.strides[0]
+                    stride1 = indexbuf.strides[1]
+                    pindex = cython.cast(cython.p_char, indexbuf.buf)
+                    for i in range(self.index_elements):
+                        yield (
+                            _unpack_bytes_from_cbuffer(
+                                cython.cast(cython.p_char, pybuf.buf),
+                                cython.cast(cython.p_uint, pindex + stride1)[0],
+                                pybuf.len, None),
+                            cython.cast(cython.p_uint, pindex + 2*stride1)[0]
+                        )
+                        pindex += stride0
+                finally:
+                    PyBuffer_Release(cython.address(indexbuf))
+            else:
+                for i in range(self.index_elements):
+                    yield (
+                        _unpack_bytes_from_cbuffer(
+                            cython.cast(cython.p_char, pybuf.buf),
+                            index[i,1],
+                            pybuf.len, None),
+                        index[i,2]
+                    )
+        finally:
+            PyBuffer_Release(cython.address(pybuf))
+        #lint:enable
 
     def items(self):
         # Bad idea, but hey, if they do this, it means the caller expects the collection to fit in RAM
@@ -7566,46 +7036,37 @@ class StringIdMapper(_CZipMapBase):
         lo = 0
         if hi <= lo:
             return hi
-        if cython.compiled:
-            dtype = self._dtype
-            if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
-                #lint:disable
-                PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                try:
-                    if ( indexbuf.strides == cython.NULL
-                            or indexbuf.len < hi * indexbuf.strides[0] ):
-                        raise ValueError("Invalid buffer state")
-                    pindex = cython.cast(cython.p_char, indexbuf.buf)
-                    stride0 = indexbuf.strides[0]
 
-                    if dtype is npuint64:
-                        # A quick guess assuming uniform distribution of keys over the 64-bit value range
-                        hint = (((hkey >> 32) * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint32:
-                        # A quick guess assuming uniform distribution of keys over the 64-bit value range
-                        hint = ((hkey * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint16:
-                        hint = ((hkey * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
-                    elif dtype is npuint8:
-                        hint = ((hkey * (hi-lo)) >> 32) + lo
-                        return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
-                    else:
-                        raise AssertionError("Internal error")
-                finally:
-                    PyBuffer_Release(cython.address(indexbuf))
-                #lint:enable
-        else:
-            dtype = self.dtype
-            struct_dt = numpy.dtype([
-                ('key_hash', dtype),
-                ('key_offset', dtype),
-                ('value', dtype),
-            ])
-            return self.index.view(struct_dt).reshape(self.index.shape[0]).searchsorted(
-                nparray([(hkey,0,0)],dtype=struct_dt))[0]
+        dtype = self._dtype
+        if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
+            #lint:disable
+            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            try:
+                if ( indexbuf.strides == cython.NULL
+                        or indexbuf.len < hi * indexbuf.strides[0] ):
+                    raise ValueError("Invalid buffer state")
+                pindex = cython.cast(cython.p_char, indexbuf.buf)
+                stride0 = indexbuf.strides[0]
+
+                if dtype is npuint64:
+                    # A quick guess assuming uniform distribution of keys over the 64-bit value range
+                    hint = (((hkey >> 32) * (hi-lo)) >> 32) + lo
+                    return _c_search_hkey_ui64(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint32:
+                    # A quick guess assuming uniform distribution of keys over the 64-bit value range
+                    hint = ((hkey * (hi-lo)) >> 32) + lo
+                    return _c_search_hkey_ui32(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint16:
+                    hint = ((hkey * (hi-lo)) >> 32) + lo
+                    return _c_search_hkey_ui16(hkey, pindex, stride0, hi, hint, True)
+                elif dtype is npuint8:
+                    hint = ((hkey * (hi-lo)) >> 32) + lo
+                    return _c_search_hkey_ui8(hkey, pindex, stride0, hi, hint, True)
+                else:
+                    raise AssertionError("Internal error")
+            finally:
+                PyBuffer_Release(cython.address(indexbuf))
+            #lint:enable
 
     @cython.ccall
     @cython.locals(
@@ -7625,47 +7086,42 @@ class StringIdMapper(_CZipMapBase):
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
-            if cython.compiled:
-                pbkey = bkey
-                blen = len(bkey)
-                #lint:disable
-                buf = self._likebuf
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-                try:
-                    if dtype is npuint64:
-                        return _str_id_get_gen[cython.ulonglong](
-                            self, 0, pbkey, blen, startpos, hkey,
-                            cython.cast(p_char, pybuf.buf), pybuf.len, default)
-                    elif dtype is npuint32:
-                        return _str_id_get_gen[cython.uint](
-                            self, 0, pbkey, blen, startpos, hkey,
-                            cython.cast(p_char, pybuf.buf), pybuf.len, default)
-                    elif dtype is npuint16:
-                        return _str_id_get_gen[cython.ushort](
-                            self, 0, pbkey, blen, startpos, hkey,
-                            cython.cast(p_char, pybuf.buf), pybuf.len, default)
-                    elif dtype is npuint8:
-                        return _str_id_get_gen[cython.uchar](
-                            self, 0, pbkey, blen, startpos, hkey,
-                            cython.cast(p_char, pybuf.buf), pybuf.len, default)
-                    else:
-                        index = self.index
-                        while startpos < nitems and index[startpos,0] == hkey:
-                            if _compare_bytes_from_cbuffer(pbkey, blen,
-                                    cython.cast(cython.p_char, pybuf.buf),
-                                    self.index[startpos,1],
-                                    pybuf.len) == bkey:
-                                return index[startpos,2]
-                            startpos += 1
-                finally:
-                    PyBuffer_Release(cython.address(pybuf))
-                #lint:enable
-            else:
-                index = self.index
-                while startpos < nitems and index[startpos,0] == hkey:
-                    if _unpack_bytes_from_pybuffer(buf, index[startpos,1], None) == bkey:
-                        return index[startpos,2]
-                    startpos += 1
+
+            pbkey = bkey
+            blen = len(bkey)
+            #lint:disable
+            buf = self._likebuf
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+            try:
+                if dtype is npuint64:
+                    return _str_id_get_gen[cython.ulonglong](
+                        self, 0, pbkey, blen, startpos, hkey,
+                        cython.cast(p_char, pybuf.buf), pybuf.len, default)
+                elif dtype is npuint32:
+                    return _str_id_get_gen[cython.uint](
+                        self, 0, pbkey, blen, startpos, hkey,
+                        cython.cast(p_char, pybuf.buf), pybuf.len, default)
+                elif dtype is npuint16:
+                    return _str_id_get_gen[cython.ushort](
+                        self, 0, pbkey, blen, startpos, hkey,
+                        cython.cast(p_char, pybuf.buf), pybuf.len, default)
+                elif dtype is npuint8:
+                    return _str_id_get_gen[cython.uchar](
+                        self, 0, pbkey, blen, startpos, hkey,
+                        cython.cast(p_char, pybuf.buf), pybuf.len, default)
+                else:
+                    index = self.index
+                    while startpos < nitems and index[startpos,0] == hkey:
+                        if _compare_bytes_from_cbuffer(pbkey, blen,
+                                cython.cast(cython.p_char, pybuf.buf),
+                                self.index[startpos,1],
+                                pybuf.len) == bkey:
+                            return index[startpos,2]
+                        startpos += 1
+            finally:
+                PyBuffer_Release(cython.address(pybuf))
+            #lint:enable
+
         return default
 
     @classmethod
@@ -7905,19 +7361,19 @@ class NumericIdMultiMapper(NumericIdMapper):
         rv = []
         if 0 <= startpos < nitems:
             dtype = self._dtype
-            if cython.compiled:
-                if dtype is npuint64:
-                    return _numeric_id_multi_get_gen[cython.ulonglong](
-                        self, 0, rv, hkey, startpos, default)
-                elif dtype is npuint32:
-                    return _numeric_id_multi_get_gen[cython.uint](
-                        self, 0, rv, hkey, startpos, default)
-                elif dtype is npuint16:
-                    return _numeric_id_multi_get_gen[cython.ushort](
-                        self, 0, rv, hkey, startpos, default)
-                elif dtype is npuint8:
-                    return _numeric_id_multi_get_gen[cython.uchar](
-                        self, 0, rv, hkey, startpos, default)
+
+            if dtype is npuint64:
+                return _numeric_id_multi_get_gen[cython.ulonglong](
+                    self, 0, rv, hkey, startpos, default)
+            elif dtype is npuint32:
+                return _numeric_id_multi_get_gen[cython.uint](
+                    self, 0, rv, hkey, startpos, default)
+            elif dtype is npuint16:
+                return _numeric_id_multi_get_gen[cython.ushort](
+                    self, 0, rv, hkey, startpos, default)
+            elif dtype is npuint8:
+                return _numeric_id_multi_get_gen[cython.uchar](
+                    self, 0, rv, hkey, startpos, default)
 
             index = self.index
             while startpos < nitems and index[startpos,0] == hkey:
@@ -7949,19 +7405,19 @@ class NumericIdMultiMapper(NumericIdMapper):
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
-            if cython.compiled:
-                if dtype is npuint64:
-                    return _numeric_id_multi_has_gen[cython.ulonglong](
-                        self, 0, startpos, hkey)
-                elif dtype is npuint32:
-                    return _numeric_id_multi_has_gen[cython.uint](
-                        self, 0, startpos, hkey)
-                elif dtype is npuint16:
-                    return _numeric_id_multi_has_gen[cython.ushort](
-                        self, 0, startpos, hkey)
-                elif dtype is npuint8:
-                    return _numeric_id_multi_has_gen[cython.uchar](
-                        self, 0, startpos, hkey)
+
+            if dtype is npuint64:
+                return _numeric_id_multi_has_gen[cython.ulonglong](
+                    self, 0, startpos, hkey)
+            elif dtype is npuint32:
+                return _numeric_id_multi_has_gen[cython.uint](
+                    self, 0, startpos, hkey)
+            elif dtype is npuint16:
+                return _numeric_id_multi_has_gen[cython.ushort](
+                    self, 0, startpos, hkey)
+            elif dtype is npuint8:
+                return _numeric_id_multi_has_gen[cython.uchar](
+                    self, 0, startpos, hkey)
 
             index = self.index
             return startpos < nitems and index[startpos,0] == hkey
@@ -7990,56 +7446,51 @@ class NumericIdMultiMapper(NumericIdMapper):
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
-            if cython.compiled:
-                #lint:disable
-                buf = self._likebuf
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-                try:
-                    if dtype is npuint64:
-                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                        try:
-                            if ( indexbuf.strides == cython.NULL
-                                    or indexbuf.ndim < 2
-                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
-                                raise ValueError("Invalid buffer state")
-                            stride0 = indexbuf.strides[0]
-                            stride1 = indexbuf.strides[1]
-                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
-                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
-                            while pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
-                                yield cython.cast(cython.p_ulonglong, pindex + stride1)[0]
-                                pindex += stride0
-                        finally:
-                            PyBuffer_Release(cython.address(indexbuf))
-                    elif dtype is npuint32:
-                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                        try:
-                            if ( indexbuf.strides == cython.NULL
-                                    or indexbuf.ndim < 2
-                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
-                                raise ValueError("Invalid buffer state")
-                            stride0 = indexbuf.strides[0]
-                            stride1 = indexbuf.strides[1]
-                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
-                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
-                            while pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
-                                yield cython.cast(cython.p_uint, pindex + stride1)[0]
-                                pindex += stride0
-                        finally:
-                            PyBuffer_Release(cython.address(indexbuf))
-                    else:
-                        index = self.index
-                        while startpos < nitems and index[startpos,0] == hkey:
-                            yield index[startpos,1]
-                            startpos += 1
-                finally:
-                    PyBuffer_Release(cython.address(pybuf))
-                #lint:enable
-            else:
-                index = self.index
-                while startpos < nitems and index[startpos,0] == hkey:
-                    yield index[startpos,1]
-                    startpos += 1
+
+            #lint:disable
+            buf = self._likebuf
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+            try:
+                if dtype is npuint64:
+                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    try:
+                        if ( indexbuf.strides == cython.NULL
+                                or indexbuf.ndim < 2
+                                or indexbuf.len < nitems * indexbuf.strides[0] ):
+                            raise ValueError("Invalid buffer state")
+                        stride0 = indexbuf.strides[0]
+                        stride1 = indexbuf.strides[1]
+                        pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                        pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                        while pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
+                            yield cython.cast(cython.p_ulonglong, pindex + stride1)[0]
+                            pindex += stride0
+                    finally:
+                        PyBuffer_Release(cython.address(indexbuf))
+                elif dtype is npuint32:
+                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    try:
+                        if ( indexbuf.strides == cython.NULL
+                                or indexbuf.ndim < 2
+                                or indexbuf.len < nitems * indexbuf.strides[0] ):
+                            raise ValueError("Invalid buffer state")
+                        stride0 = indexbuf.strides[0]
+                        stride1 = indexbuf.strides[1]
+                        pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                        pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                        while pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
+                            yield cython.cast(cython.p_uint, pindex + stride1)[0]
+                            pindex += stride0
+                    finally:
+                        PyBuffer_Release(cython.address(indexbuf))
+                else:
+                    index = self.index
+                    while startpos < nitems and index[startpos,0] == hkey:
+                        yield index[startpos,1]
+                        startpos += 1
+            finally:
+                PyBuffer_Release(cython.address(pybuf))
+            #lint:enable
 
 @cython.cclass
 class NumericId32MultiMapper(NumericIdMultiMapper):
@@ -8136,49 +7587,42 @@ class StringIdMultiMapper(StringIdMapper):
             buf = self._buf
             rv = []
             dtype = self._dtype
-            if cython.compiled:
-                pbkey = bkey
-                blen = len(bkey)
-                #lint:disable
-                buf = self._likebuf
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-                try:
-                    if dtype is npuint64:
-                        return _str_id_multi_get_gen[cython.ulonglong](
-                            self, 0, rv, pbkey, blen, startpos, hkey,
-                            cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
-                    elif dtype is npuint32:
-                        return _str_id_multi_get_gen[cython.uint](
-                            self, 0, rv, pbkey, blen, startpos, hkey,
-                            cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
-                    elif dtype is npuint16:
-                        return _str_id_multi_get_gen[cython.ushort](
-                            self, 0, rv, pbkey, blen, startpos, hkey,
-                            cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
-                    elif dtype is npuint8:
-                        return _str_id_multi_get_gen[cython.uchar](
-                            self, 0, rv, pbkey, blen, startpos, hkey,
-                            cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
-                    else:
-                        index = self.index
-                        while startpos < nitems and index[startpos,0] == hkey:
-                            if _compare_bytes_from_cbuffer(pbkey, blen,
-                                    cython.cast(cython.p_char, pybuf.buf),
-                                    self.index[startpos,1],
-                                    pybuf.len) == bkey:
-                                rv.append(index[startpos,2])
-                            startpos += 1
-                finally:
-                    PyBuffer_Release(cython.address(pybuf))
-                #lint:enable
-            else:
-                index = self.index
-                while startpos < nitems and index[startpos,0] == hkey:
-                    if _unpack_bytes_from_pybuffer(buf, index[startpos,1], None) == bkey:
-                        rv.append(index[startpos,2])
-                    startpos += 1
-                if rv:
-                    return rv
+
+            pbkey = bkey
+            blen = len(bkey)
+            #lint:disable
+            buf = self._likebuf
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+            try:
+                if dtype is npuint64:
+                    return _str_id_multi_get_gen[cython.ulonglong](
+                        self, 0, rv, pbkey, blen, startpos, hkey,
+                        cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
+                elif dtype is npuint32:
+                    return _str_id_multi_get_gen[cython.uint](
+                        self, 0, rv, pbkey, blen, startpos, hkey,
+                        cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
+                elif dtype is npuint16:
+                    return _str_id_multi_get_gen[cython.ushort](
+                        self, 0, rv, pbkey, blen, startpos, hkey,
+                        cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
+                elif dtype is npuint8:
+                    return _str_id_multi_get_gen[cython.uchar](
+                        self, 0, rv, pbkey, blen, startpos, hkey,
+                        cython.cast(cython.p_char, pybuf.buf), pybuf.len, default)
+                else:
+                    index = self.index
+                    while startpos < nitems and index[startpos,0] == hkey:
+                        if _compare_bytes_from_cbuffer(pbkey, blen,
+                                cython.cast(cython.p_char, pybuf.buf),
+                                self.index[startpos,1],
+                                pybuf.len) == bkey:
+                            rv.append(index[startpos,2])
+                        startpos += 1
+            finally:
+                PyBuffer_Release(cython.address(pybuf))
+            #lint:enable
+
         return default
 
     @cython.locals(
@@ -8202,71 +7646,66 @@ class StringIdMultiMapper(StringIdMapper):
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
-            if cython.compiled:
-                pbkey = bkey
-                blen = len(bkey)
-                #lint:disable
-                buf = self._likebuf
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-                try:
-                    if dtype is npuint64:
-                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                        try:
-                            if ( indexbuf.strides == cython.NULL
-                                    or indexbuf.ndim < 2
-                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
-                                raise ValueError("Invalid buffer state")
-                            stride0 = indexbuf.strides[0]
-                            stride1 = indexbuf.strides[1]
-                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
-                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
-                            while pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
-                                if _compare_bytes_from_cbuffer(pbkey, blen,
-                                        cython.cast(cython.p_char, pybuf.buf),
-                                        cython.cast(cython.p_ulonglong, pindex + stride1)[0],
-                                        pybuf.len):
-                                    yield cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
-                                pindex += stride0
-                        finally:
-                            PyBuffer_Release(cython.address(indexbuf))
-                    elif dtype is npuint32:
-                        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
-                        try:
-                            if ( indexbuf.strides == cython.NULL
-                                    or indexbuf.ndim < 2
-                                    or indexbuf.len < nitems * indexbuf.strides[0] ):
-                                raise ValueError("Invalid buffer state")
-                            stride0 = indexbuf.strides[0]
-                            stride1 = indexbuf.strides[1]
-                            pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
-                            pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
-                            while pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
-                                if _compare_bytes_from_cbuffer(pbkey, blen,
-                                        cython.cast(cython.p_char, pybuf.buf),
-                                        cython.cast(cython.p_uint, pindex + stride1)[0],
-                                        pybuf.len):
-                                    yield cython.cast(cython.p_uint, pindex + 2*stride1)[0]
-                                pindex += stride0
-                        finally:
-                            PyBuffer_Release(cython.address(indexbuf))
-                    else:
-                        index = self.index
-                        while startpos < nitems and index[startpos,0] == hkey:
+
+            pbkey = bkey
+            blen = len(bkey)
+            #lint:disable
+            buf = self._likebuf
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+            try:
+                if dtype is npuint64:
+                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    try:
+                        if ( indexbuf.strides == cython.NULL
+                                or indexbuf.ndim < 2
+                                or indexbuf.len < nitems * indexbuf.strides[0] ):
+                            raise ValueError("Invalid buffer state")
+                        stride0 = indexbuf.strides[0]
+                        stride1 = indexbuf.strides[1]
+                        pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                        pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                        while pindex < pindexend and cython.cast(cython.p_ulonglong, pindex)[0] == hkey:
                             if _compare_bytes_from_cbuffer(pbkey, blen,
                                     cython.cast(cython.p_char, pybuf.buf),
-                                    self.index[startpos,1],
-                                    pybuf.len) == bkey:
-                                yield index[startpos,2]
-                            startpos += 1
-                finally:
-                    PyBuffer_Release(cython.address(pybuf))
-                #lint:enable
-            else:
-                index = self.index
-                while startpos < nitems and index[startpos,0] == hkey:
-                    if _unpack_bytes_from_pybuffer(buf, index[startpos,1], None) == bkey:
-                        yield index[startpos,2]
-                    startpos += 1
+                                    cython.cast(cython.p_ulonglong, pindex + stride1)[0],
+                                    pybuf.len):
+                                yield cython.cast(cython.p_ulonglong, pindex + 2*stride1)[0]
+                            pindex += stride0
+                    finally:
+                        PyBuffer_Release(cython.address(indexbuf))
+                elif dtype is npuint32:
+                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    try:
+                        if ( indexbuf.strides == cython.NULL
+                                or indexbuf.ndim < 2
+                                or indexbuf.len < nitems * indexbuf.strides[0] ):
+                            raise ValueError("Invalid buffer state")
+                        stride0 = indexbuf.strides[0]
+                        stride1 = indexbuf.strides[1]
+                        pindex = cython.cast(cython.p_char, indexbuf.buf) + startpos * stride0
+                        pindexend = cython.cast(cython.p_char, indexbuf.buf) + indexbuf.len - stride0 + 1
+                        while pindex < pindexend and cython.cast(cython.p_uint, pindex)[0] == hkey:
+                            if _compare_bytes_from_cbuffer(pbkey, blen,
+                                    cython.cast(cython.p_char, pybuf.buf),
+                                    cython.cast(cython.p_uint, pindex + stride1)[0],
+                                    pybuf.len):
+                                yield cython.cast(cython.p_uint, pindex + 2*stride1)[0]
+                            pindex += stride0
+                    finally:
+                        PyBuffer_Release(cython.address(indexbuf))
+                else:
+                    index = self.index
+                    while startpos < nitems and index[startpos,0] == hkey:
+                        if _compare_bytes_from_cbuffer(pbkey, blen,
+                                cython.cast(cython.p_char, pybuf.buf),
+                                self.index[startpos,1],
+                                pybuf.len) == bkey:
+                            yield index[startpos,2]
+                        startpos += 1
+            finally:
+                PyBuffer_Release(cython.address(pybuf))
+            #lint:enable
+
 
     def __contains__(self, key):
         return self.has_key(key)
@@ -8290,46 +7729,39 @@ class StringIdMultiMapper(StringIdMapper):
         if 0 <= startpos < nitems:
             buf = self._buf
             dtype = self._dtype
-            if cython.compiled:
-                pbkey = bkey
-                blen = len(bkey)
-                buf = self._likebuf
-                PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
-                try:
-                    if dtype is npuint64:
-                        return _str_id_multi_has_gen[cython.ulonglong](
-                            self, 0, pbkey, blen, startpos, hkey,
-                            cython.cast(cython.p_char, pybuf.buf), pybuf.len)
-                    elif dtype is npuint32:
-                        return _str_id_multi_has_gen[cython.uint](
-                            self, 0, pbkey, blen, startpos, hkey,
-                            cython.cast(cython.p_char, pybuf.buf), pybuf.len)
-                    elif dtype is npuint16:
-                        return _str_id_multi_has_gen[cython.ushort](
-                            self, 0, pbkey, blen, startpos, hkey,
-                            cython.cast(cython.p_char, pybuf.buf), pybuf.len)
-                    elif dtype is npuint8:
-                        return _str_id_multi_has_gen[cython.uchar](
-                            self, 0, pbkey, blen, startpos, hkey,
-                            cython.cast(cython.p_char, pybuf.buf), pybuf.len)
-                    else:
-                        index = self.index
-                        while startpos < nitems and index[startpos,0] == hkey:
-                            if _compare_bytes_from_cbuffer(pbkey, blen,
-                                    cython.cast(cython.p_char, pybuf.buf),
-                                    self.index[startpos,1],
-                                    pybuf.len) == bkey:
-                                return True
-                            startpos += 1
-                finally:
-                    PyBuffer_Release(cython.address(pybuf))
-                #lint:enable
-            else:
-                index = self.index
-                while startpos < nitems and index[startpos,0] == hkey:
-                    if _unpack_bytes_from_pybuffer(buf, index[startpos,1], None) == bkey:
-                        return True
-                    startpos += 1
+            pbkey = bkey
+            blen = len(bkey)
+            buf = self._likebuf
+            PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
+            try:
+                if dtype is npuint64:
+                    return _str_id_multi_has_gen[cython.ulonglong](
+                        self, 0, pbkey, blen, startpos, hkey,
+                        cython.cast(cython.p_char, pybuf.buf), pybuf.len)
+                elif dtype is npuint32:
+                    return _str_id_multi_has_gen[cython.uint](
+                        self, 0, pbkey, blen, startpos, hkey,
+                        cython.cast(cython.p_char, pybuf.buf), pybuf.len)
+                elif dtype is npuint16:
+                    return _str_id_multi_has_gen[cython.ushort](
+                        self, 0, pbkey, blen, startpos, hkey,
+                        cython.cast(cython.p_char, pybuf.buf), pybuf.len)
+                elif dtype is npuint8:
+                    return _str_id_multi_has_gen[cython.uchar](
+                        self, 0, pbkey, blen, startpos, hkey,
+                        cython.cast(cython.p_char, pybuf.buf), pybuf.len)
+                else:
+                    index = self.index
+                    while startpos < nitems and index[startpos,0] == hkey:
+                        if _compare_bytes_from_cbuffer(pbkey, blen,
+                                cython.cast(cython.p_char, pybuf.buf),
+                                self.index[startpos,1],
+                                pybuf.len) == bkey:
+                            return True
+                        startpos += 1
+            finally:
+                PyBuffer_Release(cython.address(pybuf))
+            #lint:enable
         return False
 
 @cython.cclass
@@ -8666,5 +8098,3 @@ class MappedMultiMappingProxyBase(MappedMappingProxyBase):
     def get_iter(self, key):
         for ix in self.id_mapper.get_iter(key):
             yield self.value_array[ix]
-
-_cythonized = cython.compiled
