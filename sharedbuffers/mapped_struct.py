@@ -4754,7 +4754,7 @@ class GenericFileMapper(_ZipMapBase):
         else:
             access = mmap.ACCESS_WRITE
         buf = mmap.mmap(fileobj.fileno(), size + offset - map_start,
-            access = access, offset = map_start)
+            flags = mmap.MAP_SHARED, access = access, offset = map_start)
         return buffer_with_offset(buf, offset - map_start, size), buf
 
 class MappedArrayProxyBase(_ZipMapBase):
@@ -5059,7 +5059,7 @@ class MappedArrayProxyBase(_ZipMapBase):
         else:
             fileno = fileobj.fileno()
         buf = mmap.mmap(fileno, total_size + offset - map_start,
-            access = access, offset = map_start)
+            flags = mmap.MAP_SHARED, access = access, offset = map_start)
         rv = cls(buffer_with_offset(buf, offset - map_start, total_size))
         rv._file = fileobj
         rv._mmap = buf
@@ -6188,7 +6188,7 @@ class NumericIdMapper(_CZipMapBase):
             fileno = fileobj._file.fileno()
         else:
             fileno = fileobj.fileno()
-        buf = mmap.mmap(fileno, map_size, access = access, offset = map_start)
+        buf = mmap.mmap(fileno, map_size, flags = mmap.MAP_SHARED, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
         return rv
@@ -6763,7 +6763,7 @@ class ObjectIdMapper(_CZipMapBase):
             access = mmap.ACCESS_READ
         else:
             access = mmap.ACCESS_WRITE
-        buf = mmap.mmap(fileobj.fileno(), map_size, access = access, offset = map_start)
+        buf = mmap.mmap(fileobj.fileno(), map_size, flags = mmap.MAP_SHARED, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
         return rv
@@ -7257,7 +7257,7 @@ class StringIdMapper(_CZipMapBase):
             fileno = fileobj._file.fileno()
         else:
             fileno = fileobj.fileno()
-        buf = mmap.mmap(fileno, map_size, access = access, offset = map_start)
+        buf = mmap.mmap(fileno, map_size, flags = mmap.MAP_SHARED, access = access, offset = map_start)
         rv = cls(buf, offset - map_start)
         rv._file = fileobj
         return rv
