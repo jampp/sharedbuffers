@@ -137,6 +137,7 @@ class BaseObjectPool(object):
                 f.truncate(self.section_size)
                 buf = mmap.mmap(
                     f.fileno(), 0,
+                    flags = mmap.MAP_SHARED,
                     access = mmap.ACCESS_WRITE)
                 new_section = Section(buf, implicit_offs, self.idmap_kwargs)
                 new_section.fileobj = f

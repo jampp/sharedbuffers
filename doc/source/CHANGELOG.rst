@@ -14,6 +14,11 @@ Changed
 - BTS-90_: Migrate sharedbuffers to Python 3
 - BTS-619_: Remove pure python stuff
 
+Technical Tasks
+---------------
+
+- BTS-618_: Make mmap ``flags = MAP_SHARED`` explicit to avoid confusions
+
 v0.9.2 - Unreleased
 ===================
 
@@ -449,3 +454,4 @@ Added
 
 .. _BTS-90: https://jampphq.atlassian.net/browse/BTS-90
 .. _BTS-619: https://jampphq.atlassian.net/browse/BTS-619
+.. _BTS-618: https://jampphq.atlassian.net/browse/BTS-618
