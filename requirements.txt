@@ -1,6 +1,6 @@
 lz4
 xxhash
-numpy<1.17.0
+numpy
 Cython>=0.29
 six
 clru
