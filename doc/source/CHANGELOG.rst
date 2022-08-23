@@ -5,7 +5,7 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
-v1.0.0 - Unreleased
+v1.0.0 - 2022-08-23
 ===================
 
 Changed
@@ -14,20 +14,17 @@ Changed
 - BTS-90_: Migrate sharedbuffers to Python 3
 - BTS-619_: Remove pure python stuff
 
-Technical Tasks
----------------
-
-- BTS-618_: Make mmap ``flags = MAP_SHARED`` explicit to avoid confusions
-
-v0.9.2 - Unreleased
-===================
-
 Bugfixes
 --------
 
 - Fix buffer acquisition error handling to prevent the possibility of
   double-release or other buffer reference mismanagement if an error
   happens during the GetBuffer call.
+
+Technical Tasks
+---------------
+
+- BTS-618_: Make mmap ``flags = MAP_SHARED`` explicit to avoid confusions
 
 v0.9.1 - 2021-03-25
 ===================
