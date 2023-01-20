@@ -5,6 +5,14 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
+v1.0.1 - Unreleased
+===================
+
+Bugfixes
+~~~~~~~~
+
+- Pack timestamps in UTC
+
 v1.0.0 - 2022-08-23
 ===================
 

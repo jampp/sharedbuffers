@@ -65,6 +65,7 @@ from __future__ import division
 
 import struct
 from array import array
+import calendar
 import mmap
 import numpy
 import tempfile
@@ -2802,7 +2803,7 @@ class mapped_datetime(datetime):
                 widmap.link(objid, obj)
 
         packer = cls.PACKER
-        timestamp = int(time.mktime(obj.timetuple()))
+        timestamp = int(calendar.timegm(obj.timetuple()))
         packer.pack_into(buf, offs, (timestamp << 20) + obj.microsecond)
 
         return offs + packer.size
@@ -2815,6 +2816,7 @@ class mapped_datetime(datetime):
 
         packer = cls.PACKER
         timestamp, = packer.unpack_from(buf, offs)
+        timestamp = time.mktime(time.gmtime(timestamp))
         microseconds = timestamp & 0xFFFFF
         rv =  datetime.fromtimestamp(timestamp >> 20) + timedelta(microseconds=microseconds)
 
@@ -2837,7 +2839,7 @@ class mapped_date(date):
                 widmap.link(objid, obj)
 
         packer = cls.PACKER
-        timestamp = int(time.mktime(obj.timetuple()))
+        timestamp = int(calendar.timegm(obj.timetuple()))
         packer.pack_into(buf, offs, timestamp)
 
         return offs + packer.size
@@ -2850,7 +2852,7 @@ class mapped_date(date):
 
         packer = cls.PACKER
         timestamp, = packer.unpack_from(buf, offs)
-        rv =  date.fromtimestamp(timestamp)
+        rv =  date.fromtimestamp(time.mktime(time.gmtime(timestamp)))
 
         if idmap is not None:
             idmap[offs] = rv
