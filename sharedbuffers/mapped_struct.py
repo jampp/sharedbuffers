@@ -2803,7 +2803,7 @@ class mapped_datetime(datetime):
                 widmap.link(objid, obj)
 
         packer = cls.PACKER
-        timestamp = int(calendar.timegm(obj.timetuple()))
+        timestamp = int(time.mktime(obj.timetuple()))
         packer.pack_into(buf, offs, (timestamp << 20) + obj.microsecond)
 
         return offs + packer.size
@@ -2816,7 +2816,6 @@ class mapped_datetime(datetime):
 
         packer = cls.PACKER
         timestamp, = packer.unpack_from(buf, offs)
-        timestamp = time.mktime(time.gmtime(timestamp))
         microseconds = timestamp & 0xFFFFF
         rv =  datetime.fromtimestamp(timestamp >> 20) + timedelta(microseconds=microseconds)
 
