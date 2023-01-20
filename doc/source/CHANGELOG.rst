@@ -9,7 +9,7 @@ v1.0.1 - Unreleased
 ===================
 
 Bugfixes
-~~~~~~~~
+--------
 
 - Pack timestamps in UTC
 
