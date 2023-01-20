@@ -11,7 +11,7 @@ v1.0.1 - Unreleased
 Bugfixes
 --------
 
-- Pack timestamps in UTC
+- Pack timestamps used for ``date`` objects in UTC
 
 v1.0.0 - 2022-08-23
 ===================
