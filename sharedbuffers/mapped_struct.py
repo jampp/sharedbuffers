@@ -2851,7 +2851,7 @@ class mapped_date(date):
 
         packer = cls.PACKER
         timestamp, = packer.unpack_from(buf, offs)
-        rv =  date.fromtimestamp(time.mktime(time.gmtime(timestamp)))
+        rv =  datetime.utcfromtimestamp(timestamp).date()
 
         if idmap is not None:
             idmap[offs] = rv
