@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
+import time
 import unittest
 import itertools
 import operator
@@ -9,6 +10,7 @@ import os
 import numpy
 import random
 import zipfile
+from contextlib import contextmanager
 from datetime import datetime, date
 from decimal import Decimal
 import numpy as np
@@ -35,6 +37,21 @@ SKIP_HUGE = os.environ.get('SKIP_HUGE','')
 from six.moves import cPickle
 
 SKIP_HUGE = os.environ.get('SKIP_HUGE', None)
+
+
+@contextmanager
+def set_tz(tz):
+    og_tz = os.environ.get("TZ")
+
+    try:
+        os.environ["TZ"] = tz
+        time.tzset()
+        yield
+    finally:
+        if og_tz is not None:
+            os.environ["TZ"] = og_tz
+            time.tzset()
+
 
 class SimpleStruct(object):
     __slot_types__ = {
@@ -2320,6 +2337,46 @@ class MappedDatePackingTest(unittest.TestCase):
 
     TEST_VALUE_NOW = date.today()
     TEST_VALUE_OLD = date(1900, 1, 1)
+
+    def testPack(self):
+        buf = bytearray(12)
+        now = self.TEST_VALUE_NOW
+
+        mapped_date = mapped_struct.mapped_date
+
+        with set_tz("UTC"):
+            size = mapped_date.pack_into(now, buf, 0)
+
+        self.assertTrue(size > 0)
+
+        with set_tz("America/Argentina/Buenos_Aires"):
+            unpacked_now = mapped_date.unpack_from(buf, 0)
+
+        self.assertEquals(now, unpacked_now)
+
+        # With offset
+        with set_tz("America/Argentina/Buenos_Aires"):
+            self.assertEquals(mapped_date.pack_into(now, buf, 2), size + 2)
+
+        with set_tz("UTC"):
+            unpacked_now = mapped_date.unpack_from(buf, 2)
+
+        self.assertEquals(now, unpacked_now)
+
+    def testPackOldDate(self):
+        buf = bytearray(12)
+
+        mapped_date = mapped_struct.mapped_date
+
+        with set_tz("UTC"):
+            size = mapped_date.pack_into(self.TEST_VALUE_OLD, buf, 0)
+
+        self.assertTrue(size > 0)
+
+        with set_tz("America/Argentina/Buenos_Aires"):
+            unpacked_now = mapped_date.unpack_from(buf, 0)
+
+        self.assertEquals(self.TEST_VALUE_OLD, unpacked_now)
 
 class MappedDecimalPackingTest(unittest.TestCase):
 

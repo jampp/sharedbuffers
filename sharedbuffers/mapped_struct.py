@@ -65,6 +65,7 @@ from __future__ import division
 
 import struct
 from array import array
+import calendar
 import mmap
 import numpy
 import tempfile
@@ -2837,7 +2838,7 @@ class mapped_date(date):
                 widmap.link(objid, obj)
 
         packer = cls.PACKER
-        timestamp = int(time.mktime(obj.timetuple()))
+        timestamp = int(calendar.timegm(obj.timetuple()))
         packer.pack_into(buf, offs, timestamp)
 
         return offs + packer.size
@@ -2850,7 +2851,7 @@ class mapped_date(date):
 
         packer = cls.PACKER
         timestamp, = packer.unpack_from(buf, offs)
-        rv =  date.fromtimestamp(timestamp)
+        rv = datetime.utcfromtimestamp(timestamp).date()
 
         if idmap is not None:
             idmap[offs] = rv
