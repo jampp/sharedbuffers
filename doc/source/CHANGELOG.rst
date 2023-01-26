@@ -5,13 +5,37 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
-v1.0.1 - Unreleased
+v1.1.0 - Unreleased
 ===================
+
+Added
+~~~~~
+
+- Timezone-aware ``datetime`` type variants:
+
+  - ``mapped_datetime_local`` will treat naive datetimes as local time and
+    convert accordingly to UTC for storage, akin to automatically storing
+    ``dt.replace(tzinfo=tzlocal())``.
+  - ``mapped_datetime_utc`` will treat naive datetimes as UTC, akin to automatically
+    storing ``dt.replace(tzinfo=tzutc())``.
+  - ``mapped_datetime_tz`` datetime with timezone that treats naive datetimes as UTC,
+    and stores the original timezone so it can be preserved upon reading
+  - ``mapped_datetime_tz_local`` datetime with timezone that treats naive datetimes as
+    local time.
+
+Changed
+~~~~~~~
+
+- The behavior of ``datetime`` with naive datetime objects should now make more sense,
+  but if an application made use of mixed or non-UTC datetime objects, it may differ from
+  version 1.0.0 in an application-breaking way. It is however recommended that a change to
+  an explicitly specified assumption or timezone be made, either by using
+  one of ``mapped_datetime_local|utc|tz``.
 
 Bugfixes
 --------
 
-- Pack timestamps used for ``date`` objects in UTC
+- Pack timestamps used for ``date`` and ``datetime`` objects in UTC
 
 v1.0.0 - 2022-08-23
 ===================

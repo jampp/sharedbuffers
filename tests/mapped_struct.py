@@ -10,8 +10,9 @@ import os
 import numpy
 import random
 import zipfile
+import dateutil.tz
 from contextlib import contextmanager
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 import numpy as np
 import six
@@ -2322,6 +2323,168 @@ class MappedDatetimePackingTest(unittest.TestCase):
 
         unpacked_now = mapped_datetime.unpack_from(buf, 2)
         self.assertEquals(now, unpacked_now)
+
+    def testPackNonUTC(self):
+        with set_tz('GMT+3'):
+            self.testPack()
+
+    def testPackUTC(self):
+        with set_tz('UTC'):
+            self.testPack()
+
+    def testPackUnpackAcrossTZ(self):
+        buf = bytearray(12)
+        now = self.TEST_VALUE_NOW
+
+        mapped_datetime = mapped_struct.mapped_datetime
+
+        with set_tz('GMT-3'):
+            size = mapped_datetime.pack_into(now, buf, 0)
+            self.assertTrue(size > 0)
+
+        with set_tz('UTC'):
+            # Will return local time
+            unpacked_now = mapped_datetime.unpack_from(buf, 0)
+            self.assertEquals(now, unpacked_now + timedelta(hours=3))
+
+            size = mapped_datetime.pack_into(now, buf, 0)
+            self.assertTrue(size > 0)
+
+        with set_tz('GMT-3'):
+            # Will return local time
+            unpacked_now = mapped_datetime.unpack_from(buf, 0)
+            self.assertEquals(now, unpacked_now + timedelta(hours=-3))
+
+    def testPackUnpackAcrossTZAssumeLocal(self):
+        buf = bytearray(12)
+        now = self.TEST_VALUE_NOW
+
+        mapped_datetime = mapped_struct.mapped_datetime_local
+
+        with set_tz('GMT-3'):
+            size = mapped_datetime.pack_into(now, buf, 0)
+            self.assertTrue(size > 0)
+
+        with set_tz('GMT'):
+            # Since internal is UTC and assumed is local, return should differ from input
+            # to reflect TZ changes. Returned will have local tzinfo
+            unpacked_now = mapped_datetime.unpack_from(buf, 0)
+            self.assertEquals(unpacked_now.tzname(), 'GMT')
+            self.assertEquals(unpacked_now.utcoffset(), timedelta(hours=0))
+            self.assertNotEquals(now, unpacked_now.replace(tzinfo=None))
+
+            size = mapped_datetime.pack_into(now, buf, 0)
+            self.assertTrue(size > 0)
+
+        with set_tz('GMT-3'):
+            unpacked_now = mapped_datetime.unpack_from(buf, 0)
+            self.assertEquals(unpacked_now.tzname(), 'GMT')
+            self.assertEquals(unpacked_now.utcoffset(), timedelta(hours=3))
+            self.assertNotEquals(now, unpacked_now.replace(tzinfo=None))
+
+    def testPackUnpackAcrossTZAssumeUTC(self):
+        buf = bytearray(12)
+        now = self.TEST_VALUE_NOW
+
+        mapped_datetime = mapped_struct.mapped_datetime_utc
+
+        with set_tz('GMT-3'):
+            size = mapped_datetime.pack_into(now, buf, 0)
+            self.assertTrue(size > 0)
+
+        with set_tz('GMT'):
+            # Since internal is UTC and assumed is UTC, return should exactly match input
+            # Except returned will have UTC tzinfo
+            unpacked_now = mapped_datetime.unpack_from(buf, 0)
+            self.assertEquals(unpacked_now.tzname(), 'UTC')
+            self.assertEquals(unpacked_now.utcoffset(), timedelta(hours=0))
+            self.assertEquals(now, unpacked_now.replace(tzinfo=None))
+
+            size = mapped_datetime.pack_into(now, buf, 0)
+            self.assertTrue(size > 0)
+
+        with set_tz('GMT-3'):
+            unpacked_now = mapped_datetime.unpack_from(buf, 0)
+            self.assertEquals(unpacked_now.tzname(), 'UTC')
+            self.assertEquals(unpacked_now.utcoffset(), timedelta(hours=0))
+            self.assertEquals(now, unpacked_now.replace(tzinfo=None))
+
+    def testPackUnpackExplicitTZAcrossTZ(self):
+        buf = bytearray(12)
+        now = self.TEST_VALUE_NOW
+
+        mapped_datetime = mapped_struct.mapped_datetime_tz
+
+        #NOTE: set_tz works in posix offset where we use inverted offset
+        #  For posix, ART = GMT+3, but we format tz as ART = GMT-3
+        #  which is how the default dateutil.tz.tzstr interprets them
+
+        with set_tz('GMT-3'):
+            reftz = dateutil.tz.tzlocal()
+            refnow = now.replace(tzinfo=reftz)
+            size = mapped_datetime.pack_into(refnow, buf, 0)
+            self.assertTrue(size > 0)
+
+        with set_tz('GMT'):
+            unpacked_now = mapped_datetime.unpack_from(buf, 0)
+            self.assertEquals(unpacked_now.tzname(), 'UTC+3')
+            self.assertEquals(unpacked_now.utcoffset(), timedelta(hours=3))
+            self.assertEquals(refnow, unpacked_now.astimezone(reftz))
+
+            reftz = dateutil.tz.tzlocal()
+            refnow = now.replace(tzinfo=reftz)
+            size = mapped_datetime.pack_into(refnow, buf, 0)
+            self.assertTrue(size > 0)
+
+        with set_tz('GMT+3'):
+            unpacked_now = mapped_datetime.unpack_from(buf, 0)
+            self.assertEquals(unpacked_now.tzname(), 'UTC')
+            self.assertEquals(unpacked_now.utcoffset(), timedelta(hours=0))
+            self.assertEquals(refnow, unpacked_now.astimezone(reftz))
+
+            reftz = dateutil.tz.tzlocal()
+            refnow = now.replace(tzinfo=reftz)
+            size = mapped_datetime.pack_into(refnow, buf, 0)
+            self.assertTrue(size > 0)
+
+        with set_tz('GMT+2'):
+            unpacked_now = mapped_datetime.unpack_from(buf, 0)
+            self.assertEquals(unpacked_now.tzname(), 'UTC-3')
+            self.assertEquals(unpacked_now.utcoffset(), timedelta(hours=-3))
+            self.assertEquals(refnow, unpacked_now.astimezone(reftz))
+
+            reftz = dateutil.tz.tzutc()
+            refnow = now.replace(tzinfo=reftz)
+            size = mapped_datetime.pack_into(refnow, buf, 0)
+            self.assertTrue(size > 0)
+
+            unpacked_now = mapped_datetime.unpack_from(buf, 0)
+            self.assertEquals(unpacked_now.tzname(), 'UTC')
+            self.assertEquals(unpacked_now.utcoffset(), timedelta(hours=0))
+            self.assertEquals(refnow, unpacked_now.astimezone(reftz))
+
+        REFDATES = [
+            datetime(2023, 1, 10, 11, 0, 0),
+            datetime(2023, 1, 10, 15, 10, 0),
+            datetime(1900, 1, 10, 11, 0, 0),
+            datetime(2060, 1, 10, 11, 0, 0),
+        ]
+        REFTZ = ['GMT-5', 'GMT-3', 'GMT+0', 'GMT+3', 'GMT+5']
+        for systz in REFTZ:
+            with set_tz(systz):
+                for refdate in REFDATES:
+                    for tznamein in REFTZ:
+                        intz = dateutil.tz.tzstr(tznamein)
+                        refdate = refdate.replace(tzinfo=intz)
+                        size = mapped_datetime.pack_into(refdate, buf, 0)
+                        self.assertTrue(size > 0)
+
+                        unpacked_date = mapped_datetime.unpack_from(buf, 0)
+                        self.assertEquals(
+                            refdate, unpacked_date,
+                            "%r != %r (sys tz:%r val tz=%r)" % (refdate, unpacked_date, systz, tznamein))
+                        self.assertEquals(unpacked_date.tzname(), tznamein.replace('GMT', 'UTC').replace('+0', ''))
+                        self.assertEquals(unpacked_date.utcoffset(), intz.utcoffset(refdate))
 
     def testPackOldDate(self):
         buf = bytearray(12)
