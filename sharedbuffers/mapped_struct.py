@@ -2963,7 +2963,7 @@ class mapped_datetime_tz(datetime):
         return rv
 
 
-class mapped_datetime_tz_local(datetime):
+class mapped_datetime_tz_local(mapped_datetime_tz):
 
     NAIVE_TZ = staticmethod(tzlocal)
 
