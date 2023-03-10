@@ -82,6 +82,8 @@ import sys
 import collections
 import weakref
 import ctypes
+import dateutil.tz
+import calendar
 from datetime import timedelta, datetime, date
 from decimal import Decimal
 from six import reraise
@@ -123,6 +125,11 @@ frexp = cython.declare(object, math.frexp)
 ctypes_Array = cython.declare(object, ctypes.Array)
 
 bchr = cython.declare(list)
+
+TZUTC = cython.declare(object, dateutil.tz.tzutc())
+
+# this is the callable on purpose, as tzlocal can change across invocations
+tzlocal = cython.declare(object, dateutil.tz.tzlocal)
 
 if python3:
     long = int
@@ -484,6 +491,9 @@ WRAP_MASK = cython.declare(object, long(1) << 64)
 LONG_MASK = cython.declare(object, long(2) << 64)
 PROXY_MASK = cython.declare(object, long(4) << 64)
 FLAG_MASK = cython.declare(object, long(0xF) << 64)
+DT_LOCAL_MASK = cython.declare(object, long(0x10) << 64)
+DT_UTC_MASK = cython.declare(object, long(0x20) << 64)
+DT_TZ_MASK = cython.declare(object, long(0x30) << 64)
 
 
 @cython.ccall
@@ -2789,7 +2799,24 @@ class mapped_decimal(Decimal):
         return rv
 
 class mapped_datetime(datetime):
+    """ Stores naive datetimes without tz info
+
+    Timestamps are stored in UTC. If the datetime object does have a tzinfo the
+    conversion is guaranteed to be correct. If not, it will assume it's local time
+    and if not the conversion will not be correct.
+
+    If it is expected that naive datetime objects with non-local times will be used,
+    use a subclass of this setting the expected TZ in the NAIVE_TZ class attribute.
+
+    Unpacked values will always be datetime objects with the NAIVE_TZ, converted from
+    a stored UTC timestamp. The default NAIVE_TZ of None will return naive datetime objects,
+    but subclasses can set a specific TZ
+    (see :class:`mapped_datetime_local` and :class:`mapped_datetime_utc`)
+    """
     PACKER = struct.Struct('=q')
+
+    NAIVE_TZ = None
+    ID_MASK = None
 
     @classmethod
     @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong,
@@ -2797,13 +2824,26 @@ class mapped_datetime(datetime):
     def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
         if idmap is not None:
             objid = shared_id(obj)
+            id_mask = cls.ID_MASK
+            if id_mask is not None:
+                objid |= id_mask
             idmap[objid] = offs + implicit_offs
             if isinstance(idmap, StrongIdMap):
                 widmap = idmap
                 widmap.link(objid, obj)
 
+        if obj.tzinfo is None:
+            naive_tz = cls.NAIVE_TZ
+            if naive_tz is not None and callable(naive_tz):
+                naive_tz = naive_tz()
+            if naive_tz is not None:
+                obj = obj.replace(tzinfo=naive_tz)
+        if obj.tzinfo is not None:
+            timestamp = int(calendar.timegm(obj.astimezone(TZUTC).timetuple()))
+        else:
+            timestamp = int(time.mktime(obj.timetuple()))
+
         packer = cls.PACKER
-        timestamp = int(time.mktime(obj.timetuple()))
         packer.pack_into(buf, offs, (timestamp << 20) + obj.microsecond)
 
         return offs + packer.size
@@ -2817,11 +2857,116 @@ class mapped_datetime(datetime):
         packer = cls.PACKER
         timestamp, = packer.unpack_from(buf, offs)
         microseconds = timestamp & 0xFFFFF
-        rv =  datetime.fromtimestamp(timestamp >> 20) + timedelta(microseconds=microseconds)
+        naive_tz = cls.NAIVE_TZ
+        if naive_tz is not None and callable(naive_tz):
+            naive_tz = naive_tz()
+        rv = datetime.fromtimestamp(timestamp >> 20, naive_tz) + timedelta(microseconds=microseconds)
 
         if idmap is not None:
             idmap[offs] = rv
         return rv
+
+
+class mapped_datetime_local(mapped_datetime):
+    """ Stores naive datetime objects, assuming them to be local time when unspecified
+
+    See :class:`mapped_datetime`, this will assume local time when the datetime objects
+    are not given a tzinfo.
+    """
+    ID_MASK = DT_LOCAL_MASK
+
+    NAIVE_TZ = staticmethod(tzlocal)
+
+
+class mapped_datetime_utc(mapped_datetime):
+    """ Stores naive datetime objects, assuming them to be UTC time when unspecified
+
+    See :class:`mapped_datetime`, this will assume UTC time when the datetime objects
+    are not given a tzinfo.
+    """
+    NAIVE_TZ = TZUTC
+    ID_MASK = DT_UTC_MASK
+
+
+class mapped_datetime_tz(datetime):
+    """ Stores datetime objects with timezone, assuming them to be UTC time when unspecified
+
+    Timestamps are stored in UTC. If the datetime object does have a tzinfo the
+    conversion is guaranteed to be correct. If not, it will assume it's local time
+    or what's set in NAIVE_TZ, and if not the conversion will not be correct.
+
+    If it is expected that naive datetime objects with non-local times will be used,
+    use a subclass of this setting the expected TZ in the NAIVE_TZ class attribute.
+
+    Unpacked values will always be datetime objects with the same timezone of the original
+    value, so it preserves tz info, or NAIVE_TZ if it was given a naive datetime.
+    """
+    PACKER = struct.Struct('=qh')
+
+    NAIVE_TZ = TZUTC
+    ID_MASK = DT_TZ_MASK
+
+    _TZ_CACHE = {}
+
+    @classmethod
+    @cython.locals(offs = cython.longlong, implicit_offs = cython.longlong, timestamp = cython.longlong,
+        widmap = StrongIdMap)
+    def pack_into(cls, obj, buf, offs, idmap = None, implicit_offs = 0):
+        if idmap is not None:
+            objid = shared_id(obj)
+            id_mask = cls.ID_MASK
+            if id_mask is not None:
+                objid |= id_mask
+            idmap[objid] = offs + implicit_offs
+            if isinstance(idmap, StrongIdMap):
+                widmap = idmap
+                widmap.link(objid, obj)
+
+        if obj.tzinfo is None:
+            naive_tz = cls.NAIVE_TZ
+            if naive_tz is not None and callable(naive_tz):
+                naive_tz = naive_tz()
+            if naive_tz is not None:
+                obj = obj.replace(tzinfo=naive_tz)
+
+        packer = cls.PACKER
+        timestamp = int(calendar.timegm(obj.astimezone(TZUTC).timetuple()))
+        utc_off = int(obj.utcoffset().total_seconds() / 60)
+        packer.pack_into(buf, offs, (timestamp << 20) + obj.microsecond, utc_off)
+
+        return offs + packer.size
+
+    @classmethod
+    @cython.locals(offs = cython.longlong, timestamp = cython.longlong, microseconds = cython.ulong)
+    def unpack_from(cls, buf, offs, idmap = None):
+        if idmap is not None and offs in idmap:
+            return idmap[offs]
+
+        tz_cache = cls._TZ_CACHE
+        packer = cls.PACKER
+        timestamp, utc_off = packer.unpack_from(buf, offs)
+        microseconds = timestamp & 0xFFFFF
+        tz_info = tz_cache.get(utc_off)
+        if tz_info is None:
+            if utc_off:
+                tz_name = 'UTC%+d' % (utc_off / 60,)
+                if utc_off % 60:
+                    tz_name = "%s:%02d" % (tz_name, utc_off % 60)
+                tz_info = dateutil.tz.tzoffset(tz_name, utc_off * 60)
+            else:
+                tz_info = TZUTC
+            tz_info = tz_cache.setdefault(utc_off, tz_info)
+        rv = datetime.fromtimestamp(timestamp >> 20, tz_info) + timedelta(microseconds=microseconds)
+
+        if idmap is not None:
+            idmap[offs] = rv
+        return rv
+
+
+class mapped_datetime_tz_local(mapped_datetime_tz):
+
+    NAIVE_TZ = staticmethod(tzlocal)
+
 
 class mapped_date(date):
     PACKER = struct.Struct('=q')

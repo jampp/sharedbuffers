@@ -129,7 +129,7 @@ else:
     extra['ext_modules'] = lazy_modules()
     extra['setup_requires'] = setup_requires
 
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 
 version_path = os.path.join(os.path.dirname(__file__), 'sharedbuffers', '_version.py')
 if not os.path.exists(version_path):

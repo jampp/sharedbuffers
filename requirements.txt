@@ -4,3 +4,4 @@ numpy
 Cython>=0.29
 six
 clru
+python-dateutil
