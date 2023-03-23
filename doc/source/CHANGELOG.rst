@@ -37,6 +37,11 @@ Bugfixes
 
 - Pack timestamps used for ``date`` and ``datetime`` objects in UTC
 
+Technical Tasks
+---------------
+
+- Add requirements to run tests with pytest
+
 v1.0.0 - 2022-08-23
 ===================
 
