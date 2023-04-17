@@ -36,6 +36,7 @@ Bugfixes
 --------
 
 - Pack timestamps used for ``date`` and ``datetime`` objects in UTC
+- Fix GenericFileMapper's base implementation for zip files in python 3.10
 
 Technical Tasks
 ---------------

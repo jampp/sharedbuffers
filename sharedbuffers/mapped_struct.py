@@ -4899,7 +4899,11 @@ class GenericFileMapper(_ZipMapBase):
             access = mmap.ACCESS_READ
         else:
             access = mmap.ACCESS_WRITE
-        buf = mmap.mmap(fileobj.fileno(), size + offset - map_start,
+        if hasattr(fileobj, "_file"):
+            fileno = fileobj._file.fileno()
+        else:
+            fileno = fileobj.fileno()
+        buf = mmap.mmap(fileno, size + offset - map_start,
             flags = mmap.MAP_SHARED, access = access, offset = map_start)
         return buffer_with_offset(buf, offset - map_start, size), buf
 
