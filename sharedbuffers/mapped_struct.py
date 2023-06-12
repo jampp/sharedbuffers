@@ -321,7 +321,10 @@ class StrongIdMap(object):
             yield key, self[key]
 
     def keys(self):
-        return list(self)
+        if python3:
+            return self
+        else:
+            return list(self)
 
     def values(self):
         return list(self.itervalues())
@@ -983,7 +986,7 @@ class mapped_list(list):
             itemsize = 1
         elif dchar in (b'H', b'h'):
             itemsize = 2
-        elif dchar in (b'I', b'i', b'T'):
+        elif dchar in (b'I', b'i', b'T', b'f'):
             itemsize = 4
         elif dchar in (b'Q', b'q', b'd', b't'):
             itemsize = 8
@@ -1019,8 +1022,8 @@ class mapped_list(list):
             else:
                 rv = array(dtype)
                 rv.fromstring(q)
-        elif dchar == b'd':
-            dtype = 'd'
+        elif dchar in (b'd', b'f'):
+            dtype = 'd' if dchar == b'd' else 'f'
             objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
             objlen >>= 8
             offs += 8
@@ -1030,7 +1033,7 @@ class mapped_list(list):
             else:
                 rv = array(dtype)
                 rv.fromstring(q)
-        elif dchar == b't' or dchar == b'T':
+        elif dchar in (b't', b'T'):
             if dchar == b't':
                 dtype = 'l'
             elif dchar == b'T':
@@ -1213,7 +1216,11 @@ def _stable_hash(key):
 
 @cython.locals(idx=int)
 def _enum_keys(obj):
-    for idx, key in enumerate(obj.iterkeys()):
+    if hasattr(obj, 'iterkeys'):
+        keys = obj.iterkeys()
+    else:
+        keys = obj.keys()
+    for idx, key in enumerate(keys):
         yield key, idx
 
 
@@ -1665,10 +1672,10 @@ class proxied_list(object):
 
             return dcode, objlen, itemsize, dataoffs, None
 
-        elif dcode in ('q', 'Q', 'd', 't', 'T'):
+        elif dcode in ('q', 'Q', 'd', 'f', 't', 'T'):
             objlen = cython.cast(cython.p_longlong, pbuf + dataoffs)[0] >> 8
             dataoffs += 8
-            if dcode == 'T':
+            if dcode in ('T', 'f'):
                 itemsize = 4
             else:
                 itemsize = 8
@@ -1821,6 +1828,9 @@ class proxied_list(object):
                 cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
         elif dcode == 'd':
             res = cython.cast(cython.p_double,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'f':
+            res = cython.cast(cython.p_float,
                 cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
         else:
             raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
@@ -6594,8 +6604,11 @@ class ObjectIdMapper(_CZipMapBase):
         return self.index[:,2]
 
     def keys(self):
-        # Baaad idea
-        return list(self.iterkeys())
+        if python3:
+            return self.iterkeys()
+        else:
+            # Baaad idea
+            return list(self.iterkeys())
 
     @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer',
         stride0 = cython.size_t, stride1 = cython.size_t, pindex = cython.p_char)
@@ -7102,8 +7115,11 @@ class StringIdMapper(_CZipMapBase):
         return self.index[:,2]
 
     def keys(self):
-        # Baaad idea
-        return list(self.iterkeys())
+        if python3:
+            return self.iterkeys()
+        else:
+            # Baaad idea
+            return list(self.iterkeys())
 
     @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer', pybuf = 'Py_buffer',
         stride0 = cython.size_t, stride1 = cython.size_t, pindex = cython.p_char)
