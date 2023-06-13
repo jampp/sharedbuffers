@@ -114,6 +114,11 @@ class BaseObjectPool(object):
         self.idmap_preload = []
         self.section_freelist = section_freelist
 
+    def __del__(self):
+        self.idmap_kwargs = None
+        self.temp_kwargs = None
+        self.close(True)
+
     @property
     def size(self):
         """
