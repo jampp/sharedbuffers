@@ -53,6 +53,12 @@ class Section(object):
         self.write_pos = 0
         self.idmap = StrongIdMap(**idmap_kwargs)
 
+    def __del__(self):
+        if hasattr(self.buf, 'close'):
+            self.real_buf = None
+            self.buf.close()
+            self.buf = None
+
 class BaseObjectPool(object):
     """
     Base abstract class for object pools. Use a concrete implementation instead.
