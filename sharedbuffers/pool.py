@@ -54,10 +54,10 @@ class Section(object):
         self.idmap = StrongIdMap(**idmap_kwargs)
 
     def __del__(self):
+        self.real_buf = None
         if hasattr(self.buf, 'close'):
-            self.real_buf = None
             self.buf.close()
-            self.buf = None
+        self.buf = None
 
 class BaseObjectPool(object):
     """
