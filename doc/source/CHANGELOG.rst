@@ -5,6 +5,16 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
+v1.1.1 - 2023-06-14
+===================
+
+Bugfixes
+--------
+
+- Fixes some compatibility issues with newer python 3 and numpy versions
+- Some general python 3 compatibility fixes (keys/items/values should
+  return iterators when mimicking dicts)
+
 v1.1.0 - 2023-05-24
 ===================
 
