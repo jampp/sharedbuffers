@@ -5865,7 +5865,8 @@ def _numeric_id_get_gen(self, elem, startpos, hkey, nitems):
     buf = self._likebuf
     PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
     try:
-        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+        index = self.index
+        PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
         try:
             if (indexbuf.strides == cython.NULL
                    or indexbuf.ndim < 2
@@ -6080,7 +6081,8 @@ class NumericIdMapper(_CZipMapBase):
         dtype = self._dtype
         if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
             #lint:disable
-            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            index = self.index
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
             try:
                 if ( indexbuf.strides == cython.NULL
                         or indexbuf.len < hi * indexbuf.strides[0] ):
@@ -6420,7 +6422,8 @@ class NumericId32Mapper(NumericIdMapper):
 def _obj_id_get_gen(self, elem, startpos, hkey, key, default):
     #lint:disable
     nitems = self.index_elements
-    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+    index = self.index
+    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
     try:
         if (indexbuf.strides == cython.NULL
                or indexbuf.ndim < 2
@@ -6695,7 +6698,8 @@ class ObjectIdMapper(_CZipMapBase):
         dtype = self._dtype
         if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
             #lint:disable
-            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            index = self.index
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
             try:
                 if ( indexbuf.strides == cython.NULL
                         or indexbuf.len < hi * indexbuf.strides[0] ):
@@ -6956,7 +6960,8 @@ def safe_utf8(x):
     stride0 = cython.size_t, stride1 = cython.size_t, pbuf_ptr = 'const char *')
 def _str_id_get_gen(self, elem, pbkey, blen, startpos, hkey, pbuf_ptr, pbuf_len, default):
     nitems = self.index_elements
-    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+    index = self.index
+    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
     try:
         if (indexbuf.strides == cython.NULL
                or indexbuf.ndim < 2
@@ -7217,7 +7222,8 @@ class StringIdMapper(_CZipMapBase):
         dtype = self._dtype
         if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
             #lint:disable
-            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            index = self.index
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
             try:
                 if ( indexbuf.strides == cython.NULL
                         or indexbuf.len < hi * indexbuf.strides[0] ):
@@ -7455,10 +7461,12 @@ class StringId32Mapper(StringIdMapper):
 def _numeric_id_multi_get_gen(self, elem, rv, hkey, startpos, default):
     #lint:disable
     nitems = self.index_elements
-    PyObject_GetBuffer(self._likebuf, cython.address(pybuf), PyBUF_SIMPLE)
+    likebuf = self._likebuf
+    index = self.index
+    PyObject_GetBuffer(likebuf, cython.address(pybuf), PyBUF_SIMPLE)
     try:
         try:
-            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
             if (indexbuf.strides == cython.NULL
                    or indexbuf.ndim < 2
                    or indexbuf.len < nitems * indexbuf.strides[0]):
@@ -7485,9 +7493,11 @@ def _numeric_id_multi_get_gen(self, elem, rv, hkey, startpos, default):
 def _numeric_id_multi_has_gen(self, elem, startpos, hkey):
     #lint:disable
     nitems = self.index_elements
-    PyObject_GetBuffer(self._likebuf, cython.address(pybuf), PyBUF_SIMPLE)
+    likebuf = self._likebuf
+    index = self.index
+    PyObject_GetBuffer(likebuf, cython.address(pybuf), PyBUF_SIMPLE)
     try:
-        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+        PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
         try:
             if (indexbuf.strides == cython.NULL
                    or indexbuf.ndim < 2
@@ -7628,8 +7638,9 @@ class NumericIdMultiMapper(NumericIdMapper):
             buf = self._likebuf
             PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
             try:
+                index = self.index
                 if dtype is npuint64:
-                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
                     try:
                         if ( indexbuf.strides == cython.NULL
                                 or indexbuf.ndim < 2
@@ -7645,7 +7656,7 @@ class NumericIdMultiMapper(NumericIdMapper):
                     finally:
                         PyBuffer_Release(cython.address(indexbuf))
                 elif dtype is npuint32:
-                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
                     try:
                         if ( indexbuf.strides == cython.NULL
                                 or indexbuf.ndim < 2
@@ -7686,7 +7697,8 @@ class NumericId32MultiMapper(NumericIdMultiMapper):
     stride1 = cython.size_t, pindex = cython.p_char)
 def _str_id_multi_get_gen(self, elem, rv, pbkey, blen, startpos, hkey, pbuf_ptr, pbuf_len, default):
     nitems = self.index_elements
-    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+    index = self.index
+    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
     try:
         if (indexbuf.strides == cython.NULL
                or indexbuf.ndim < 2
@@ -7714,7 +7726,8 @@ def _str_id_multi_get_gen(self, elem, rv, pbkey, blen, startpos, hkey, pbuf_ptr,
 def _str_id_multi_has_gen(self, elem, pbkey, blen, startpos, hkey, pbuf_ptr, pbuf_len):
     #lint:disable
     nitems = self.index_elements
-    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+    index = self.index
+    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
     try:
         if (indexbuf.strides == cython.NULL
                or indexbuf.ndim < 2
@@ -7830,8 +7843,9 @@ class StringIdMultiMapper(StringIdMapper):
             buf = self._likebuf
             PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
             try:
+                index = self.index
                 if dtype is npuint64:
-                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
                     try:
                         if ( indexbuf.strides == cython.NULL
                                 or indexbuf.ndim < 2
@@ -7851,7 +7865,7 @@ class StringIdMultiMapper(StringIdMapper):
                     finally:
                         PyBuffer_Release(cython.address(indexbuf))
                 elif dtype is npuint32:
-                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
                     try:
                         if ( indexbuf.strides == cython.NULL
                                 or indexbuf.ndim < 2
