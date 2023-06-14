@@ -2436,7 +2436,6 @@ class proxied_frozenset(object):
 
     def __lt__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._subset(seq, True)
             return cython.cast(proxied_frozenset, self)._subset(seq, True)
         else:
             return cython.cast(proxied_frozenset, seq)._subset(self, True)
@@ -2458,25 +2457,25 @@ class proxied_frozenset(object):
 
     def __or__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._union_2(seq)
+            return cython.cast(proxied_frozenset, self)._union_2(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._union_2(self)
 
     def __and__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._intersect_2(seq)
+            return cython.cast(proxied_frozenset, self)._intersect_2(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._intersect_2(self)
 
     def __sub__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._diff_2(seq)
+            return cython.cast(proxied_frozenset, self)._diff_2(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._diff_2(self)
 
     def __xor__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._symdiff_2(seq)
+            return cython.cast(proxied_frozenset, self)._symdiff_2(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._symdiff_2(self)
 
