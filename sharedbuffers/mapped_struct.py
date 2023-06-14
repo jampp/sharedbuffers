@@ -679,8 +679,7 @@ class mapped_frozenset(frozenset):
                 # unpack a list, build a set from it
                 return mapped_list.unpack_from(buf, offs, idmap, klass=frozenset)
         finally:
-            if type(buf) is buffer:
-                PyBuffer_Release(cython.address(pybuf))  # lint:ok
+            PyBuffer_Release(cython.address(pybuf))  # lint:ok
 
 _struct_l_Q = cython.declare(object, struct.Struct('<Q'))
 _struct_l_I = cython.declare(object, struct.Struct('<I'))
@@ -2013,8 +2012,7 @@ class proxied_frozenset(object):
             else:
                 return proxied_frozenset(proxied_list.unpack_from(buf, offs, idmap))
         finally:
-            if type(buf) is buffer and pybuf.buf != cython.NULL:
-                PyBuffer_Release(cython.address(pybuf))
+            PyBuffer_Release(cython.address(pybuf))
 
     def copy(self):
         return self
