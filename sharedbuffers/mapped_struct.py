@@ -171,12 +171,19 @@ assert Py_GE == 5
 def buffer_with_offset(data, offset, size=None):
     if size is not None:
         if python3:
-            return make_memoryview(data)[offset:offset+size]
+            buf = make_memoryview(data)
+            if offset or size != len(buf):
+                return buf[offset:offset+size]
+            else:
+                return buf
         else:
             return buffer(data, offset, size)
     else:
         if python3:
-            return make_memoryview(data)[offset:]
+            if offset:
+                return make_memoryview(data)[offset:]
+            else:
+                return make_memoryview(data)
         else:
             return buffer(data, offset)
 
@@ -2041,6 +2048,8 @@ class proxied_frozenset(object):
             return _c_search_hkey_i8(elem, pindex + start, 1, xlen, hint, equal)
         elif dcode == 'd':
             return _c_search_hkey_f64(elem, pindex + start * 8, 8, xlen, hint, equal)
+        elif dcode == 'f':
+            return _c_search_hkey_f32(elem, pindex + start * 4, 4, xlen, hint, equal)
         else:
             raise NotImplementedError("Unsupported data type for fast lookup: %s" % chr(dcode))
 
