@@ -3474,6 +3474,12 @@ class BufferProxyObject(object):
             PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
             self.pybuf.buf = cython.NULL
 
+        # Proxies can have dynamic base classes and multiple inheritance, so we may
+        # need to call a base finalizer (or not).
+        s = super()
+        if hasattr(s, '__del__'):
+            s.__del__()
+
 @cython.cclass
 class BaseBufferProxyProperty(object):
     cython.declare(offs = cython.Py_ssize_t, mask = cython.ulonglong)
