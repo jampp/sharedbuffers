@@ -1652,8 +1652,9 @@ class proxied_list(object):
     @cython.ccall
     @cython.locals(dataoffs = cython.Py_ssize_t, dcode = cython.char, pbuf = 'const char *',
         itemsize = cython.uchar, objlen = cython.Py_ssize_t)
-    def _metadata(self,
-        itemsizes = dict([(dtype, array(dtype.decode(), []).itemsize) for dtype in (b'B',b'b',b'H',b'h',b'I',b'i',b'l',b'L',b'd')])):
+    def _metadata(self):
+        if self.pybuf.buf == cython.NULL:
+            raise RuntimeError("use after free")
 
         # Cython version
         dataoffs = self.offs
@@ -1791,6 +1792,9 @@ class proxied_list(object):
 
         if index >= objlen or index < 0:
             raise IndexError(orig_index)
+
+        if self.pybuf.buf == cython.NULL:
+            raise RuntimeError("use after free")
 
         if dcode in (b't', b'T'):
             if dcode == b't':
