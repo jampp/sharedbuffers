@@ -3479,16 +3479,17 @@ class BufferProxyObject(object):
             self.pybuf.buf = cython.NULL
 
     def __del__(self):
-        # For python 3.4+, in earlier versions it will not be called and we'll depend on dealloc
-        if self.pybuf.buf != cython.NULL:
-            PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
-            self.pybuf.buf = cython.NULL
-
-        # Proxies can have dynamic base classes and multiple inheritance, so we may
-        # need to call a base finalizer (or not).
-        s = super()
-        if hasattr(s, '__del__'):
-            s.__del__()
+        try:
+            # Proxies can have dynamic base classes and multiple inheritance, so we may
+            # need to call a base finalizer (or not).
+            s = super()
+            if hasattr(s, '__del__'):
+                s.__del__()
+        finally:
+            # For python 3.4+, in earlier versions it will not be called and we'll depend on dealloc
+            if self.pybuf.buf != cython.NULL:
+                PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+                self.pybuf.buf = cython.NULL
 
 @cython.cclass
 class BaseBufferProxyProperty(object):
