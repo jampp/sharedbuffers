@@ -58,7 +58,13 @@ class Section(object):
         self.real_buf = None
         self.buf = None
         if hasattr(buf, 'close'):
-            buf.close()
+            # Try to close the underlying memory map
+            # This might fail if there are still references around, so catch
+            # any exceptions and ignore them. Let the GC handle it in that case.
+            try:
+                buf.close()
+            except Exception:
+                pass
 
 class BaseObjectPool(object):
     """

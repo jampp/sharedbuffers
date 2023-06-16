@@ -3485,6 +3485,10 @@ class BufferProxyObject(object):
             s = super()
             if hasattr(s, '__del__'):
                 s.__del__()
+
+            # CLear out the idmap to break potential cycles. Set to None which is benign
+            # (proxy still usable with the idmap set to None)
+            self.idmap = None
         finally:
             # For python 3.4+, in earlier versions it will not be called and we'll depend on dealloc
             if self.pybuf.buf != cython.NULL:
