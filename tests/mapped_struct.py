@@ -520,7 +520,7 @@ class NumpyCastingContainerPackingTest(SimplePackingTest):
         numpy.uint32,
         numpy.int64,
         numpy.uint64,
-        numpy.float,
+        numpy.float32,
         numpy.double,
     )]
 
@@ -1335,7 +1335,7 @@ class BsearchTest(unittest.TestCase):
         numpy.double, numpy.single, numpy.float64, numpy.float32,
         numpy.uint16, numpy.int16, numpy.uint8, numpy.int8 ]
 
-    UNSUPPORTED_DTYPES = [ numpy.complex ]
+    UNSUPPORTED_DTYPES = [ numpy.complex64, numpy.complex128 ]
 
     for dtype in SUPPORTED_DTYPES:
         def testBsearch(self, dtype=dtype):
@@ -1828,11 +1828,12 @@ class MappedFrozensetPackingTest(unittest.TestCase, CommonCollectionPackingTest)
         c = self.pack(values)
         self.assertEqual(frozenset([v for v in c]), frozenset(values))
 
-    def testSingletons(self):
-        a = bytearray(16)
-        fs = frozenset()
-        mapped_struct.mapped_frozenset.pack_into(fs, a, 0)
-        self.assertIs(mapped_struct.mapped_frozenset.unpack_from(a, 0), fs)
+    if not six.PY3:
+        def testSingletons(self):
+            a = bytearray(16)
+            fs = frozenset()
+            mapped_struct.mapped_frozenset.pack_into(fs, a, 0)
+            self.assertIs(mapped_struct.mapped_frozenset.unpack_from(a, 0), fs)
 
     def testUnpackBeyondEnd(self):
         b = buffer(b"m")

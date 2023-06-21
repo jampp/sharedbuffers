@@ -53,6 +53,19 @@ class Section(object):
         self.write_pos = 0
         self.idmap = StrongIdMap(**idmap_kwargs)
 
+    def __del__(self):
+        buf = self.buf
+        self.real_buf = None
+        self.buf = None
+        if hasattr(buf, 'close'):
+            # Try to close the underlying memory map
+            # This might fail if there are still references around, so catch
+            # any exceptions and ignore them. Let the GC handle it in that case.
+            try:
+                buf.close()
+            except Exception:
+                pass
+
 class BaseObjectPool(object):
     """
     Base abstract class for object pools. Use a concrete implementation instead.
@@ -107,6 +120,11 @@ class BaseObjectPool(object):
         self.total_size = 0
         self.idmap_preload = []
         self.section_freelist = section_freelist
+
+    def __del__(self):
+        self.idmap_kwargs = None
+        self.temp_kwargs = None
+        self.close(True)
 
     @property
     def size(self):

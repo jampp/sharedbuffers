@@ -86,7 +86,7 @@ import dateutil.tz
 import calendar
 from datetime import timedelta, datetime, date
 from decimal import Decimal
-from six import reraise
+from six import reraise, iterkeys
 from six.moves import cPickle
 
 
@@ -171,12 +171,19 @@ assert Py_GE == 5
 def buffer_with_offset(data, offset, size=None):
     if size is not None:
         if python3:
-            return make_memoryview(data)[offset:offset+size]
+            buf = make_memoryview(data)
+            if offset or size != len(buf):
+                return buf[offset:offset+size]
+            else:
+                return buf
         else:
             return buffer(data, offset, size)
     else:
         if python3:
-            return make_memoryview(data)[offset:]
+            if offset:
+                return make_memoryview(data)[offset:]
+            else:
+                return make_memoryview(data)
         else:
             return buffer(data, offset)
 
@@ -321,7 +328,10 @@ class StrongIdMap(object):
             yield key, self[key]
 
     def keys(self):
-        return list(self)
+        if python3:
+            return self
+        else:
+            return list(self)
 
     def values(self):
         return list(self.itervalues())
@@ -669,8 +679,7 @@ class mapped_frozenset(frozenset):
                 # unpack a list, build a set from it
                 return mapped_list.unpack_from(buf, offs, idmap, klass=frozenset)
         finally:
-            if type(buf) is buffer:
-                PyBuffer_Release(cython.address(pybuf))  # lint:ok
+            PyBuffer_Release(cython.address(pybuf))  # lint:ok
 
 _struct_l_Q = cython.declare(object, struct.Struct('<Q'))
 _struct_l_I = cython.declare(object, struct.Struct('<I'))
@@ -983,7 +992,7 @@ class mapped_list(list):
             itemsize = 1
         elif dchar in (b'H', b'h'):
             itemsize = 2
-        elif dchar in (b'I', b'i', b'T'):
+        elif dchar in (b'I', b'i', b'T', b'f'):
             itemsize = 4
         elif dchar in (b'Q', b'q', b'd', b't'):
             itemsize = 8
@@ -1019,8 +1028,8 @@ class mapped_list(list):
             else:
                 rv = array(dtype)
                 rv.fromstring(q)
-        elif dchar == b'd':
-            dtype = 'd'
+        elif dchar in (b'd', b'f'):
+            dtype = 'd' if dchar == b'd' else 'f'
             objlen, = _struct_l_Q.unpack(buf[offs:offs+8])
             objlen >>= 8
             offs += 8
@@ -1030,7 +1039,7 @@ class mapped_list(list):
             else:
                 rv = array(dtype)
                 rv.fromstring(q)
-        elif dchar == b't' or dchar == b'T':
+        elif dchar in (b't', b'T'):
             if dchar == b't':
                 dtype = 'l'
             elif dchar == b'T':
@@ -1213,7 +1222,11 @@ def _stable_hash(key):
 
 @cython.locals(idx=int)
 def _enum_keys(obj):
-    for idx, key in enumerate(obj.iterkeys()):
+    if hasattr(obj, 'iterkeys'):
+        keys = obj.iterkeys()
+    else:
+        keys = obj.keys()
+    for idx, key in enumerate(keys):
         yield key, idx
 
 
@@ -1288,7 +1301,7 @@ class proxied_dict(object):
             idmap=idmap,
             implicit_offs=implicit_offs + cur_offs))
         _DICT_HEADER_PACKER.pack_into(buf, basepos, cur_offs - basepos)
-        return proxied_list.pack_into([obj[k] for k in obj.iterkeys()], buf, cur_offs, idmap, implicit_offs)
+        return proxied_list.pack_into([obj[k] for k in iterkeys(obj)], buf, cur_offs, idmap, implicit_offs)
 
     @classmethod
     @cython.locals(values_offs = cython.Py_ssize_t, ioffs = cython.Py_ssize_t)
@@ -1639,8 +1652,9 @@ class proxied_list(object):
     @cython.ccall
     @cython.locals(dataoffs = cython.Py_ssize_t, dcode = cython.char, pbuf = 'const char *',
         itemsize = cython.uchar, objlen = cython.Py_ssize_t)
-    def _metadata(self,
-        itemsizes = dict([(dtype, array(dtype.decode(), []).itemsize) for dtype in (b'B',b'b',b'H',b'h',b'I',b'i',b'l',b'L',b'd')])):
+    def _metadata(self):
+        if self.pybuf.buf == cython.NULL:
+            raise RuntimeError("use after free")
 
         # Cython version
         dataoffs = self.offs
@@ -1665,10 +1679,10 @@ class proxied_list(object):
 
             return dcode, objlen, itemsize, dataoffs, None
 
-        elif dcode in ('q', 'Q', 'd', 't', 'T'):
+        elif dcode in ('q', 'Q', 'd', 'f', 't', 'T'):
             objlen = cython.cast(cython.p_longlong, pbuf + dataoffs)[0] >> 8
             dataoffs += 8
-            if dcode == 'T':
+            if dcode in ('T', 'f'):
                 itemsize = 4
             else:
                 itemsize = 8
@@ -1779,6 +1793,9 @@ class proxied_list(object):
         if index >= objlen or index < 0:
             raise IndexError(orig_index)
 
+        if self.pybuf.buf == cython.NULL:
+            raise RuntimeError("use after free")
+
         if dcode in (b't', b'T'):
             if dcode == b't':
                 lpindex = cython.cast('const long *', cython.cast(cython.p_uchar, self.pybuf.buf) + dataoffs)
@@ -1821,6 +1838,9 @@ class proxied_list(object):
                 cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
         elif dcode == 'd':
             res = cython.cast(cython.p_double,
+                cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
+        elif dcode == 'f':
+            res = cython.cast(cython.p_float,
                 cython.cast(cython.p_uchar, self.pybuf.buf) + obj_offs)[0]  # lint:ok
         else:
             raise ValueError("Inconsistent data, unknown type code %r" % (dcode,))
@@ -1996,8 +2016,7 @@ class proxied_frozenset(object):
             else:
                 return proxied_frozenset(proxied_list.unpack_from(buf, offs, idmap))
         finally:
-            if type(buf) is buffer and pybuf.buf != cython.NULL:
-                PyBuffer_Release(cython.address(pybuf))
+            PyBuffer_Release(cython.address(pybuf))
 
     def copy(self):
         return self
@@ -2031,6 +2050,8 @@ class proxied_frozenset(object):
             return _c_search_hkey_i8(elem, pindex + start, 1, xlen, hint, equal)
         elif dcode == 'd':
             return _c_search_hkey_f64(elem, pindex + start * 8, 8, xlen, hint, equal)
+        elif dcode == 'f':
+            return _c_search_hkey_f32(elem, pindex + start * 4, 4, xlen, hint, equal)
         else:
             raise NotImplementedError("Unsupported data type for fast lookup: %s" % chr(dcode))
 
@@ -2417,7 +2438,6 @@ class proxied_frozenset(object):
 
     def __lt__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._subset(seq, True)
             return cython.cast(proxied_frozenset, self)._subset(seq, True)
         else:
             return cython.cast(proxied_frozenset, seq)._subset(self, True)
@@ -2439,25 +2459,25 @@ class proxied_frozenset(object):
 
     def __or__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._union_2(seq)
+            return cython.cast(proxied_frozenset, self)._union_2(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._union_2(self)
 
     def __and__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._intersect_2(seq)
+            return cython.cast(proxied_frozenset, self)._intersect_2(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._intersect_2(self)
 
     def __sub__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._diff_2(seq)
+            return cython.cast(proxied_frozenset, self)._diff_2(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._diff_2(self)
 
     def __xor__(self, seq):
         if isinstance(self, proxied_frozenset):
-            return self._symdiff_2(seq)
+            return cython.cast(proxied_frozenset, self)._symdiff_2(seq)
         else:
             return cython.cast(proxied_frozenset, seq)._symdiff_2(self)
 
@@ -3459,10 +3479,21 @@ class BufferProxyObject(object):
             self.pybuf.buf = cython.NULL
 
     def __del__(self):
-        # For python 3.4+, in earlier versions it will not be called and we'll depend on dealloc
-        if self.pybuf.buf != cython.NULL:
-            PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
-            self.pybuf.buf = cython.NULL
+        try:
+            # Proxies can have dynamic base classes and multiple inheritance, so we may
+            # need to call a base finalizer (or not).
+            s = super()
+            if hasattr(s, '__del__'):
+                s.__del__()
+
+            # CLear out the idmap to break potential cycles. Set to None which is benign
+            # (proxy still usable with the idmap set to None)
+            self.idmap = None
+        finally:
+            # For python 3.4+, in earlier versions it will not be called and we'll depend on dealloc
+            if self.pybuf.buf != cython.NULL:
+                PyBuffer_Release(cython.address(self.pybuf))  # lint:ok
+                self.pybuf.buf = cython.NULL
 
 @cython.cclass
 class BaseBufferProxyProperty(object):
@@ -5849,7 +5880,8 @@ def _numeric_id_get_gen(self, elem, startpos, hkey, nitems):
     buf = self._likebuf
     PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
     try:
-        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+        index = self.index
+        PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
         try:
             if (indexbuf.strides == cython.NULL
                    or indexbuf.ndim < 2
@@ -6064,7 +6096,8 @@ class NumericIdMapper(_CZipMapBase):
         dtype = self._dtype
         if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
             #lint:disable
-            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            index = self.index
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
             try:
                 if ( indexbuf.strides == cython.NULL
                         or indexbuf.len < hi * indexbuf.strides[0] ):
@@ -6404,7 +6437,8 @@ class NumericId32Mapper(NumericIdMapper):
 def _obj_id_get_gen(self, elem, startpos, hkey, key, default):
     #lint:disable
     nitems = self.index_elements
-    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+    index = self.index
+    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
     try:
         if (indexbuf.strides == cython.NULL
                or indexbuf.ndim < 2
@@ -6594,8 +6628,11 @@ class ObjectIdMapper(_CZipMapBase):
         return self.index[:,2]
 
     def keys(self):
-        # Baaad idea
-        return list(self.iterkeys())
+        if python3:
+            return self.iterkeys()
+        else:
+            # Baaad idea
+            return list(self.iterkeys())
 
     @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer',
         stride0 = cython.size_t, stride1 = cython.size_t, pindex = cython.p_char)
@@ -6676,7 +6713,8 @@ class ObjectIdMapper(_CZipMapBase):
         dtype = self._dtype
         if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
             #lint:disable
-            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            index = self.index
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
             try:
                 if ( indexbuf.strides == cython.NULL
                         or indexbuf.len < hi * indexbuf.strides[0] ):
@@ -6937,7 +6975,8 @@ def safe_utf8(x):
     stride0 = cython.size_t, stride1 = cython.size_t, pbuf_ptr = 'const char *')
 def _str_id_get_gen(self, elem, pbkey, blen, startpos, hkey, pbuf_ptr, pbuf_len, default):
     nitems = self.index_elements
-    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+    index = self.index
+    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
     try:
         if (indexbuf.strides == cython.NULL
                or indexbuf.ndim < 2
@@ -7102,8 +7141,11 @@ class StringIdMapper(_CZipMapBase):
         return self.index[:,2]
 
     def keys(self):
-        # Baaad idea
-        return list(self.iterkeys())
+        if python3:
+            return self.iterkeys()
+        else:
+            # Baaad idea
+            return list(self.iterkeys())
 
     @cython.locals(i = cython.ulonglong, indexbuf = 'Py_buffer', pybuf = 'Py_buffer',
         stride0 = cython.size_t, stride1 = cython.size_t, pindex = cython.p_char)
@@ -7195,7 +7237,8 @@ class StringIdMapper(_CZipMapBase):
         dtype = self._dtype
         if dtype is npuint64 or dtype is npuint32 or dtype is npuint16 or dtype is npuint8:
             #lint:disable
-            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            index = self.index
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
             try:
                 if ( indexbuf.strides == cython.NULL
                         or indexbuf.len < hi * indexbuf.strides[0] ):
@@ -7433,10 +7476,12 @@ class StringId32Mapper(StringIdMapper):
 def _numeric_id_multi_get_gen(self, elem, rv, hkey, startpos, default):
     #lint:disable
     nitems = self.index_elements
-    PyObject_GetBuffer(self._likebuf, cython.address(pybuf), PyBUF_SIMPLE)
+    likebuf = self._likebuf
+    index = self.index
+    PyObject_GetBuffer(likebuf, cython.address(pybuf), PyBUF_SIMPLE)
     try:
         try:
-            PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+            PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
             if (indexbuf.strides == cython.NULL
                    or indexbuf.ndim < 2
                    or indexbuf.len < nitems * indexbuf.strides[0]):
@@ -7463,9 +7508,11 @@ def _numeric_id_multi_get_gen(self, elem, rv, hkey, startpos, default):
 def _numeric_id_multi_has_gen(self, elem, startpos, hkey):
     #lint:disable
     nitems = self.index_elements
-    PyObject_GetBuffer(self._likebuf, cython.address(pybuf), PyBUF_SIMPLE)
+    likebuf = self._likebuf
+    index = self.index
+    PyObject_GetBuffer(likebuf, cython.address(pybuf), PyBUF_SIMPLE)
     try:
-        PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+        PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
         try:
             if (indexbuf.strides == cython.NULL
                    or indexbuf.ndim < 2
@@ -7606,8 +7653,9 @@ class NumericIdMultiMapper(NumericIdMapper):
             buf = self._likebuf
             PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
             try:
+                index = self.index
                 if dtype is npuint64:
-                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
                     try:
                         if ( indexbuf.strides == cython.NULL
                                 or indexbuf.ndim < 2
@@ -7623,7 +7671,7 @@ class NumericIdMultiMapper(NumericIdMapper):
                     finally:
                         PyBuffer_Release(cython.address(indexbuf))
                 elif dtype is npuint32:
-                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
                     try:
                         if ( indexbuf.strides == cython.NULL
                                 or indexbuf.ndim < 2
@@ -7664,7 +7712,8 @@ class NumericId32MultiMapper(NumericIdMultiMapper):
     stride1 = cython.size_t, pindex = cython.p_char)
 def _str_id_multi_get_gen(self, elem, rv, pbkey, blen, startpos, hkey, pbuf_ptr, pbuf_len, default):
     nitems = self.index_elements
-    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+    index = self.index
+    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
     try:
         if (indexbuf.strides == cython.NULL
                or indexbuf.ndim < 2
@@ -7692,7 +7741,8 @@ def _str_id_multi_get_gen(self, elem, rv, pbkey, blen, startpos, hkey, pbuf_ptr,
 def _str_id_multi_has_gen(self, elem, pbkey, blen, startpos, hkey, pbuf_ptr, pbuf_len):
     #lint:disable
     nitems = self.index_elements
-    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+    index = self.index
+    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
     try:
         if (indexbuf.strides == cython.NULL
                or indexbuf.ndim < 2
@@ -7808,8 +7858,9 @@ class StringIdMultiMapper(StringIdMapper):
             buf = self._likebuf
             PyObject_GetBuffer(buf, cython.address(pybuf), PyBUF_SIMPLE)
             try:
+                index = self.index
                 if dtype is npuint64:
-                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
                     try:
                         if ( indexbuf.strides == cython.NULL
                                 or indexbuf.ndim < 2
@@ -7829,7 +7880,7 @@ class StringIdMultiMapper(StringIdMapper):
                     finally:
                         PyBuffer_Release(cython.address(indexbuf))
                 elif dtype is npuint32:
-                    PyObject_GetBuffer(self.index, cython.address(indexbuf), PyBUF_STRIDED_RO)
+                    PyObject_GetBuffer(index, cython.address(indexbuf), PyBUF_STRIDED_RO)
                     try:
                         if ( indexbuf.strides == cython.NULL
                                 or indexbuf.ndim < 2
