@@ -14,6 +14,16 @@ Bugfixes
 - Fixes some compatibility issues with newer python 3 and numpy versions
 - Some general python 3 compatibility fixes (keys/items/values should
   return iterators when mimicking dicts)
+- Work around an issue with python 3's memoryview GC behavior which could
+  segfault in some contrived cases, by actively breaking cycles in proxy
+  buffer object finalizers.
+- Implement complete support for native float32 lists. Support was there
+  already but only partial, and not properly exercised due to a bug.
+- Invoke base class finalizers from proxy buffer object finalizers.
+- Catch and discard mmap.close() exceptions when finalizing buffer pools.
+  Dereferencing them with active references to the underlying data is
+  all too common, but actively closing the mmap when possible is still
+  desirable.
 
 v1.1.0 - 2023-05-24
 ===================
