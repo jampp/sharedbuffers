@@ -5,7 +5,7 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
-v1.1.1 - 2023-06-14
+v1.1.1 - 2023-06-21
 ===================
 
 Bugfixes
