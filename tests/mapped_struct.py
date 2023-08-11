@@ -246,6 +246,11 @@ class SchemaPicklingTest(AttributeBitmapTest):
             else:
                 self.assertFalse(hasattr(dx, k))
 
+    def testUserData(self):
+        schema = mapped_struct.Schema.from_typed_slots(dict(a=int), user_data=dict(some="contents"))
+        pschema = cPickle.loads(cPickle.dumps(schema, 2))
+        self.assertEquals(pschema.user_data, schema.user_data)
+
     def testPrimitiveStruct(self):
         self._testStruct(PrimitiveStruct, dict(a=1, b=2.0, s=b'3', u=u'A'))
 
@@ -908,6 +913,12 @@ class IdMapperTest(unittest.TestCase):
         self.assertEquals(list(rv.values()), [])
         self.assertEquals(list(rv.items()), [])
 
+    def testCopyEmpty(self):
+        rv = self.IdMapperClass.build([], tempdir = None)
+        rv2 = rv.copy()
+        self.assertEqual(list(rv), list(rv2))
+        self.assertIsNot(rv.buf, rv2.buf)
+
     def testBuildInMem(self):
         self._testBuild(2010, None)
 
@@ -920,6 +931,33 @@ class IdMapperTest(unittest.TestCase):
     def testBuildInMemDiscardDuplicates(self):
         self._testBuild(2010, None, build_kwargs = dict(discard_duplicates = True),
             gen_dupes = True)
+
+    def testCopyNonempty(self, N=2010, expectv=lambda v: v):
+        rv = self.IdMapperClass.build(self.gen_values(N))
+        rv = rv.copy()
+        rvget = rv.get
+        for k, v in self.gen_values(N):
+            v = expectv(v)
+            rvv = rvget(k)
+            if rvv != v:
+                self.assertEquals(rvv, v)
+
+    def testCopyAndModify(self, N=2010, expectv=lambda v: v):
+        rv = self.IdMapperClass.build(self.gen_values(N))
+        rvget = rv.get
+        rv2 = rv.copy()
+        rv2._index_data[:, -1] += 1
+        rv2get = rv2.get
+        for k, v in self.gen_values(N):
+            v2 = v + 1
+            rvv2 = rv2get(k)
+            rvv = rvget(k)
+            v = expectv(v)
+            v2 = expectv(v2)
+            if rvv2 != v2:
+                self.assertEquals(rvv2, v2)
+            if rvv != v:
+                self.assertEquals(rvv, v)
 
     def testBuildOnDisk(self):
         self._testBuild(10107, tempfile.gettempdir())
@@ -1012,6 +1050,12 @@ class ApproxStringIdMultiMapperTest(IdMapperTest):
             if v not in elem:  # Purposefully testing not in operator
                 self.assertIn(v, elem)
 
+    def testCopyNonempty(self):
+        super(ApproxStringIdMultiMapperTest, self).testCopyNonempty(expectv=lambda v: [v])
+
+    def testCopyAndModify(self):
+        super(ApproxStringIdMultiMapperTest, self).testCopyAndModify(expectv=lambda v: [v])
+
     # Too much memory
     testBuildHugeInMemShuffled = None
     testBuildHugeOnDiskShuffled = None
@@ -1042,6 +1086,13 @@ class ApproxIntegerIdMultiMapperTest(IdMapperTest):
 
 class ApproxIntId32MultiMapperTest(ApproxIntegerIdMultiMapperTest):
     IdMapperClass = mapped_struct.ApproxStringId32MultiMapper
+
+    def testCopyNonempty(self):
+        super(ApproxIntegerIdMultiMapperTest, self).testCopyNonempty(expectv=lambda v: [v])
+
+    def testCopyAndModify(self):
+        super(ApproxIntegerIdMultiMapperTest, self).testCopyAndModify(expectv=lambda v: [v])
+
 
 class MappedMappingTest(unittest.TestCase):
     # Reuse test values from MappedArrayTest to simplify test code
