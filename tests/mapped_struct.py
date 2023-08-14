@@ -31,11 +31,7 @@ if six.PY3:
     from sharedbuffers import cmp
 import functools
 from six import iteritems, itervalues, iterkeys
-from six.moves import xrange, zip, zip_longest
-
-SKIP_HUGE = os.environ.get('SKIP_HUGE','')
-
-from six.moves import cPickle
+from six.moves import xrange, zip, zip_longest, cPickle
 
 SKIP_HUGE = os.environ.get('SKIP_HUGE', None)
 

@@ -6019,13 +6019,18 @@ class NumericIdMapper(_CZipMapBase):
     def sliced_buf(self):
         return self._buf[:self.index_offset + self.index.nbytes]
 
-    def copy(self):
+    def copy(self, mkbuf=bytearray):
         """
         Make a copy of this mapper.
 
-        Beware, the buffer will be copied into process local RAM.
+        Beware, the buffer will be copied into process local RAM
+        with the default ``mkbuf``.
+
+        :param mkbuf: A callable that returns a buffer-like object
+            with the contents of the passed in buffer. By default,
+            `bytearray` will be used.
         """
-        return type(self)(bytearray(self.sliced_buf))
+        return type(self)(mkbuf(self.sliced_buf))
 
     def preload(self):
         """
@@ -6593,8 +6598,18 @@ class ObjectIdMapper(_CZipMapBase):
     def sliced_buf(self):
         return self._likebuf[self._basepos:self._basepos + self.index_offset + self.index.nbytes]
 
-    def copy(self):
-        return type(self)(bytearray(self.sliced_buf))
+    def copy(self, mkbuf=bytearray):
+        """
+        Make a copy of this mapper.
+
+        Beware, the buffer will be copied into process local RAM
+        with the default ``mkbuf``.
+
+        :param mkbuf: A callable that returns a buffer-like object
+            with the contents of the passed in buffer. By default,
+            `bytearray` will be used.
+        """
+        return type(self)(mkbuf(self.sliced_buf))
 
     def preload(self):
         # Just touch everything in sequential order
@@ -7129,13 +7144,18 @@ class StringIdMapper(_CZipMapBase):
     def sliced_buf(self):
         return self._buf[:self.index_offset + self.index.nbytes]
 
-    def copy(self):
+    def copy(self, mkbuf=bytearray):
         """
         Make a copy of this mapper.
 
-        Beware, the buffer will be copied into process local RAM.
+        Beware, the buffer will be copied into process local RAM
+        with the default ``mkbuf``.
+
+        :param mkbuf: A callable that returns a buffer-like object
+            with the contents of the passed in buffer. By default,
+            `bytearray` will be used.
         """
-        return type(self)(bytearray(self.sliced_buf))
+        return type(self)(mkbuf(self.sliced_buf))
 
     def preload(self):
         # Just touch everything in sequential order
