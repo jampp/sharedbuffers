@@ -2951,7 +2951,7 @@ class mapped_datetime_tz(datetime):
 
         packer = cls.PACKER
         timestamp = int(calendar.timegm(obj.astimezone(TZUTC).timetuple()))
-        utc_off = int(obj.utcoffset().total_seconds() / 60)
+        utc_off = int(obj.utcoffset().total_seconds() // 60)
         packer.pack_into(buf, offs, (timestamp << 20) + obj.microsecond, utc_off)
 
         return offs + packer.size
@@ -2969,7 +2969,7 @@ class mapped_datetime_tz(datetime):
         tz_info = tz_cache.get(utc_off)
         if tz_info is None:
             if utc_off:
-                tz_name = 'UTC%+d' % (utc_off / 60,)
+                tz_name = 'UTC%+d' % (utc_off // 60,)
                 if utc_off % 60:
                     tz_name = "%s:%02d" % (tz_name, utc_off % 60)
                 tz_info = dateutil.tz.tzoffset(tz_name, utc_off * 60)
@@ -4157,6 +4157,7 @@ class Schema(object):
 
         _Proxy = object,
         _proxy_bases = tuple,
+        _user_data = object,
 
         _pack_buffer = object,
         _var_bitmap = cython.ulonglong,
@@ -4185,10 +4186,15 @@ class Schema(object):
         """
         return self._Proxy
 
+    @property
+    def user_data(self):
+        return self._user_data
+
     def __init__(self, slot_types, alignment = 8, pack_buffer_size = 65536, packer_cache = None, unpacker_cache = None,
-            max_pack_buffer_size = None, version = None):
+            max_pack_buffer_size = None, version = None, user_data = None):
         self.prewrite_hook = None
         self.postwrite_hook = None
+        self._user_data = user_data
         self.init(
             self._map_types(slot_types),
             packer_cache = packer_cache, unpacker_cache = unpacker_cache, alignment = alignment,
@@ -4199,13 +4205,16 @@ class Schema(object):
         return (type(self), (self.slot_types,), self.__getstate__())
 
     def __getstate__(self):
-        return dict(
+        state = dict(
             slot_types = self.slot_types,
             slot_keys = self.slot_keys,
             alignment = self.alignment,
             bases = self._proxy_bases,
             version = self._binary_version,
         )
+        if self._user_data is not None:
+            state['user_data'] = self._user_data
+        return state
 
     def __setstate__(self, state):
         # These are a safety hazard (they could cause OOM if corrupted), so ignore them if present
@@ -4214,11 +4223,22 @@ class Schema(object):
         state.pop('max_pack_buffer_size', None)
         bases = state.pop('bases', None)
         state['autoregister'] = True
+        user_data = state.pop('user_data', None)
 
         self.init(**state)
 
         if bases is not None:
             self.set_proxy_bases(bases)
+
+        self._user_data = user_data
+
+    def set_user_data(self, user_data):
+        """
+        Sets user supplied data that will be serialized along with the schema
+        and can be accessed by the application. Store additional metadata
+        needed to interpret the object schema with this.
+        """
+        self._user_data = user_data
 
     def set_proxy_bases(self, bases):
         """
@@ -5944,6 +5964,10 @@ class NumericIdMapper(_CZipMapBase):
     def name(self):
         return self._file.name
 
+    @property
+    def _index_data(self):
+        return self.index
+
     def __init__(self, buf, offset = 0):
         # Accelerate class attributes
         self._dtype = self.dtype
@@ -5990,6 +6014,23 @@ class NumericIdMapper(_CZipMapBase):
 
     def __contains__(self, key):
         return self.get(key) is not None
+
+    @property
+    def sliced_buf(self):
+        return self._buf[:self.index_offset + self.index.nbytes]
+
+    def copy(self, mkbuf=bytearray):
+        """
+        Make a copy of this mapper.
+
+        Beware, the buffer will be copied into process local RAM
+        with the default ``mkbuf``.
+
+        :param mkbuf: A callable that returns a buffer-like object
+            with the contents of the passed in buffer. By default,
+            `bytearray` will be used.
+        """
+        return type(self)(mkbuf(self.sliced_buf))
 
     def preload(self):
         """
@@ -6504,6 +6545,10 @@ class ObjectIdMapper(_CZipMapBase):
     def name(self):
         return self._file.name
 
+    @property
+    def _index_data(self):
+        return self.index
+
     @cython.locals(dtypemax = cython.ulonglong)
     def __init__(self, buf, offset = 0):
         # Accelerate class attributes
@@ -6548,6 +6593,23 @@ class ObjectIdMapper(_CZipMapBase):
 
     def __contains__(self, key):
         return self.get(key) is not None
+
+    @property
+    def sliced_buf(self):
+        return self._likebuf[self._basepos:self._basepos + self.index_offset + self.index.nbytes]
+
+    def copy(self, mkbuf=bytearray):
+        """
+        Make a copy of this mapper.
+
+        Beware, the buffer will be copied into process local RAM
+        with the default ``mkbuf``.
+
+        :param mkbuf: A callable that returns a buffer-like object
+            with the contents of the passed in buffer. By default,
+            `bytearray` will be used.
+        """
+        return type(self)(mkbuf(self.sliced_buf))
 
     def preload(self):
         # Just touch everything in sequential order
@@ -7040,6 +7102,10 @@ class StringIdMapper(_CZipMapBase):
     def name(self):
         return self._file.name
 
+    @property
+    def _index_data(self):
+        return self.index
+
     def __init__(self, buf, offset = 0):
         # Accelerate class attributes
         self._encode = self.encode
@@ -7073,6 +7139,23 @@ class StringIdMapper(_CZipMapBase):
 
     def __contains__(self, key):
         return self.get(key) is not None
+
+    @property
+    def sliced_buf(self):
+        return self._buf[:self.index_offset + self.index.nbytes]
+
+    def copy(self, mkbuf=bytearray):
+        """
+        Make a copy of this mapper.
+
+        Beware, the buffer will be copied into process local RAM
+        with the default ``mkbuf``.
+
+        :param mkbuf: A callable that returns a buffer-like object
+            with the contents of the passed in buffer. By default,
+            `bytearray` will be used.
+        """
+        return type(self)(mkbuf(self.sliced_buf))
 
     def preload(self):
         # Just touch everything in sequential order
@@ -8042,7 +8125,7 @@ class ApproxStringId32MultiMapper(ApproxStringIdMultiMapper):
     dtype = npuint32
 
 @cython.locals(i = int)
-def _iter_values_dump_keys(items, keys_file, value_cache_size = 1024):
+def _iter_values_dump_keys(items, keys_file, value_cache_size):
     if isinstance(items, dict):
         if python3:
             items = items.items()
@@ -8050,12 +8133,16 @@ def _iter_values_dump_keys(items, keys_file, value_cache_size = 1024):
             items = items.iteritems()
     dump = cPickle.dump
     i = -1
-    value_cache = Cache(value_cache_size)
+    if value_cache_size:
+        value_cache = Cache(value_cache_size)
+    else:
+        value_cache = None
     for key, value in items:
-        if value not in value_cache:
+        if value_cache is None or value not in value_cache:
             yield value
             i += 1
-            value_cache[value] = i
+            if value_cache is not None:
+                value_cache[value] = i
             dump((key, i), keys_file, 2)
         else:
             dump((key, value_cache[value]), keys_file, 2)
@@ -8140,9 +8227,9 @@ class MappedMappingProxyBase(_ZipMapBase):
     def keys(self):
         return self.id_mapper.keys()
 
-    def iteritems(self):
-        g = self.value_array.getter()
-        for k,i in self.id_mapper.iteritems():
+    def iteritems(self, g_kw={}, idm_kw={}):
+        g = self.value_array.getter(**g_kw)
+        for k,i in self.id_mapper.iteritems(**idm_kw):
             yield (k, g(i))
 
     def items(self):
@@ -8164,7 +8251,8 @@ class MappedMappingProxyBase(_ZipMapBase):
     @classmethod
     def build(cls, initializer, destfile = None, tempdir = None, idmap = None,
             value_array_kwargs = {},
-            id_mapper_kwargs = {}):
+            id_mapper_kwargs = {},
+            value_cache_size = 1024):
         """
         Builds a mapping of keys to objects with a uniform :class:`Schema` into a memory mapped temporary file.
 
@@ -8202,7 +8290,7 @@ class MappedMappingProxyBase(_ZipMapBase):
                 initial_pos = destfile.tell()
 
                 value_array = cls.ValueArray.build(
-                    _iter_values_dump_keys(initializer, keys_file), values_file,
+                    _iter_values_dump_keys(initializer, keys_file, value_cache_size), values_file,
                     tempdir = tempdir, idmap = idmap, **value_array_kwargs)
 
                 id_mapper = cls.IdMapper.build(

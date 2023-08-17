@@ -5,6 +5,37 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
+v1.2.0 - 2023-08-17
+===================
+
+Added
+~~~~~
+
+- Schema can now take arbitrary ``user_data`` that will be serialized
+  when the schema is serialized. This can be useful to be able to cleanly
+  embed metadata about the schema in the schema itself.
+- Mappings' iteritems now can take ``g_kw`` and ``idm_kw`` to be able
+  to customize idmap and getter kwargs. This can be useful to accelerate
+  or otherwise customize iteration.
+- Mappings' build method now accepts a ``value_cache_size`` argument to
+  customize the cache used to de-duplicate values. As a special case, if
+  this value is 0, de-duplication is deactivated. This is useful to simplify
+  the way simple mappings are constructed when de-duplication is not needed.
+  If de-duplication is enabled and the objects are simple enough, the
+  careful lifetime management documented is no longer necessary, a significant
+  quality of life improvement.
+- Id mappers now expose an ``index_data`` attribute to access the index data
+  itself, which can empower advance manipulation of the mappers without having
+  to fully rebuild them.
+- Id mappers can now be copied. This will create a writable copy of the id mapper
+  and can be useful to create derived mappers, but be warned that it does load
+  the whole mapper's contents into process memory.
+
+Bugfixes
+~~~~~~~~
+
+- Fixed a bug in timezone calculations with python 3
+
 v1.1.1 - 2023-06-21
 ===================
 
