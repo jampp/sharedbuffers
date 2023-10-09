@@ -5,6 +5,15 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
+v1.2.1 - Unreleased
+===================
+
+Bugfixes
+~~~~~~~~
+
+- Fix a bug in which proxied frozensets using the long bitmap representation
+  would suffer from integer overflow and essentially wipe half the entries.
+
 v1.2.0 - 2023-08-17
 ===================
 
