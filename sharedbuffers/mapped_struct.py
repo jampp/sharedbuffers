@@ -2066,9 +2066,9 @@ class proxied_frozenset(object):
         if eint != elem or eint >= 128 or eint < 0:
             return False
         if eint < 64:
-            return self.bitrep_lo & (1 << eint) != 0
+            return self.bitrep_lo & (cython.cast(cython.ulonglong, 1) << eint) != 0
         # 64 < eint < 128
-        return self.bitrep_hi & (1 << (eint - 64)) != 0
+        return self.bitrep_hi & (cython.cast(cython.ulonglong, 1) << (eint - 64)) != 0
 
     @cython.locals(lo=cython.Py_ssize_t, hi=cython.Py_ssize_t, mid=cython.Py_ssize_t,
         dcode=cython.char, objlen=cython.longlong, itemsize=cython.uchar,
