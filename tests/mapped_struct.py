@@ -17,6 +17,7 @@ from decimal import Decimal
 import numpy as np
 import six
 
+
 if six.PY3:
     long = int
     buffer = memoryview
