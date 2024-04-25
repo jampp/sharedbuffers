@@ -27,7 +27,6 @@ pipeline {
                     ) {
                         sh 'pip install Cython==0.29.36'
                         sh """
-                        EOF
                         """.stripIndent()
                         sh script: '/docker-entrypoint.sh pytest_coverage', returnStatus: true
                     }
