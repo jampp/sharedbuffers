@@ -23,7 +23,7 @@ pipeline {
                         -e PYTHON_PRE_DEPENDENCIES=Cython \
                         """
                     ) {
-                        sh "pip install Cython"
+                        sh "pip install Cython==0.29.36"
                         sh "/docker-entrypoint.sh pytest_coverage"
                     }
                 }
