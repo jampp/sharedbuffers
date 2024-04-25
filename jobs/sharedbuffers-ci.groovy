@@ -27,7 +27,7 @@ pipeline {
         stage("Run CI") {
             steps {
                 script {
-                    docker.image("docker.jampp.com/libcore:${PYTHONTEST_IMAGE_VERSION}-${PYTHON_VERSION}").inside(
+                    docker.image("docker.jampp.com/sharedbuffers:${PYTHONTEST_IMAGE_VERSION}-${PYTHON_VERSION}").inside(
                         """\
                         -v ${WORKSPACE}:/src \
                         -e REQUIRES_SDIST \
