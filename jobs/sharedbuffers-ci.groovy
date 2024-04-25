@@ -8,7 +8,7 @@ pipeline {
     }
 
     environment {
-        PYTHONTEST_IMAGE_VERSION = "3.5.0"
+        PYTHONTEST_IMAGE_VERSION = "3.5.0-python3.11"
         REQUIRES_SDIST = "true"
     }
 
@@ -16,7 +16,7 @@ pipeline {
         stage("Run CI") {
             steps {
                 script {
-                    docker.image("docker.jampp.com/sharedbuffers:${PYTHONTEST_IMAGE_VERSION}-python3.11").inside(
+                    docker.image("docker.jampp.com/pythontest-image-builder:${PYTHONTEST_IMAGE_VERSION}").inside(
                         """\
                         -v ${WORKSPACE}:/src \
                         -e REQUIRES_SDIST \
