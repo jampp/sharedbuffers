@@ -11,23 +11,12 @@ pipeline {
         PYTHONTEST_IMAGE_VERSION = "3.5.0"
         REQUIRES_SDIST = "true"
     }
-    when {
-        expression{
-            return hasChangesIn.run("sharedbuffers")
-        }
-    }
-    axes {
-        axis {
-            name 'PYTHON_VERSION'
-            values 'python3.11'
-        }
-    }
 
     stages {
         stage("Run CI") {
             steps {
                 script {
-                    docker.image("docker.jampp.com/sharedbuffers:${PYTHONTEST_IMAGE_VERSION}-${PYTHON_VERSION}").inside(
+                    docker.image("docker.jampp.com/sharedbuffers:${PYTHONTEST_IMAGE_VERSION}-python3.11").inside(
                         """\
                         -v ${WORKSPACE}:/src \
                         -e REQUIRES_SDIST \
