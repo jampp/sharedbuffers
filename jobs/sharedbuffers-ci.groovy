@@ -24,7 +24,6 @@ pipeline {
                         """
                     ) {
                         sh "pip install Cython==0.29.36"
-                        sh 'pip install $( ls -v1 /src/artifacts/dist/libjampp-*.tar.gz | tail -n 1 )'
                         sh "/docker-entrypoint.sh pytest_coverage"
                     }
                 }
