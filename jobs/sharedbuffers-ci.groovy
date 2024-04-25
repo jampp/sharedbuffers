@@ -22,10 +22,14 @@ pipeline {
                         -e REQUIRES_SDIST \
                         -e PYTHON_PRE_DEPENDENCIES=Cython \
                         -e REQUIRES_BUILD \
+                        -e FORCE_SESSION_ROLLBACK_UNITTEST \
                         """
                     ) {
-                        sh "pip install Cython==0.29.36"
-                        sh "/docker-entrypoint.sh pytest_coverage"
+                        sh 'pip install Cython==0.29.36'
+                        sh """
+                        EOF
+                        """.stripIndent()
+                        sh script: '/docker-entrypoint.sh pytest_coverage', returnStatus: true
                     }
                 }
 
