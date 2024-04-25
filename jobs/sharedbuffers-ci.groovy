@@ -20,8 +20,10 @@ pipeline {
                         """\
                         -v ${WORKSPACE}:/src \
                         -e REQUIRES_SDIST \
+                        -e PYTHON_PRE_DEPENDENCIES=Cython \
                         """
                     ) {
+                        sh "pip install Cython"
                         sh "/docker-entrypoint.sh pytest_coverage"
                     }
                 }
