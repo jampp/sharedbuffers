@@ -21,6 +21,7 @@ pipeline {
                         -v ${WORKSPACE}:/src \
                         -e REQUIRES_SDIST \
                         -e PYTHON_PRE_DEPENDENCIES=Cython \
+                        -e REQUIRES_BUILD \
                         """
                     ) {
                         sh "pip install Cython==0.29.36"
