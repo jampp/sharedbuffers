@@ -20,8 +20,8 @@ pipeline {
                         """\
                         -v ${WORKSPACE}:/src \
                         -e PYTHON_PRE_DEPENDENCIES=Cython \
-                        -e REQUIRES_BUILD=true \
                         -e REQUIRES_SDIST=true \
+                        -e REQUIRES_BUILD=true \
                         -e FORCE_SESSION_ROLLBACK_UNITTEST \
                         """
                     ) {
