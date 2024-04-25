@@ -3,7 +3,7 @@
 pipeline {
     agent {
         node {
-            label "spot-small"
+            label "spot-large"
         }
     }
 
