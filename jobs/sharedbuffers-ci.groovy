@@ -8,7 +8,7 @@ pipeline {
     }
 
     environment {
-        PYTHONTEST_IMAGE_VERSION = "3.11.0"
+        PYTHONTEST_IMAGE_VERSION = "3.5.0-python3.11"
         REQUIRES_SDIST = "true"
     }
 
