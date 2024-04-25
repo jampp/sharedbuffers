@@ -19,9 +19,9 @@ pipeline {
                     docker.image("docker.jampp.com/pythontest-image-builder:${PYTHONTEST_IMAGE_VERSION}").inside(
                         """\
                         -v ${WORKSPACE}:/src \
-                        -e REQUIRES_SDIST \
                         -e PYTHON_PRE_DEPENDENCIES=Cython \
-                        -e REQUIRES_BUILD \
+                        -e REQUIRES_BUILD=true \
+                        -e REQUIRES_SDIST=true \
                         -e FORCE_SESSION_ROLLBACK_UNITTEST \
                         """
                     ) {
