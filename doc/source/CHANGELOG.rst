@@ -5,6 +5,14 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
+v1.2.2 - 2024-04-26
+===================
+
+Added
+~~~~~~~~
+
+- Implemented Jenkins CI.
+
 v1.2.1 - 2023-10-10
 ===================
 
