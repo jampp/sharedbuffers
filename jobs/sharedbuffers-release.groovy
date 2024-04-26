@@ -11,12 +11,12 @@ pipeline {
         stage('Check tags & package version') {
             steps{
                 script {
-                    PKG_VERSION = readFile("sharedbuffers/VERSION").trim()
+                    PKG_VERSION = readFile("VERSION").trim()
 
                     if (params.TEST_VERSION) {
                         PKG_VERSION += "-test"
                     }
-                    
+
                     GIT_REF= sh(returnStdout: true, script: "git show-ref --tags ${PKG_VERSION} || echo ''").trim()
 
                     if (GIT_REF != "") {
