@@ -6,15 +6,13 @@ script {
 }
 
 pipeline {
-    agent { node { label 'on-demand-small' } }
-
+    agent { node { label 'on-demand-large' } }
     stages {
-
         stage('Check tags & package version') {
             steps{
                 script {
                     PKG_VERSION = readFile("sharedbuffers/VERSION").trim()
-                    GIT_REF = sh(returnStdout: true, script: "git show-ref --tags ${PKG_VERSION} || echo ''").trim()
+                    GIT_REF= sh(returnStdout: true, script: "git show-ref --tags ${PKG_VERSION} || echo ''").trim()
 
                     if (GIT_REF != "") {
                         error "Tag ${PKG_VERSION} exists: ${GIT_REF}"
@@ -22,11 +20,10 @@ pipeline {
                 }
             }
         }
-
         stage('Publish') {
-            steps{
+            steps {
                 script {
-                    docker.image("python:3.11-alpine").inside("-u root:root") {
+                    docker.image("python:3.11-alpine3.18").inside('-u root:root'){
                         sh '''
                         cat << EOF > ~/.pypirc
                         [distutils]
@@ -37,8 +34,11 @@ pipeline {
                         password: ''
                         EOF
                         '''.stripIndent()
-
-                        sh 'python setup.py build sdist bdist_egg upload -r jampp'
+                        sh '''
+                        apk --no-cache add musl-dev linux-headers g++
+                        pip install numpy
+                        python setup.py build sdist bdist_egg upload -r jampp
+                        '''
                     }
                     withCredentialedGit.run(credential: 'github', setGlobally: false, {
                         sh "git tag ${PKG_VERSION} && git push --tags"
@@ -53,6 +53,6 @@ pipeline {
             script {
                 slackSendNotification.notifyResult(slackResponse)
             }
-         }
+        }
     }
 }
