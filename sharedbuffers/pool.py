@@ -231,7 +231,7 @@ class BaseObjectPool(object):
                 continue
 
             try:
-                pos = self._pack_into(schema, obj, section, _min_pack_buffer)
+                pos = self._pack_into(schema, obj, section, _min_pack_buffer, pack_buffer=pack_buffer)
             except (struct.error, IndexError):
                 # Possibly corrupt
                 section.idmap.clear()
@@ -241,7 +241,7 @@ class BaseObjectPool(object):
             if clear_idmaps_on_new_section:
                 self.clear_idmaps()
             section = self.add_section()
-            pos = self._pack_into(schema, obj, section)
+            pos = self._pack_into(schema, obj, section, _min_pack_buffer, pack_buffer=pack_buffer)
         return pos + section.implicit_offs, schema.unpack_from(section.real_buf, pos)
 
     def add(self, schema, buf, clear_idmaps_on_new_section=True):

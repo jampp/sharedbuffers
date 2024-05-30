@@ -5,6 +5,17 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
+v1.2.2 - Unreleased
+===================
+
+Bugfixes
+~~~~~~~~
+
+- Fix a bug when packing big objects (bigger than the default 1MB
+  pack buffer) into buffer pools when it requires adding a new section.
+  It would fail to use a properly sized pack buffer, raising an error
+  instead of succeeding as expected.
+
 v1.2.1 - 2023-10-10
 ===================
 
