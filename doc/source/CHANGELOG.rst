@@ -16,6 +16,11 @@ Bugfixes
   It would fail to use a properly sized pack buffer, raising an error
   instead of succeeding as expected.
 
+Technical tasks
+~~~~~~~~~~~~~~~
+
+- Implemented Jenkins CI
+
 v1.2.1 - 2023-10-10
 ===================
 
