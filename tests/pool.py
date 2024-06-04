@@ -88,6 +88,28 @@ class SmallIntContainerPackingTest(unittest.TestCase):
                         self.assertFalse(hasattr(dx, k))
         self.assertGreater(len(p.sections), 1)
 
+    def testOverflowBig(self):
+        p = pool.TemporaryObjectPool(section_size=6 << 20)
+        self.addCleanup(p.close, True)
+        o1 = self.Struct(fset=frozenset(range(1000 * 1024)))
+        o2 = self.Struct(fset=frozenset(range(1100 * 1024)))
+        i1, dx1 = p.pack(self.schema, o1)
+        i2, dx2 = p.pack(self.schema, o2)
+        self.assertGreater(len(p.sections), 1)
+
+    def testOverflowBigObject(self):
+        mapped_struct.mapped_object.TYPE_CODES.pop(self.Struct, None)
+        mapped_struct.mapped_object.OBJ_PACKERS.pop(b'\xfe', None)
+        mapped_struct.mapped_object.register_schema(self.Struct, self.schema, b'\xfe')
+        buf = bytearray(5 << 20)
+        p = pool.TemporaryObjectPool(section_size=6 << 20)
+        self.addCleanup(p.close, True)
+        o1 = self.Struct(fset=frozenset(range(1000 * 1024)))
+        o2 = self.Struct(fset=frozenset(range(1100 * 1024)))
+        i1, dx1 = p.pack(mapped_struct.mapped_object, o1, pack_buffer=buf)
+        i2, dx2 = p.pack(mapped_struct.mapped_object, o2, pack_buffer=buf)
+        self.assertGreater(len(p.sections), 1)
+
     def testStableSet(self):
         temp_idmap = {}
         for TEST_VALUES in self.TEST_VALUES:
