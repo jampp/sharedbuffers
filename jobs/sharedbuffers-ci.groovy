@@ -1,4 +1,4 @@
-@Library("jampp-shared-libraries@v2.14.3") _
+@Library("jampp-shared-libraries@v2.15.0") _
 
 pipeline {
     agent {
