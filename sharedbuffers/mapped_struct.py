@@ -7706,6 +7706,7 @@ class NumericIdMultiMapper(NumericIdMapper):
 
             index = self.index
             return startpos < nitems and index[startpos,0] == hkey
+        return False
 
     @cython.locals(
         hkey = cython.ulonglong, startpos = int, nitems = int,

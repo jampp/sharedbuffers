@@ -5,6 +5,16 @@ All notable changes to this project will be documented here.
 
 The format is largely inspired by keepachangelog_.
 
+v1.2.3 - 2026-07-14
+===================
+
+Bugfixes
+~~~~~~~~
+
+- Fix a bug with some cython versions, that would raise type error
+  when calling ``__contains__`` on an approx id mapper with a missing
+  key.
+
 v1.2.2 - 2024-06-05
 ===================
 
